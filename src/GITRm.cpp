@@ -128,7 +128,7 @@ int main(int argc, char** argv) {
   }
   bool piscesRun = true; // add as argument later
   bool debug = false; //search
-  int debug2 = 0;  //routines
+  int debug2 = 1;  //routines
   bool surfacemodel = true;
   bool spectroscopy = true;
   bool thermal_force = false;
