@@ -26,7 +26,7 @@ namespace gitrm {
 }
 
 //TODO put in config class
-const int USE_GITR_RND_NUMS = 1;
+const int USE_GITR_RND_NUMS = 0;
 const bool CREATE_GITR_MESH = false;
 const int USE_READIN_CSR_BDRYFACES = 1;
 const int WRITE_OUT_BDRY_FACES_FILE = 0;
@@ -51,8 +51,8 @@ const o::Real CONSTANT_EFIELD0 = 0;
 const o::Real CONSTANT_EFIELD1 = 0;
 const o::Real CONSTANT_EFIELD2 = 0;
 
-const o::Real CONSTANT_BFIELD0 = 5;
-const o::Real CONSTANT_BFIELD1 = 5;
+const o::Real CONSTANT_BFIELD0 = 0;
+const o::Real CONSTANT_BFIELD1 = 0;
 const o::Real CONSTANT_BFIELD2 = -0.08;
 
 const o::Real CONSTANT_FLOW_VELOCITY0 = 0;

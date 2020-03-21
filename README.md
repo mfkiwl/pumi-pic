@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 ## GITRm
 
 ### Dependencies
@@ -8,6 +7,3 @@
 - Omega_h https://github.com/SNLComputation/omega_h
 - NetCDF-c https://github.com/Unidata/netcdf-c.git
 - NetCDF-cxx https://github.com/Unidata/netcdf-cxx4.git
-=======
-# gitrm_fork
->>>>>>> 12c855a93fff79c2edae7b628c9269cecab9adc0
