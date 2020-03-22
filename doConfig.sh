@@ -7,7 +7,7 @@ cmake -DCMAKE_VERBOSE_MAKEFILE:BOOL=ON \
       -DNetCDF_PREFIX:PATH=$ncxx \
       -DCMAKE_CXX_COMPILER=mpicxx \
       -DCMAKE_BUILD_TYPE=Debug \
-      -DIS_TESTING=OFF \
+      -DIS_TESTING=ON \
       -DTEST_DATA_DIR=$src/gitrm-data \
       $src
 

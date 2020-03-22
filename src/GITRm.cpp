@@ -131,9 +131,9 @@ int main(int argc, char** argv) {
   int debug2 = 0;  //routines
   bool surfacemodel = true;
   bool spectroscopy = true;
-  bool thermal_force = true;
-  bool coulomb_collision = true ;
-  bool diffusion = true;
+  bool thermal_force = false;
+  bool coulomb_collision = false;
+  bool diffusion = false;
 
   bool chargedTracking = true; //false for neutral tracking
   auto deviceCount = 0;
@@ -321,7 +321,7 @@ int main(int argc, char** argv) {
     auto elem_ids_r = o::LOs(elem_ids);
     Kokkos::Profiling::pushRegion("otherRoutines");
     if(spectroscopy)
-      gitrm_spectroscopy(ptcls, sp, elem_ids_r);
+      gitrm_spectroscopy(ptcls, sp, elem_ids_r, true);
 
     gitrm_ionize(ptcls, gir, gp, gm, elem_ids_r, debug2);
     gitrm_recombine(ptcls, gir, gp, gm, elem_ids_r, debug2);

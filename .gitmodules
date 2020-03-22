@@ -1,0 +1,3 @@
+[submodule "gitrm-data"]
+	path = gitrm-data
+	url = https://github.com/SCOREC/gitrm-data.git

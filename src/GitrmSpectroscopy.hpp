@@ -5,7 +5,7 @@
 
 class GitrmSpectroscopy {
 public:
-  GitrmSpectroscopy(); //TODO pass i/p obj, or use static obj
+  GitrmSpectroscopy();
 
   void initSpectroscopy();
   void writeSpectroscopyFile(const std::string& file="spec.nc");
@@ -35,6 +35,7 @@ public:
 
 inline void gitrm_spectroscopy(PS* ptcls, GitrmSpectroscopy& sp, o::LOs& elm_ids,
     bool debug = false) {
+  const auto istep = iTimePlusOne - 1;
   const bool cylSymm = USE_CYL_SYMMETRY; 
   const auto nX = sp.nX;
   const auto nY = sp.nY;
@@ -61,7 +62,7 @@ inline void gitrm_spectroscopy(PS* ptcls, GitrmSpectroscopy& sp, o::LOs& elm_ids
       auto x = pos[0];
       auto y = pos[1];
       auto z = pos[2];
-      auto dim1 = (cylSymm) ? sqrt(x*x + y*y) : x;
+      auto dim1 = (cylSymm) ? (sqrt(x*x + y*y)) : x;
       if(z > gridZ0 && z < gridZn && dim1 > gridX0 && dim1 < gridXn &&
 	y > gridY0 && y < gridYn) {
 	int indX = floor((dim1-gridX0)/dx);
@@ -73,13 +74,17 @@ inline void gitrm_spectroscopy(PS* ptcls, GitrmSpectroscopy& sp, o::LOs& elm_ids
 	auto charge = charge_ps(pid);
 	auto weight = weight_ps(pid);
 	auto index = nBins*nX*nY*nZ + indZ*nX*nY +indY*nX+ indX;
-	Kokkos::atomic_fetch_add(&(bins[index]), weight);
+	auto old = Kokkos::atomic_fetch_add(&(bins[index]), weight);
         if(debug)
-          printf( "spec index %d weight %g \n", index, weight);
+          printf( "spec ptcl %d step %d bins %g index %d weight %g charge %d "
+           "nBins %d pos %g %g %g ind %d \n", ptcl, istep, old+weight, index, weight, 
+            charge, nBins, x, y, z, charge*nX*nY*nZ + indZ*nX*nY + indY*nX+ indX);
         if(charge < nBins) {
 	  auto ind = charge*nX*nY*nZ + indZ*nX*nY + indY*nX+ indX;
 	  OMEGA_H_CHECK(ind >=0);
-	  Kokkos::atomic_fetch_add(&bins[ind], weight);
+	  auto old = Kokkos::atomic_fetch_add(&bins[ind], weight);
+          if(debug)
+            printf("spec: ptcl %d step %d bins %g \n", ptcl, istep, old+weight);
 	}
       } // z
     } //mask
