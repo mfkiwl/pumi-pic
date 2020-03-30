@@ -16,7 +16,3 @@ mpi_test(linetri_intersection_2 1
 mpi_test(test_interp2d 1 ./test_interp2d --kokkos-threads=1)
 #mpi_test(test_dist2bdry_preprocess 1  ./test_dist2ddry_preprocess --kokkos-threads=1)
 
-  #mpi_test(borisMove 1
-  # ./borisMove --kokkos-threads=1 ${TEST_DATA_DIR}/pisces/gitr.msh 
-  #${TEST_DATA_DIR}/inputFields)
-

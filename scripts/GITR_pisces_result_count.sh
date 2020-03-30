@@ -39,7 +39,8 @@ BEGIN {
     sum+=1;
     #if(n==13) 
     if(printmatch)
-      print substr($2, 0, length($2)-3),  $5, $6, $7, " bead " n, sqrt(($5-c)*($5-c)+($6*$6)); 
+      print substr($2, 0, length($2)-3), "xyz:", $5, $6, $7,
+       "bead", n, "rad", sqrt(($5-c)*($5-c)+($6*$6)), "limit:", h1, h2; 
   }
 }
  END {

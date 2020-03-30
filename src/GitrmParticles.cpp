@@ -731,7 +731,7 @@ int GitrmParticles::readGITRPtclStepDataNcFile(const std::string& ncFileName,
   OMEGA_H_CHECK(!ncFileName.empty());
   std::cout << "Reading Test GITR step data : " << ncFileName << "\n";
   // re-order the list in its constructor to leave out empty {}
-  Field3StructInput fs({"intermediate"}, {}, {"nP", "nTHist", "dof"}, 0,
+  Field3StructInput fs({"intermediate"}, {}, {"nP", "nTRun", "dof"}, 0,
     {"RndIoni_at", "RndRecomb_at", "RndCollision_n1_at", "RndCollision_n2_at", 
      "RndCollision_xsi_at", "RndCrossField_at", "RndReflection_at",
      "Opt_IoniRecomb", "Opt_Diffusion", "Opt_Collision", "Opt_SurfaceModel"}); 
@@ -741,7 +741,7 @@ int GitrmParticles::readGITRPtclStepDataNcFile(const std::string& ncFileName,
   testGitrDataIoniRandInd = fs.getIntValueOf("RndIoni_at");
   testGitrDataRecRandInd = fs.getIntValueOf("RndRecomb_at");
   testGitrStepDataDof = fs.getIntValueOf("dof"); // or fs.getNumGrids(2);
-  testGitrStepDataNumTsteps = fs.getIntValueOf("nTHist") - 1; // NOTE
+  testGitrStepDataNumTsteps = fs.getIntValueOf("nTRun");
   testGitrStepDataNumPtcls = fs.getIntValueOf("nP");
   testGitrCrossFieldDiffRndInd = fs.getIntValueOf("RndCrossField_at");
   testGitrCollisionRndn1Ind = fs.getIntValueOf("RndCollision_n1_at"); 
@@ -794,6 +794,7 @@ void GitrmParticles::checkCompatibilityWithGITRflags(int timestep) {
 //allocated for totalPtcls in each picpart
 void GitrmParticles::initPtclHistoryData(int hstep) {
   OMEGA_H_CHECK(hstep > 0);
+  bool debug = true;
   histInterval = hstep;
   if(histInterval > numIterations)
     histInterval = numIterations;
@@ -807,7 +808,12 @@ void GitrmParticles::initPtclHistoryData(int hstep) {
   nFilledPtclsInHistory = 0;
   int size = totalPtcls*dofHistory*nThistory;
   int nph = totalPtcls*nThistory;
+  printf("History: Allocating %d doubles %d + %d ints\n", size, nph, totalPtcls);
+  if(debug)
+    gitrm::printCudaMemInfo();
   ptclHistoryData = o::Write<o::Real>(size, 0, "ptclHistoryData");
+  if(debug)
+    gitrm::printCudaMemInfo();
   ptclIdsOfHistoryData = o::Write<o::LO>(nph, -1, "ptclIdsOfHistoryData");
   lastFilledTimeSteps = o::Write<o::LO>(totalPtcls, 0); //init 0 if mpi reduce
 }

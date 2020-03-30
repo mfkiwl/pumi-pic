@@ -175,6 +175,15 @@ void reallocate_data(o::Write<T>& data, o::LO size, T init=0) {
 //timestep +1
 extern int iTimePlusOne;
 
+namespace gitrm {
+inline void printCudaMemInfo() {
+  size_t mf, ma;
+  printf("executing CUDA meminfo \n");
+  cudaMemGetInfo(&mf, &ma); //TODO
+  double div = 1024*1024*1024;
+  std::cout << "free: " << mf/div << " GB. total: " << ma/div << std::endl;
+}
+} //ns
 /** @brief Calculate distance of particles to domain boundary. 
  * Not yet clear if a pre-determined depth can be used
 */

@@ -129,13 +129,13 @@ int main(int argc, char** argv) {
   bool piscesRun = true; // add as argument later
   bool debug = false; //search
   int debug2 = 0;  //routines
-  bool surfacemodel = true;
-  bool spectroscopy = true;
+  bool surfacemodel = false;
+  bool spectroscopy = false;
   bool thermal_force = false;
   bool coulomb_collision = false;
   bool diffusion = false;
-
   bool chargedTracking = true; //false for neutral tracking
+
   auto deviceCount = 0;
   cudaGetDeviceCount(&deviceCount);
 
@@ -321,7 +321,7 @@ int main(int argc, char** argv) {
     auto elem_ids_r = o::LOs(elem_ids);
     Kokkos::Profiling::pushRegion("otherRoutines");
     if(spectroscopy)
-      gitrm_spectroscopy(ptcls, sp, elem_ids_r, true);
+      gitrm_spectroscopy(ptcls, sp, elem_ids_r, debug2);
 
     gitrm_ionize(ptcls, gir, gp, gm, elem_ids_r, debug2);
     gitrm_recombine(ptcls, gir, gp, gm, elem_ids_r, debug2);

@@ -18,7 +18,7 @@ message(STATUS "Found PUMIpic: ${pumipic_VERSION}")
 bob_public_dep(pumipic)
 
 add_subdirectory(src)
-add_executable(GITRm src/GITRm.cpp ${SOURCES} ${HEADERS})
+add_executable(GITRm src/GITRm.cpp ${SOURCES})
 target_link_libraries(GITRm PUBLIC pumipic::pumipic NetCDF::NetCDF)
 
 #Settings options for testing
