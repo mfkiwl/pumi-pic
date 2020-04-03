@@ -104,7 +104,7 @@ public:
   o::LOs wallCollisionFaceIds;
   o::Write<o::Real> wallCollisionPts_w;
   o::Write<o::LO> wallCollisionFaceIds_w; 
-  void updatePtclHistoryData(int iter, const o::LOs& elem_ids);
+  void updatePtclHistoryData(int iter, int nT, const o::LOs& elem_ids);
   void initPtclHistoryData(int histInterval);
 
   o::Write<o::LO> ptclIdsOfHistoryData;
@@ -112,7 +112,7 @@ public:
   o::Write<o::LO> lastFilledTimeSteps;
   o::Write<o::Real> ptclEndPoints;
   void initPtclEndPoints();
-  void writeOutPtclEndPoints(const std::string& file="positions.m");
+  void writeOutPtclEndPoints(const std::string& file="positions_gitrm.m");
 
   int numInitPtcls = 0;  // ptcls->nPtcls()
   int numPtclsRead = 0;
@@ -250,7 +250,7 @@ inline void gitrm_findDistanceToBdry(GitrmParticles& gp,
           if(debug > 2) {
             auto bfeId = p::elem_id_of_bdry_face_of_tet(bfid, f2rPtr, f2rElem);
             printf(" ptcl %d elem %d d2bdry %.15e bfid %d bdry-el %d pos: %.15e %.15e %.15e bdry-face: "
-              "%.15e %.15e %.15e : %.15e %.15e %.15e : %.15e %.15e %.15e \n", ptcl, elem, dist, bfid, bfeId, 
+              "%g %g %g : %g %g %g : %g %g %g \n", ptcl, elem, dist, bfid, bfeId, 
               ref[0], ref[1], ref[2], face[0][0], face[0][1], face[0][2], face[1][0], 
               face[1][1], face[1][2], face[2][0], face[2][1], face[2][2]);
           }
@@ -265,15 +265,13 @@ inline void gitrm_findDistanceToBdry(GitrmParticles& gp,
               point[i] = pt[i];
           }
         } //for nFaces
-
         if(debug>1) {
           auto fel = p::elem_id_of_bdry_face_of_tet(fid, f2rPtr, f2rElem);
           auto f = p::get_face_coords_of_tet(face_verts, coords, fid);
           auto bdryOrd = bdryFaceOrderedIds[fid]; 
           printf("dist: ptcl %d tstep %d el %d MINdist %.15e nFaces %d fid %d " 
             "face_el %d bdry-ordered-id %d reg %d pos %.15e %.15e %.15e "
-            "nearest_pt %.15e %.15e %.15e face %.15e %.15e %.15e %.15e %.15e"
-            "%.15e %.15e %.15e %.15e \n", 
+            "nearest_pt %.15e %.15e %.15e face %g %g %g : %g %g %g : %g %g %g\n", 
             ptcl, tstep, elem, min, nFaces, fid, fel, bdryOrd, minRegion, ref[0], 
             ref[1], ref[2], point[0], point[1], point[2], f[0][0], f[0][1],
             f[0][2], f[1][0],f[1][1], f[1][2],f[2][0], f[2][1],f[2][2]);

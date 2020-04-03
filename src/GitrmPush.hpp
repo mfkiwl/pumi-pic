@@ -85,8 +85,8 @@ inline void gitrm_calculateE(GitrmParticles& gp, o::Mesh &mesh,
         auto bmid = p::centroid_of_triangle(bface_coords);
         if(debug>1)
           printf(" calcE0: ptcl %d ppos %.15e %.15e %.15e nelMesh %.15e TelMesh %.15e "
-            "  bfidmid %.15e %.15e %.15e bfid %d bfel %d bface_verts %.15e %.15e %.15e ,"
-            " %.15e %.15e %.15e, %.15e %.15e %.15e \n", 
+            "  bfidmid %g %g %g bfid %d bfel %d bface_verts %g %g %g ,"
+            " %g %g %g, %g %g %g \n", 
             ptcl, pos[0], pos[1], pos[2], nelMesh, telMesh, bmid[0], bmid[1], bmid[2], 
             faceId, bfel, bface_coords[0][0], bface_coords[0][1], bface_coords[0][2],
             bface_coords[1][0], bface_coords[1][1], bface_coords[1][2],
@@ -120,14 +120,14 @@ inline void gitrm_calculateE(GitrmParticles& gp, o::Mesh &mesh,
         for(int i=0; i<3; ++i)
           efield_ps(pid, i) = exd[i];
 
-        if(debug>1){
+        if(debug>1)
           printf(" calcE2: ptcl %d bdryface:%d  bfel %d emag %.15e "
               " pos %.15e %.15e %.15e closest %.15e %.15e %.15e distVec %.15e %.15e %.15e "
-              " dirUnitVec %.15e %.15e %.15e \n", 
+              " dirUnitVec %g %g %g \n", 
               ptcl, faceId, bfel, emag, pos[0], pos[1], pos[2],
               closest[0], closest[1], closest[2], distVector[0], distVector[1],
               distVector[2], dirUnitVector[0], dirUnitVector[1], dirUnitVector[2]);
-        } 
+        
         if(debug>1)
           printf(" calcE_this:gitr ptcl %d timestep %d charge %d  dist2bdry %.15e"
              " CLD %.15e efield %.15e  %.15e  %.15e  CLD %.15e  Nel %.15e Tel %.15e \n", 

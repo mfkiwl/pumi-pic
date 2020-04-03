@@ -875,11 +875,11 @@ void GitrmParticles::writePtclStepHistoryFile(std::string ncfile, bool debug) {
 //if elem_ids invalid then store xpoints, else store final position. 
 //if iter is before timestep starts, store init position, which makes
 //total history step +1. Stored in aray for totalPtcls
-void GitrmParticles::updatePtclHistoryData(int iter, const o::LOs& elem_ids) {
+void GitrmParticles::updatePtclHistoryData(int iter, int nT, const o::LOs& elem_ids) {
   bool debug = false;
-  if(!histInterval || iter%histInterval)
+  if(!histInterval || (iter < nT-1 && iter>=0 && iter%histInterval))
     return;
-  int iThistory = 1 + iter/histInterval; 
+  int iThistory = (iter<0) ? 0: (1 + iter/histInterval); 
   auto size = ptclIdsOfHistoryData.size();
   auto dof = dofHistory;
   auto nPtcls = totalPtcls;
@@ -887,6 +887,10 @@ void GitrmParticles::updatePtclHistoryData(int iter, const o::LOs& elem_ids) {
   auto nh = nThistory;
   auto ptclIds = ptclIdsOfHistoryData;
   auto historyData = ptclHistoryData;
+  if(historyData.size() <= nPtcls*dof*iThistory) {
+    printf("History storage is insufficient @ t %d histStep %d\n", iter, iThistory);
+    return;
+  }
   auto vel_ps = ptcls->get<PTCL_VEL>();
   auto pos_ps = ptcls->get<PTCL_POS>();
   auto pos_next = ptcls->get<PTCL_NEXT_POS>();

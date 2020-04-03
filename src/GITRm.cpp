@@ -128,7 +128,7 @@ int main(int argc, char** argv) {
   }
   bool piscesRun = true; // add as argument later
   bool debug = false; //search
-  int debug2 = 0;  //routines
+  int debug2 = 2;  //routines
   bool surfacemodel = false;
   bool spectroscopy = false;
   bool thermal_force = false;
@@ -297,7 +297,7 @@ int main(int argc, char** argv) {
   int np;
   int ps_np;
   
-  gp.updatePtclHistoryData(-1, o::LOs(1,-1, "history-dummy"));
+  gp.updatePtclHistoryData(-1, numIterations, o::LOs(1,-1, "history-dummy"));
   for(int iter=0; iter<numIterations; iter++) {
     ps_np = ptcls->nPtcls();
     MPI_Allreduce(&ps_np, &np, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
@@ -341,7 +341,7 @@ int main(int argc, char** argv) {
     Kokkos::Profiling::popRegion();
     elem_ids_r = o::LOs(elem_ids);
     gp.updateParticleDetection(elem_ids_r, iter, false);
-    gp.updatePtclHistoryData(iter, elem_ids_r);
+    gp.updatePtclHistoryData(iter, numIterations, elem_ids_r);
 
     Kokkos::Profiling::pushRegion("rebuild");
     rebuild(picparts, ptcls, elem_ids, debug);
