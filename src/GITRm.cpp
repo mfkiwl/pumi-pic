@@ -126,15 +126,16 @@ int main(int argc, char** argv) {
         << " <thermal_gradient_file> [<nPtcls><nIter> <histInterval> <gitrDataInFileName> ]\n";
     exit(1);
   }
+  bool chargedTracking = true; //false for neutral tracking
   bool piscesRun = true; // add as argument later
+  
   bool debug = false; //search
-  int debug2 = 2;  //routines
-  bool surfacemodel = false;
-  bool spectroscopy = false;
+  int debug2 = 0;  //routines
+  bool surfacemodel = true;
+  bool spectroscopy = true;
   bool thermal_force = false;
   bool coulomb_collision = false;
-  bool diffusion = false;
-  bool chargedTracking = true; //false for neutral tracking
+  bool diffusion = false; //only if GITR r4 is set
 
   auto deviceCount = 0;
   cudaGetDeviceCount(&deviceCount);
@@ -245,6 +246,7 @@ int main(int argc, char** argv) {
   int testRead = 0;
   if(useGitrRandNums) {
     gp.readGITRPtclStepDataNcFile(gitrDataFileName, testNumPtcls, testRead);
+    printf("Rnd: testNumPtcls %d totalNumPtcls %d \n", testNumPtcls, totalNumPtcls);
     assert(testNumPtcls >= totalNumPtcls);
   } else if(!gitrDataFileName.empty()) {
     if(!comm_rank)
@@ -335,6 +337,7 @@ int main(int argc, char** argv) {
       gitrm_thermal_force(ptcls, &iter, gm, gp, dTime, elem_ids_r, debug2);
     if(surfacemodel) {
       gitrm_surfaceReflection(ptcls, sm, gp, gm, debug2);
+      //reflected ptcl is searched beginning at orig, not from wall hit point.
       search(picparts, gp, elem_ids, debug);
     }
     

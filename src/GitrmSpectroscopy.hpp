@@ -36,7 +36,6 @@ public:
 inline void gitrm_spectroscopy(PS* ptcls, GitrmSpectroscopy& sp, o::LOs& elm_ids,
     bool debug = false) {
   const auto istep = iTimePlusOne - 1;
-  const bool cylSymm = USE_CYL_SYMMETRY; 
   const auto nX = sp.nX;
   const auto nY = sp.nY;
   const auto nZ = sp.nZ;
@@ -62,12 +61,11 @@ inline void gitrm_spectroscopy(PS* ptcls, GitrmSpectroscopy& sp, o::LOs& elm_ids
       auto x = pos[0];
       auto y = pos[1];
       auto z = pos[2];
-      auto dim1 = (cylSymm) ? (sqrt(x*x + y*y)) : x;
-      if(z > gridZ0 && z < gridZn && dim1 > gridX0 && dim1 < gridXn &&
+      if(z > gridZ0 && z < gridZn && x > gridX0 && x < gridXn &&
 	y > gridY0 && y < gridYn) {
-	int indX = floor((dim1-gridX0)/dx);
-	int indZ = floor((z-gridZ0)/dz);
-	int indY = floor((y-gridY0)/dy);
+	int indX = floor((x - gridX0)/dx);
+	int indZ = floor((z - gridZ0)/dz);
+	int indY = floor((y - gridY0)/dy);
 	indX = (indX < 0 || indX >= nX) ? 0: indX; 
 	indY = (indY < 0 || indY >= nY) ? 0: indY; 
 	indZ = (indZ < 0 || indZ >= nZ) ? 0: indZ; 

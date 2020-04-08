@@ -728,8 +728,8 @@ void GitrmParticles::findInitialBdryElemIdInADir(o::Real theta, o::Real phi, o::
 int GitrmParticles::readGITRPtclStepDataNcFile(const std::string& ncFileName,
   int& maxNPtcls, bool debug) {
   OMEGA_H_CHECK(USE_GITR_RND_NUMS == 1);
-  OMEGA_H_CHECK(!ncFileName.empty());
   std::cout << "Reading Test GITR step data : " << ncFileName << "\n";
+  OMEGA_H_CHECK(!ncFileName.empty());
   // re-order the list in its constructor to leave out empty {}
   Field3StructInput fs({"intermediate"}, {}, {"nP", "nTRun", "dof"}, 0,
     {"RndIoni_at", "RndRecomb_at", "RndCollision_n1_at", "RndCollision_n2_at", 
