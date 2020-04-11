@@ -26,7 +26,7 @@ namespace gitrm {
 }
 
 //TODO put in config class
-const int USE_GITR_RND_NUMS = 1;
+const int USE_GITR_RND_NUMS = 0;
 const bool CREATE_GITR_MESH = false;
 const int USE_READIN_CSR_BDRYFACES = 1;
 const int WRITE_OUT_BDRY_FACES_FILE = 0;

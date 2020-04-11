@@ -551,7 +551,7 @@ inline void gitrm_surfaceReflection(PS* ptcls, GitrmSurfaceModel& sm,
       Kokkos::atomic_fetch_add(&(sumWtStrike[gridId]), addSumWtStk);
       Kokkos::atomic_fetch_add(&(sumPtclStrike[gridId]), addSumPtclStk);
       if(debug>1)
-        printf(" surf14 timestep %d ptcl %d materialZ %d newWeight %g\n",
+        printf(" surf14 timestep %d ptcl %d materialZ %g newWeight %g\n",
             iTimeStep, ptcl, materialZ, newWeight);
       if(materialZ > 0 && newWeight > 0) {
         ps_weight(pid) = newWeight;

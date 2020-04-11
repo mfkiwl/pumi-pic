@@ -26,7 +26,7 @@ bool checkIfRankZero() {
 }//ns 
 
 GitrmParticles::GitrmParticles(p::Mesh& picparts, long int nPtcls, int nIter, 
-   double dT, int seed):  ptcls(nullptr), picparts(picparts), mesh(*picparts.mesh()) {
+   double dT, int seed): ptcls(nullptr), picparts(picparts), mesh(*picparts.mesh()) {
   //move to where input is handled
   totalPtcls = nPtcls;
   numIterations = nIter;
@@ -315,7 +315,7 @@ void GitrmParticles::findElemIdsOfPtclCoordsByAdjSearch(const o::Reals& data,
    printf("rank %d : Beginning Ptcl search: ptcl %d found in elem %d\n", 
     comm_rank, ptcl, parentElem);
   if(debug && parentElem < 0)
-   printf("rank %d : Parent elements not found for first %d particles\n", maxLoop);
+   printf("rank %d : Parent elements not found for first %d particles\n", comm_rank, maxLoop);
 
   //find all particles starting from parent
   o::Write<o::LO> numPtclsInElemsAll(nel, 0, "numPtclsInElemsAll");
@@ -400,7 +400,7 @@ void GitrmParticles::setPidsOfPtclsLoadedFromFile(const o::LOs& ptclIdPtrsOfElem
       //Set checks separately to avoid possible Error 
       OMEGA_H_CHECK(ind >= 0);
       OMEGA_H_CHECK(ind < limit);
-      const auto ip = ptclIdsInElem[ind] + pBegin; // TODO
+      const int ip = ptclIdsInElem[ind] + pBegin; // TODO
       if(debug || (ind < 0 || ind>= limit || ip<0 || ip>= nInitPtcls))
         printf("**** elem %d pid %d ind %d thisInd %d nextInd %d indlim %d ip %d\n", 
           elem, pid, ind, thisInd, nextPtclInd[elem], ptclIdPtrsOfElem[elem+1], ip);

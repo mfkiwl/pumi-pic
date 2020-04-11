@@ -133,9 +133,9 @@ int main(int argc, char** argv) {
   int debug2 = 0;  //routines
   bool surfacemodel = true;
   bool spectroscopy = true;
-  bool thermal_force = false;
-  bool coulomb_collision = false;
-  bool diffusion = false; //only if GITR r4 is set
+  bool thermal_force = false; //NOTE to match with original conf
+  bool coulomb_collision = true;
+  bool diffusion = true; //only if GITR r4 is set
 
   auto deviceCount = 0;
   cudaGetDeviceCount(&deviceCount);
@@ -243,9 +243,8 @@ int main(int argc, char** argv) {
 
   int useGitrRandNums = USE_GITR_RND_NUMS;
   int testNumPtcls = 1;
-  int testRead = 0;
   if(useGitrRandNums) {
-    gp.readGITRPtclStepDataNcFile(gitrDataFileName, testNumPtcls, testRead);
+    gp.readGITRPtclStepDataNcFile(gitrDataFileName, testNumPtcls);
     printf("Rnd: testNumPtcls %d totalNumPtcls %d \n", testNumPtcls, totalNumPtcls);
     assert(testNumPtcls >= totalNumPtcls);
   } else if(!gitrDataFileName.empty()) {

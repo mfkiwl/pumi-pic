@@ -34,11 +34,11 @@ void GitrmSpectroscopy::initSpectroscopy() {
   gridX0 = netX0;
   gridY0 = netY0;
   gridZ0 = netZ0;        
-  dX = (netXn-netX0)/(nX-1); // nX-1 in gitr ?
+  dX = (netXn - netX0)/(nX-1); // nX-1 in gitr ?
   gridXn = netX0 + (nX-1)*dX;  //?
-  dY = (netYn-netY0)/nY;
+  dY = (netYn - netY0)/(nY- 1);
   gridYn = netY0 + (nY-1)*dY; //?
-  dZ = (netZn-netZ0)/nZ;
+  dZ = (netZn - netZ0)/(nZ - 1);
   gridZn = netZ0 + (nZ-1)*dZ; //?
   //grids not stored
 }

@@ -1123,7 +1123,7 @@ void GitrmMesh::createSurfaceGitrMesh() {
     auto plus = (side_is_exposed[i]) ? 1: 0;
     lsum += plus;
   }, nbdryFaces);
-  printf("Number of boundary faces(including material surfaces) %d total-faces \n", 
+  printf("Number of boundary faces(including material surfaces) %d total-faces %d\n", 
     nbdryFaces, nf);
   auto surfaceAndMaterialIds = surfaceAndMaterialOrderedIds;
   //using arrays of all faces, later filtered out
