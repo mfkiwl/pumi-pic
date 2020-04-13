@@ -8,9 +8,9 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH}
 
 set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS}")
 
-find_package(NetCDF 4.0.0 REQUIRED COMPONENTS CXX)
-set(gitrm_USE_NetCDF_DEFAULT ON)
-bob_public_dep(NetCDF)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(NetCDF REQUIRED IMPORTED_TARGET netcdf>4.7.0)
+pkg_check_modules(NetCDF-CXX4 REQUIRED IMPORTED_TARGET netcdf-cxx4>4.3.0)
 
 find_package(pumipic REQUIRED)
 set(gitrm_USE_pumipic_DEFAULT ON)
@@ -19,7 +19,10 @@ bob_public_dep(pumipic)
 
 add_subdirectory(src)
 add_executable(GITRm src/GITRm.cpp ${SOURCES})
-target_link_libraries(GITRm PUBLIC pumipic::pumipic NetCDF::NetCDF)
+target_link_libraries(GITRm
+  pumipic::pumipic 
+  PkgConfig::NetCDF
+  PkgConfig::NetCDF-CXX4)
 
 #Settings options for testing
 enable_testing()
