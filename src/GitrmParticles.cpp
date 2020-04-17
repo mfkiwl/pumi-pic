@@ -118,14 +118,12 @@ void GitrmParticles::assignParticles(const o::Reals& data, const o::LOs& elemIdO
   auto pBegin = comm_rank* totalPtcls/comm_size;
  
   //verify
-  const long int totalPtcls_ = totalPtcls;
   const long int numInitPtcls_ = numInitPtcls;
-  long int totalPtcls = 0;
-  MPI_Reduce(&numInitPtcls_, &totalPtcls, 1, MPI_LONG, MPI_SUM, 0,
-    MPI_COMM_WORLD);
-  if(!comm_rank)
-    printf("Particles per rank %ld total %ld \n", numInitPtcls, totalPtcls);
-  if(totalPtcls_)
+  long int totalPtcls_ = 0;
+  MPI_Allreduce(&numInitPtcls_, &totalPtcls_, 1, MPI_LONG, MPI_SUM, MPI_COMM_WORLD);
+  //if(!comm_rank)
+    printf("rank $d : Particles per rank %ld total %ld \n", comm_rank, numInitPtcls, totalPtcls);
+  //if(totalPtcls_)
     OMEGA_H_CHECK(totalPtcls_ == totalPtcls);
 
   o::Write<o::LO> elemIdOfPtcls_w(numInitPtcls, -1, "elemIdOfPtcls");
@@ -974,7 +972,7 @@ void GitrmParticles::writeOutPtclEndPoints(const std::string& file) {
 
 //detector grids, for pisces
 void GitrmParticles::initPtclDetectionData(int numGrid) {
-  //o::LO numGrid = 14;
+  //numGrid is 14 for pisces
   collectedPtcls = o::Write<o::LO>(numGrid, 0, "collectedPtcls");
 }
 

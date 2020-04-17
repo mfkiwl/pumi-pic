@@ -103,7 +103,7 @@ o::Mesh readMesh(char* meshFile, o::Library& lib) {
   } else if( ext == "osh" ) {
     if(!rank)
       std::cout << "reading omegah mesh " << meshFile << "\n";
-    return Omega_h::binary::read(meshFile, lib.self(), true);
+    return Omega_h::read_mesh_file(meshFile, lib.self());
   } else {
     if(!rank)
       std::cout << "error: unrecognized mesh extension \'" << ext << "\'\n";
@@ -157,7 +157,7 @@ int main(int argc, char** argv) {
   MPI_Barrier(MPI_COMM_WORLD);
 
   Omega_h::HostWrite<Omega_h::LO> host_owners(full_mesh.nelems());
-  if (comm_size > 1) {
+  if(comm_size > 1) {
     std::ifstream in_str(argv[2]);
     if (!in_str) {
       if (!comm_rank)
@@ -342,8 +342,8 @@ int main(int argc, char** argv) {
     
     Kokkos::Profiling::popRegion();
     elem_ids_r = o::LOs(elem_ids);
-    gp.updateParticleDetection(elem_ids_r, iter, false);
-    gp.updatePtclHistoryData(iter, numIterations, elem_ids_r);
+    //gp.updateParticleDetection(elem_ids_r, iter, false);
+    //gp.updatePtclHistoryData(iter, numIterations, elem_ids_r);
 
     Kokkos::Profiling::pushRegion("rebuild");
     rebuild(picparts, ptcls, elem_ids, debug);
@@ -372,8 +372,8 @@ int main(int argc, char** argv) {
     gp.writeDetectedParticles(fname, "piscesDetected");
     gm.writeResultAsMeshTag(gp.collectedPtcls);
   }
-  if(histInterval >0)
-    gp.writePtclStepHistoryFile("gitrm-history.nc");
+  //if(histInterval >0)
+  //  gp.writePtclStepHistoryFile("gitrm-history.nc");
   
   if(surfacemodel)
     sm.writeSurfaceDataFile("gitrm-surface.nc");  
