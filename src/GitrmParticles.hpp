@@ -112,7 +112,7 @@ public:
   o::Write<o::LO> lastFilledTimeSteps;
   o::Write<o::Real> ptclEndPoints;
   void initPtclEndPoints();
-  void writeOutPtclEndPoints(const std::string& file="positions_gitrm.m");
+  void writeOutPtclEndPoints(const std::string& file="positions_gitrm.m") const;
 
   int numInitPtcls = 0;  // ptcls->nPtcls()
   int numPtclsRead = 0;
@@ -121,12 +121,16 @@ public:
   int histInterval = 0;
   int nFilledPtclsInHistory = 0;
   int nThistory = 0;
-  void writePtclStepHistoryFile(std::string ncfile, bool debug=false);
-  void writeDetectedParticles(std::string fname="", std::string header="");
+  void writePtclStepHistoryFile(std::string ncfile, bool debug=false) const;
+  void writeDetectedParticles(std::string fname="results.txt",
+    std::string header="particles collected") const ;
   void updateParticleDetection(const o::LOs& elem_ids, o::LO iter, bool debug=true);
   void initPtclDetectionData(int numGrid=14);
   o::Write<o::LO> collectedPtcls;
   
+  int getCommRank() const { return myRank;}
+  void setMyCommRank();
+
   // test GITR step data
   o::Reals testGitrPtclStepData;
   int testGitrDataIoniRandInd = -1;
@@ -149,6 +153,8 @@ public:
   bool ranCoulombCollision = false;
   bool ranDiffusion = false;
   bool ranSurfaceReflection = false;
+private:
+  int myRank = -1;
 };
 
 namespace gitrm {

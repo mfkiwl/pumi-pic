@@ -30,18 +30,20 @@ void printTimerResolution() {
 void updatePtclPositions(PS* ptcls) {
   auto x_ps_d = ptcls->get<0>();
   auto xtgt_ps_d = ptcls->get<1>();
-  auto updatePtclPos = PS_LAMBDA(const int&, const int& pid, const bool&) {
-    x_ps_d(pid,0) = xtgt_ps_d(pid,0);
-    x_ps_d(pid,1) = xtgt_ps_d(pid,1);
-    x_ps_d(pid,2) = xtgt_ps_d(pid,2);
-    xtgt_ps_d(pid,0) = 0;
-    xtgt_ps_d(pid,1) = 0;
-    xtgt_ps_d(pid,2) = 0;
+  auto updatePtclPos = PS_LAMBDA(const int& e, const int& pid, const bool& mask) {
+    if(mask) {
+      x_ps_d(pid,0) = xtgt_ps_d(pid,0);
+      x_ps_d(pid,1) = xtgt_ps_d(pid,1);
+      x_ps_d(pid,2) = xtgt_ps_d(pid,2);
+      xtgt_ps_d(pid,0) = 0;
+      xtgt_ps_d(pid,1) = 0;
+      xtgt_ps_d(pid,2) = 0;
+    }
   };
   ps::parallel_for(ptcls, updatePtclPos, "updatePtclPos");
 }
 
-void rebuild(p::Mesh& picparts, PS* ptcls, o::LOs elem_ids, 
+void rebuild(p::Mesh& picparts, PS* ptcls, o::LOs elem_ids,
     const bool output=false) {
   updatePtclPositions(ptcls);
   const int ps_capacity = ptcls->capacity();
@@ -77,7 +79,7 @@ void search(p::Mesh& picparts, GitrmParticles& gp,  o::Write<o::LO>& elem_ids,
   auto xtgt_ps = ptcls->get<1>();
   auto pid_ps = ptcls->get<2>();
 
-  bool isFound = p::search_mesh_3d<Particle>(*mesh, ptcls, x_ps, xtgt_ps, pid_ps, 
+  bool isFound = p::search_mesh_3d<Particle>(*mesh, ptcls, x_ps, xtgt_ps, pid_ps,
     elem_ids, gp.wallCollisionPts_w, gp.wallCollisionFaceIds_w, maxLoops, debug);
   OMEGA_H_CHECK(isFound);
   Kokkos::Profiling::popRegion();
@@ -112,7 +114,7 @@ o::Mesh readMesh(char* meshFile, o::Library& lib) {
 }
 
 int main(int argc, char** argv) {
-  auto start_sim = std::chrono::system_clock::now(); 
+  auto start_sim = std::chrono::system_clock::now();
   pumipic::Library pic_lib(&argc, &argv);
   Omega_h::Library& lib = pic_lib.omega_h_lib();
   int comm_rank, comm_size;
@@ -121,21 +123,21 @@ int main(int argc, char** argv) {
   if(argc < 7)
   {
     if(comm_rank == 0)
-      std::cout << "Usage: " << argv[0] 
-        << " <mesh> <owners_file> <ptcls_file> <prof_file> <rate_file><surf_file>" 
+      std::cout << "Usage: " << argv[0]
+        << " <mesh> <owners_file> <ptcls_file> <prof_file> <rate_file><surf_file>"
         << " <thermal_gradient_file> [<nPtcls><nIter> <histInterval> <gitrDataInFileName> ]\n";
     exit(1);
   }
   bool chargedTracking = true; //false for neutral tracking
   bool piscesRun = true; // add as argument later
-  
+
   bool debug = false; //search
   int debug2 = 0;  //routines
   bool surfacemodel = true;
-  bool spectroscopy = true;
-  bool thermal_force = false; //NOTE to match with original conf
+  bool spectroscopy = false;
+  bool thermal_force = false; //false in pisces conf
   bool coulomb_collision = true;
-  bool diffusion = true; //only if GITR r4 is set
+  bool diffusion = true; //not for diffusion>1
 
   auto deviceCount = 0;
   cudaGetDeviceCount(&deviceCount);
@@ -178,9 +180,9 @@ int main(int argc, char** argv) {
   p::Mesh picparts(full_mesh, owner);
   o::Mesh* mesh = picparts.mesh();
   mesh->ask_elem_verts(); //caching adjacency info
- 
+
   if (comm_rank == 0)
-    printf("Mesh loaded with verts %d edges %d faces %d elements %d\n", 
+    printf("Mesh loaded with verts %d edges %d faces %d elements %d\n",
       mesh->nverts(), mesh->nedges(), mesh->nfaces(), mesh->nelems());
   std::string ptclSource = argv[3];
   std::string profFile = argv[4];
@@ -203,14 +205,14 @@ int main(int argc, char** argv) {
   int histInterval = 0;
   double dTime = 5e-9; //pisces:5e-9 for 100,000 iterations
   int numIterations = 1; //higher beads needs >10K
-  
+
   if(argc > 8)
     totalNumPtcls = atol(argv[8]);
   if(argc > 9)
     numIterations = atoi(argv[9]);
   if(argc > 10)
     histInterval = atoi(argv[10]);
-  
+
   std::string gitrDataFileName;
   if(argc > 11) {
     gitrDataFileName = argv[11];
@@ -229,7 +231,7 @@ int main(int argc, char** argv) {
     printf("Initializing Particles\n");
   gp.initPtclsFromFile(ptclSource, 100, true);
 
-  // TODO use picparts 
+  // TODO use picparts
   GitrmMesh gm(*mesh);
 
   if(CREATE_GITR_MESH)
@@ -253,13 +255,13 @@ int main(int argc, char** argv) {
     return EXIT_FAILURE;
   }
   auto* ptcls = gp.ptcls;
-  gm.initBField(bFile); 
+  gm.initBField(bFile);
   auto initFields = gm.addTagsAndLoadProfileData(profFile, profFile, thermGradientFile);
   OMEGA_H_CHECK(!ionizeRecombFile.empty());
   GitrmIonizeRecombine gir(ionizeRecombFile, chargedTracking);
   printf("initBoundaryFaces\n");
   auto initBdry = gm.initBoundaryFaces(initFields);
-  
+
   printf("Preprocessing: dist-to-boundary faces\n");
   int nD2BdryTetSubDiv = D2BDRY_GRIDS_PER_TET;
   int readInCsrBdryData = USE_READIN_CSR_BDRYFACES;
@@ -270,17 +272,17 @@ int main(int argc, char** argv) {
   }
   bool writeTextBdryFaces = WRITE_TEXT_D2BDRY_FACES;
   if(writeTextBdryFaces)
-    gm.writeBdryFacesDataText(nD2BdryTetSubDiv);  
+    gm.writeBdryFacesDataText(nD2BdryTetSubDiv);
   bool writeBdryFaceCoords = WRITE_BDRY_FACE_COORDS_NC;
   if(writeBdryFaceCoords)
-    gm.writeBdryFaceCoordsNcFile(2); //selected  
+    gm.writeBdryFaceCoordsNcFile(2); //selected
   bool writeMeshFaceCoords = WRITE_MESH_FACE_COORDS_NC;
   if(writeMeshFaceCoords)
     gm.writeBdryFaceCoordsNcFile(1); //all
   int writeBdryFacesFile = WRITE_OUT_BDRY_FACES_FILE;
   if(writeBdryFacesFile && !readInCsrBdryData) {
-    std::string bdryOutName = "bdryFaces_" + 
-      std::to_string(nD2BdryTetSubDiv) + "div.nc"; 
+    std::string bdryOutName = "bdryFaces_" +
+      std::to_string(nD2BdryTetSubDiv) + "div.nc";
     gm.writeDist2BdryFacesData(bdryOutName, nD2BdryTetSubDiv);
   }
 
@@ -297,7 +299,7 @@ int main(int argc, char** argv) {
   auto end_init = std::chrono::system_clock::now();
   int np;
   int ps_np;
-  
+
   gp.updatePtclHistoryData(-1, numIterations, o::LOs(1,-1, "history-dummy"));
   for(int iter=0; iter<numIterations; iter++) {
     ps_np = ptcls->nPtcls();
@@ -339,11 +341,11 @@ int main(int argc, char** argv) {
       //reflected ptcl is searched beginning at orig, not from wall hit point.
       search(picparts, gp, elem_ids, debug);
     }
-    
+
     Kokkos::Profiling::popRegion();
     elem_ids_r = o::LOs(elem_ids);
-    //gp.updateParticleDetection(elem_ids_r, iter, false);
-    //gp.updatePtclHistoryData(iter, numIterations, elem_ids_r);
+    gp.updateParticleDetection(elem_ids_r, iter, false);
+    gp.updatePtclHistoryData(iter, numIterations, elem_ids_r);
 
     Kokkos::Profiling::pushRegion("rebuild");
     rebuild(picparts, ptcls, elem_ids, debug);
@@ -353,7 +355,7 @@ int main(int argc, char** argv) {
     if(comm_rank == 0 && iter%1000 ==0)
       fprintf(stderr, "nPtcls %d\n", ptcls->nPtcls());
     ps_np = ptcls->nPtcls();
-    MPI_Allreduce(&ps_np, &np, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);  
+    MPI_Allreduce(&ps_np, &np, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
     if(np == 0) {
       fprintf(stderr, "No particles remain... exiting push loop\n");
       break;
@@ -369,14 +371,14 @@ int main(int argc, char** argv) {
 
   if(piscesRun) {
     std::string fname("piscesCounts.txt");
-    gp.writeDetectedParticles(fname, "piscesDetected");
-    gm.writeResultAsMeshTag(gp.collectedPtcls);
+    //gp.writeDetectedParticles(fname, "piscesDetected");
+    //gm.writeResultAsMeshTag(gp.collectedPtcls);
   }
-  //if(histInterval >0)
-  //  gp.writePtclStepHistoryFile("gitrm-history.nc");
-  
+  if(histInterval >0)
+    gp.writePtclStepHistoryFile("gitrm-history.nc");
+
   if(surfacemodel)
-    sm.writeSurfaceDataFile("gitrm-surface.nc");  
+    sm.writeSurfaceDataFile("gitrm-surface.nc");
   if(spectroscopy)
     sp.writeSpectroscopyFile("gitrm-spec.nc");
 
@@ -385,7 +387,4 @@ int main(int argc, char** argv) {
   fprintf(stderr, "Done\n");
   return 0;
 }
-
-
-
 

@@ -47,11 +47,10 @@ void GitrmSpectroscopy::initSpectroscopy() {
 //TODO move to IO file
 //Call at the end of simulation
 void GitrmSpectroscopy::writeSpectroscopyFile(const std::string& file) {
-  o::HostWrite<o::Real> netBins_h(netBins);
-
+  o::HostWrite<o::Real> netBins_in(netBins);
+  o::HostWrite<o::Real> netBins_h(netBins.size(), "netBins_h");
   //FIXME this is only for full buffer partitioning.
-  //MPI_IN_PLACE  wont work for variable size, use MPI GATHERV 
-  MPI_Reduce(MPI_IN_PLACE, &netBins_h[0], 
+  MPI_Reduce(netBins_in.data(), netBins_h.data(),
     netBins_h.size(), MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
   if(!gitrm::checkIfRankZero()) {
     return;

@@ -392,18 +392,21 @@ void GitrmSurfaceModel::getSurfaceModelData(const std::string fileName,
 //This won't work for partitioned mesh of non-full-buffer
 //TODO move to IO file
 //Call at the end of simulation
-void GitrmSurfaceModel::writeSurfaceDataFile(std::string fileName) {
-  o::HostWrite<o::Real> energyDist_h(energyDistribution);
-  o::HostWrite<o::Real> reflDist_h(reflDistribution);
-  o::HostWrite<o::Real> sputtDist_h(sputtDistribution);
+void GitrmSurfaceModel::writeSurfaceDataFile(std::string fileName) const {
+  printf("Writing surface model output \n");
+  o::HostWrite<o::Real> energyDist_in(energyDistribution);
+  o::HostWrite<o::Real> reflDist_in(reflDistribution);
+  o::HostWrite<o::Real> sputtDist_in(sputtDistribution);
+  o::HostWrite<o::Real> energyDist_h(energyDistribution.size(), "energyDist_h");
+  o::HostWrite<o::Real> reflDist_h(reflDistribution.size(), "reflDist_h");
+  o::HostWrite<o::Real> sputtDist_h(sputtDistribution.size(), "sputtDist_h");
 
   //FIXME this is only for full buffer partitioning.
-  //MPI_IN_PLACE  wont work for variable size, use MPI GATHERV 
-  MPI_Reduce(MPI_IN_PLACE, &energyDist_h[0], 
+  MPI_Reduce(energyDist_in.data(), energyDist_h.data(), 
     energyDist_h.size(), MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
-  MPI_Reduce(MPI_IN_PLACE, &reflDist_h[0], 
+  MPI_Reduce(reflDist_in.data(), reflDist_h.data(), 
     reflDist_h.size(), MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
-  MPI_Reduce(MPI_IN_PLACE, &sputtDist_h[0],
+  MPI_Reduce(sputtDist_in.data(), sputtDist_h.data(),
     sputtDist_h.size(), MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
   if(!gitrm::checkIfRankZero()) {
     return;
@@ -431,23 +434,23 @@ void GitrmSurfaceModel::writeSurfaceDataFile(std::string fileName) {
   netCDF::NcDim nAng = ncf.addDim("nAngles", nAngDist);
   dims.push_back(nAng);
   netCDF::NcVar grossDep = ncf.addVar("grossDeposition", netCDF::ncDouble, ncs);
-  grossDep.putVar(&grossDeposition[0]);
+  grossDep.putVar(grossDeposition.data());
   netCDF::NcVar grossEro = ncf.addVar("grossErosion", netCDF::ncDouble, ncs);
-  grossEro.putVar(&grossErosion[0]);
+  grossEro.putVar(grossErosion.data());
   netCDF::NcVar aveSpyl = ncf.addVar("aveSpyl", netCDF::ncDouble, ncs);
-  aveSpyl.putVar(&aveSputtYld[0]);
+  aveSpyl.putVar(aveSputtYld.data());
   netCDF::NcVar spylCounts = ncf.addVar("spylCounts", netCDF::ncInt, ncs);
-  spylCounts.putVar(&sputtYldCount[0]);
+  spylCounts.putVar(sputtYldCount.data());
   //NcVar surfNum = ncf.addVar("surfaceNumber", ncInt, ncs);
   //surfNum.putVar(&surfIds[0]);
   netCDF::NcVar nPtlcsStrike = ncf.addVar("sumParticlesStrike", netCDF::ncInt, ncs);
-  nPtlcsStrike.putVar(&sumPtclStrike[0]);
+  nPtlcsStrike.putVar(sumPtclStrike.data());
   netCDF::NcVar nWtStrike =  ncf.addVar("sumWeightStrike", netCDF::ncDouble, ncs);
-  nWtStrike.putVar(&sumWtStrike[0]);
+  nWtStrike.putVar(sumWtStrike.data());
   netCDF::NcVar surfEDist = ncf.addVar("surfEDist", netCDF::ncDouble, dims);
-  surfEDist.putVar(&energyDist_h[0]);
+  surfEDist.putVar(energyDist_h.data());
   netCDF::NcVar surfReflDist = ncf.addVar("surfReflDist", netCDF::ncDouble, dims);
-  surfReflDist.putVar(&reflDist_h[0]);
+  surfReflDist.putVar(reflDist_h.data());
   netCDF::NcVar surfSputtDist = ncf.addVar("surfSputtDist", netCDF::ncDouble, dims);
-  surfSputtDist.putVar(&sputtDist_h[0]);
+  surfSputtDist.putVar(sputtDist_h.data());
 }

@@ -22,7 +22,7 @@ public:
   void initSurfaceModelData(std::string ncFile, bool debug=false);
   void prepareSurfaceModelData();
   void setFaceId2SurfaceIdMap();
-  void writeSurfaceDataFile(std::string fileName="surface.nc");
+  void writeSurfaceDataFile(std::string fileName="surface.nc") const;
 
   void getSurfaceModelData(const std::string fileName,
    const std::string dataName, const std::vector<std::string>& shapeNames,
