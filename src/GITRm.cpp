@@ -134,7 +134,7 @@ int main(int argc, char** argv) {
   bool debug = false; //search
   int debug2 = 0;  //routines
   bool surfacemodel = true;
-  bool spectroscopy = false;
+  bool spectroscopy = true;
   bool thermal_force = false; //false in pisces conf
   bool coulomb_collision = true;
   bool diffusion = true; //not for diffusion>1
@@ -371,8 +371,8 @@ int main(int argc, char** argv) {
 
   if(piscesRun) {
     std::string fname("piscesCounts.txt");
-    //gp.writeDetectedParticles(fname, "piscesDetected");
-    //gm.writeResultAsMeshTag(gp.collectedPtcls);
+    gp.writeDetectedParticles(fname, "piscesDetected");
+    gm.writeResultAsMeshTag(gp.collectedPtcls);
   }
   if(histInterval >0)
     gp.writePtclStepHistoryFile("gitrm-history.nc");

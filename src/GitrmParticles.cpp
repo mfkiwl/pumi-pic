@@ -948,17 +948,11 @@ void GitrmParticles::writeDetectedParticles(std::string fname, std::string heade
     printf("writing #Detected Particles\n");
   o::HostWrite<o::LO> dataTot_in(collectedPtcls);
   o::HostWrite<o::LO> dataTot(collectedPtcls.size());
-  printf("*****FIXME delete this***** rank %d: %d %d \n", rank, collectedPtcls.size(), dataTot_in.size());
-  for(int i=0; i<dataTot_in.size(); ++i) {
-    printf(" r%d %d , ", rank, dataTot_in[i]);
-    dataTot[i] = 0;
-  }
-  printf("\n");
 
   //TODO handle if different size in ranks
   if(!rank)
     printf("Detected size %d this %d \n", dataTot.size(),dataTot_in.size());
-  int stat = MPI_Reduce(dataTot_in.data(), dataTot.data(), dataTot_in.size(), MPI_DOUBLE, MPI_SUM,
+  int stat = MPI_Reduce(dataTot_in.data(), dataTot.data(), dataTot_in.size(), MPI_INT, MPI_SUM,
     0, MPI_COMM_WORLD);
   OMEGA_H_CHECK(!stat);
   if(rank)
