@@ -15,10 +15,11 @@
 
 
 // Angle, DebyeLength etc were calculated at center of LONG tet, using BField.
-inline void gitrm_calculateE(GitrmParticles& gp, o::Mesh &mesh, 
+inline void gitrm_calculateE(GitrmParticles& gp, o::Mesh &mesh,
     const GitrmMesh &gm, int debug=0) {
   if(debug)
     printf("CalculateE \n");
+  int rank = gitrm::getCommRank();
   const auto& f2rPtr = mesh.ask_up(o::FACE, o::REGION).a2ab;
   const auto& f2rElem = mesh.ask_up(o::FACE, o::REGION).ab2b;
   const auto coords = mesh.coords();
@@ -28,11 +29,11 @@ inline void gitrm_calculateE(GitrmParticles& gp, o::Mesh &mesh,
   const double biasPot = BIAS_POTENTIAL;
   //if(compareWithGitr)
     ++iTimePlusOne;
-  
+
   //const auto larmorRadius_d = gm.larmorRadius_d;
   //const auto childLangmuirDist_d = gm.childLangmuirDist_d;
   const auto iTimeStep = iTimePlusOne - 1;
-  
+
   const auto biasedSurface = BIASED_SURFACE;
   const auto angles = mesh.get_array<o::Real>(o::FACE, "angleBdryBfield");
   const auto potentials = mesh.get_array<o::Real>(o::FACE, "potential");
@@ -52,7 +53,7 @@ inline void gitrm_calculateE(GitrmParticles& gp, o::Mesh &mesh,
   const auto& closestPoints =  gp.closestPoints;
   const auto& faceIds = gp.closestBdryFaceIds;
 
-  auto run = PS_LAMBDA(const int& elem, const int& pid, const int& mask) { 
+  auto run = PS_LAMBDA(const int& elem, const int& pid, const int& mask) {
     if(mask >0) {
       auto ptcl = pid_ps(pid);
       auto faceId = faceIds[pid];
@@ -72,11 +73,11 @@ inline void gitrm_calculateE(GitrmParticles& gp, o::Mesh &mesh,
         auto larmorRadius = larmorRadii[faceId];
         auto childLangmuirDist = childLangmuirDists[faceId];
         auto pos = p::makeVector3(pid, pos_ps);
-        
+
         o::Vector<3> closest;
         for(o::LO i=0; i<3; ++i)
           closest[i] = closestPoints[pid*3+i];
-        
+
         //get Tel, Nel
         auto nelMesh = elDensity[faceId];
         auto telMesh = elTemp[faceId];
@@ -84,10 +85,10 @@ inline void gitrm_calculateE(GitrmParticles& gp, o::Mesh &mesh,
         auto bface_coords = p::get_face_coords_of_tet(face_verts, coords, faceId);
         auto bmid = p::centroid_of_triangle(bface_coords);
         if(debug>1)
-          printf(" calcE0: ptcl %d ppos %.15e %.15e %.15e nelMesh %.15e TelMesh %.15e "
+          printf(" rank %d calcE0: ptcl %d ppos %.15e %.15e %.15e nelMesh %.15e TelMesh %.15e "
             "  bfidmid %g %g %g bfid %d bfel %d bface_verts %g %g %g ,"
-            " %g %g %g, %g %g %g \n", 
-            ptcl, pos[0], pos[1], pos[2], nelMesh, telMesh, bmid[0], bmid[1], bmid[2], 
+            " %g %g %g, %g %g %g \n", rank,
+            ptcl, pos[0], pos[1], pos[2], nelMesh, telMesh, bmid[0], bmid[1], bmid[2],
             faceId, bfel, bface_coords[0][0], bface_coords[0][1], bface_coords[0][2],
             bface_coords[1][0], bface_coords[1][1], bface_coords[1][2],
             bface_coords[2][0], bface_coords[2][1], bface_coords[2][2]);
@@ -98,11 +99,11 @@ inline void gitrm_calculateE(GitrmParticles& gp, o::Mesh &mesh,
         o::Real emag = 0;
         if(biasedSurface) {
           emag = pot/(2.0*childLangmuirDist)* exp(-d2bdry/(2.0*childLangmuirDist));
-        } else { 
+        } else {
           o::Real fd = 0.98992 + 5.1220E-03 * angle - 7.0040E-04 * pow(angle,2.0) +
                        3.3591E-05 * pow(angle,3.0) - 8.2917E-07 * pow(angle,4.0) +
                        9.5856E-09 * pow(angle,5.0) - 4.2682E-11 * pow(angle,6.0);
-          emag = pot*(fd/(2.0 * debyeLength)* exp(-d2bdry/(2.0 * debyeLength))+ 
+          emag = pot*(fd/(2.0 * debyeLength)* exp(-d2bdry/(2.0 * debyeLength))+
                   (1.0 - fd)/(larmorRadius)* exp(-d2bdry/larmorRadius));
         }
         if(isnan(emag))
@@ -123,16 +124,16 @@ inline void gitrm_calculateE(GitrmParticles& gp, o::Mesh &mesh,
         if(debug>1)
           printf(" calcE2: ptcl %d bdryface:%d  bfel %d emag %.15e "
               " pos %.15e %.15e %.15e closest %.15e %.15e %.15e distVec %.15e %.15e %.15e "
-              " dirUnitVec %g %g %g \n", 
+              " dirUnitVec %g %g %g \n",
               ptcl, faceId, bfel, emag, pos[0], pos[1], pos[2],
               closest[0], closest[1], closest[2], distVector[0], distVector[1],
               distVector[2], dirUnitVector[0], dirUnitVector[1], dirUnitVector[2]);
-        
+
         if(debug>1)
           printf(" calcE_this:gitr ptcl %d timestep %d charge %d  dist2bdry %.15e"
-             " CLD %.15e efield %.15e  %.15e  %.15e  CLD %.15e  Nel %.15e Tel %.15e \n", 
-            ptcl, iTimeStep, charge_ps(pid), d2bdry, childLangmuirDist, 
-            efield_ps(pid, 0), efield_ps(pid, 1), 
+             " CLD %.15e efield %.15e  %.15e  %.15e  CLD %.15e  Nel %.15e Tel %.15e \n",
+            ptcl, iTimeStep, charge_ps(pid), d2bdry, childLangmuirDist,
+            efield_ps(pid, 0), efield_ps(pid, 1),
             efield_ps(pid, 2), childLangmuirDist, nelMesh, telMesh);
       } //faceId
     } //mask
@@ -144,7 +145,7 @@ inline void gitrm_borisMove(PS* ptcls, const GitrmMesh &gm, const o::Real dTime,
    int debug=0) {
   if(debug)
     printf("Boris move \n");
-  o::Mesh &mesh = gm.mesh;  
+  o::Mesh &mesh = gm.mesh;
   const auto& coords = mesh.coords();
   const auto& mesh2verts = mesh.ask_elem_verts();
   auto amu = gitrm::PTCL_AMU;
@@ -190,7 +191,7 @@ inline void gitrm_borisMove(PS* ptcls, const GitrmMesh &gm, const o::Real dTime,
       if(use3dField) {
         auto bcc = o::zero_vector<4>();
         p::findBCCoordsInTet(coords, mesh2verts, pos, elem, bcc);
-        p::interpolate3dFieldTet(mesh2verts, BField, elem, bcc, bField);  
+        p::interpolate3dFieldTet(mesh2verts, BField, elem, bcc, bField);
       } else if(useConstantBField || use2dInputFields) {
         p::interp2dVector(BField_2d, bX0, bZ0, bDx, bDz, bGridNx, bGridNz, pos,
           bField, cylSymm);
@@ -226,17 +227,17 @@ inline void gitrm_borisMove(PS* ptcls, const GitrmMesh &gm, const o::Real dTime,
         printf(" Boris0 ptcl %d timestep %d eField %.15e %.15e %.15e bField %.15e %.15e %.15e "
           " qPrime %.15e coeff %.15e qpE %.15e %.15e %.15e vmxB %.15e %.15e %.15e "
           " qp_vmxB %.15e %.15e %.15e  v_prime %.15e %.15e %.15e vpxB %.15e %.15e %.15e "
-          " c_vpxB %.15e %.15e %.15e  v_ %.15e %.15e %.15e\n", 
-          ptcl, iTimeStep, eField[0], eField[1], eField[2], bField[0], bField[1], bField[2],  
-          qPrime, coeff, qpE[0], qpE[1], qpE[2],vmxB[0], vmxB[1],vmxB[2], 
-          qpVmxB[0], qpVmxB[1],  qpVmxB[2], vPrime[0], vPrime[1], vPrime[2] , 
+          " c_vpxB %.15e %.15e %.15e  v_ %.15e %.15e %.15e\n",
+          ptcl, iTimeStep, eField[0], eField[1], eField[2], bField[0], bField[1], bField[2],
+          qPrime, coeff, qpE[0], qpE[1], qpE[2],vmxB[0], vmxB[1],vmxB[2],
+          qpVmxB[0], qpVmxB[1],  qpVmxB[2], vPrime[0], vPrime[1], vPrime[2] ,
           vpxB[0], vpxB[1], vpxB[2], cVpxB[0],cVpxB[1],cVpxB[2], vel_[0], vel_[1], vel_[2] );
       }
 
       if(debug>1) {
         printf(" Boris1 ptcl %d timestep %d e %d charge %d pos %.15e %.15e %.15e =>  %.15e %.15e %.15e  "
-          "vel %.15e %.15e %.15e =>  %.15e %.15e %.15e eField %.15e %.15e %.15e\n", ptcl, iTimeStep, 
-          elem, charge, pos[0], pos[1], pos[2], tgt[0], tgt[1], tgt[2], 
+          "vel %.15e %.15e %.15e =>  %.15e %.15e %.15e eField %.15e %.15e %.15e\n", ptcl, iTimeStep,
+          elem, charge, pos[0], pos[1], pos[2], tgt[0], tgt[1], tgt[2],
           vel0[0], vel0[1], vel0[2], vel[0], vel[1], vel[2], eField[0], eField[1], eField[2]);
       }
     }// mask
@@ -258,11 +259,11 @@ inline void neutralBorisMove(PS* ptcls,  const o::Real dTime) {
       tgt_ps(pid, 2) = pos[2] + vel[2] * dTime;
       vel_ps(pid, 0) = vel[0];
       vel_ps(pid, 1) = vel[1];
-      vel_ps(pid, 2) = vel[2];      
+      vel_ps(pid, 2) = vel[2];
     }// mask
   };
   p::parallel_for(ptcls, boris, "neutralBorisMove");
-} 
+}
 
 inline void neutralBorisMove_float(PS* ptcls,  const o::Real dTime, bool debug = false) {
   auto vel_ps = ptcls->get<PTCL_VEL>();
@@ -284,14 +285,14 @@ inline void neutralBorisMove_float(PS* ptcls,  const o::Real dTime, bool debug =
       if(debug)
         printf("\n");
 
-      for(int i=0; i<3; ++i) {      
+      for(int i=0; i<3; ++i) {
         tgt_ps(pid, i) = val[i];
         vel_ps(pid, i) = v2[i];
       }
-    
+
     }// mask
   };
   p::parallel_for(ptcls, boris, "neutralBorisMove");
-} 
+}
 
 #endif //define

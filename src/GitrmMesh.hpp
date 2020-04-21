@@ -16,7 +16,7 @@ namespace o = Omega_h;
 namespace p = pumipic;
 
 //presheath efield is always used. Since it is const, set CONSTANT_EBFIELDS.
-// sheath efield is calcualted efield, it is always used. Skip calling 
+// sheath efield is calcualted efield, it is always used. Skip calling
 // gitrm_calculateE for neutrals.
 
 // D3D 0.8 to 2.45 m radial
@@ -58,7 +58,7 @@ const o::Real CONSTANT_BFIELD2 = -0.08;
 const o::Real CONSTANT_FLOW_VELOCITY0 = 0;
 const o::Real CONSTANT_FLOW_VELOCITY1 = 0;
 const o::Real CONSTANT_FLOW_VELOCITY2 = -20000;
-// 3 vtx, 1 bdry faceId & 1 bdry elId as Reals. 
+// 3 vtx, 1 bdry faceId & 1 bdry elId as Reals.
 enum { BDRY_FACE_STORAGE_SIZE_PER_FACE = 1, BDRY_FACE_STORAGE_IDS=0 };
 const int BDRY_STORAGE_SIZE_PER_FACE = 1;
 // Elements face type
@@ -86,7 +86,9 @@ public:
   GitrmMesh(GitrmMesh const&) = delete;
   void operator =(GitrmMesh const&) = delete;
 
-  void createSurfaceGitrMesh();  
+  void setMyCommRank();
+  int getCommRank() const { return myRank;}
+  void createSurfaceGitrMesh();
   void printBdryFaceIds(bool printIds=true, o::LO minNums=0);
   void printBdryFacesCSR(bool printIds=true, o::LO minNums=0);
   void test_preProcessDistToBdry();
@@ -106,7 +108,7 @@ public:
   void preprocessStoreBdryFacesBfs(o::Write<o::LO>& numBdryFaceIdsInElems,
     o::Write<o::LO>& bdryFacesCsrW, int csrSize);
 
-  void writeDist2BdryFacesData(const std::string outFileName="d2bdryFaces.nc", 
+  void writeDist2BdryFacesData(const std::string outFileName="d2bdryFaces.nc",
     int nD2BdryTetSubDiv=0);
   o::LOs bdryFacesCsrBFS;
   o::LOs bdryFacePtrsBFS;
@@ -114,17 +116,17 @@ public:
   void preprocessSelectBdryFacesFromAll(bool init);
   o::LOs bdryFacePtrsSelected;
   o::LOs bdryFacesSelectedCsr;
-  void writeBdryFacesDataText(int, std::string fileName="bdryFacesData.txt"); 
+  void writeBdryFacesDataText(int, std::string fileName="bdryFacesData.txt");
   void writeBdryFaceCoordsNcFile(int mode, std::string fileName="meshFaces.nc");
- 
+
   int readDist2BdryFacesData(const std::string &);
   o::LOs bdryCsrReadInDataPtrs;
   o::LOs bdryCsrReadInData;
-  
+
   void setFaceId2BdryFaceIdMap();
   o::LOs bdryFaceOrderedIds;
   int nbdryFaces = 0;
-  
+
   void setFaceId2SurfaceAndMaterialIdMap();
   int nSurfMaterialFaces = 0;
   o::LOs surfaceAndMaterialOrderedIds;
@@ -137,17 +139,17 @@ public:
   void initBField(const std::string &f="bFile");
   void load3DFieldOnVtxFromFile(const std::string, const std::string &,
     Field3StructInput&, o::Reals&);
-  bool addTagsAndLoadProfileData(const std::string &, const std::string &, 
+  bool addTagsAndLoadProfileData(const std::string &, const std::string &,
     const std::string &f="gradfile");
   bool initBoundaryFaces(bool init, bool debug=false);
-  void loadScalarFieldOnBdryFacesFromFile(const std::string, const std::string &, 
+  void loadScalarFieldOnBdryFacesFromFile(const std::string, const std::string &,
     Field3StructInput &, int debug=0);
-  void load1DFieldOnVtxFromFile(const std::string, const std::string &, 
+  void load1DFieldOnVtxFromFile(const std::string, const std::string &,
     Field3StructInput &, o::Reals&, o::Reals&, int debug=0);
   int markDetectorSurfaces(bool render=false);
   void writeResultAsMeshTag(o::Write<o::LO>& data_d);
   void test_interpolateFields(bool debug=false);
-  void printDensityTempProfile(double rmax=0.2, int gridsR=20, 
+  void printDensityTempProfile(double rmax=0.2, int gridsR=20,
     double zmax=0.5, int gridsZ=10);
   void compareInterpolate2d3d(const o::Reals& data3d, const o::Reals& data2d,
     double x0, double z0, double dx, double dz, int nx, int nz, bool debug=false);
@@ -230,10 +232,10 @@ public:
   // till here
   // to replace tag
   o::Reals densIonVtx_d;
-  o::Reals tempIonVtx_d;  
+  o::Reals tempIonVtx_d;
   o::Reals densElVtx_d;
   o::Reals tempElVtx_d;
-  //added for gradient file 
+  //added for gradient file
   o::Reals gradTi_vtx_d;
   //o::Reals gradTiT_vtx_d;
   //o::Reals gradTiZ_vtx_d;
@@ -249,6 +251,7 @@ public:
   o::Write<o::Real> larmorRadius_d;
   o::Write<o::Real> childLangmuirDist_d;
 private:
+  int myRank = -1;
   bool exists = false;
 };
 #endif// define

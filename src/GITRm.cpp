@@ -49,7 +49,7 @@ void rebuild(p::Mesh& picparts, PS* ptcls, o::LOs elem_ids,
   const int ps_capacity = ptcls->capacity();
   PS::kkLidView ps_elem_ids("ps_elem_ids", ps_capacity);
   PS::kkLidView ps_process_ids("ps_process_ids", ps_capacity);
-  //Omega_h::LOs is_safe = picparts.safeTag();
+  Omega_h::LOs is_safe = picparts.safeTag();
   Omega_h::LOs elm_owners = picparts.entOwners(picparts.dim());
   int comm_rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &comm_rank);
@@ -58,7 +58,7 @@ void rebuild(p::Mesh& picparts, PS* ptcls, o::LOs elem_ids,
       int new_elem = elem_ids[pid];
       ps_elem_ids(pid) = new_elem;
       ps_process_ids(pid) = comm_rank;
-      if (new_elem != -1) { // && is_safe[new_elem] == 0) {
+      if (new_elem != -1 && is_safe[new_elem] == 0) {
         ps_process_ids(pid) = elm_owners[new_elem];
       }
     }
@@ -78,7 +78,7 @@ void search(p::Mesh& picparts, GitrmParticles& gp,  o::Write<o::LO>& elem_ids,
   auto x_ps = ptcls->get<0>();
   auto xtgt_ps = ptcls->get<1>();
   auto pid_ps = ptcls->get<2>();
-
+  //NOTE: elem_ids are used in rebuild
   bool isFound = p::search_mesh_3d<Particle>(*mesh, ptcls, x_ps, xtgt_ps, pid_ps,
     elem_ids, gp.wallCollisionPts_w, gp.wallCollisionFaceIds_w, maxLoops, debug);
   OMEGA_H_CHECK(isFound);
@@ -133,11 +133,11 @@ int main(int argc, char** argv) {
 
   bool debug = false; //search
   int debug2 = 0;  //routines
-  bool surfacemodel = true;
-  bool spectroscopy = true;
+  bool surfacemodel = false;
+  bool spectroscopy = false;
   bool thermal_force = false; //false in pisces conf
-  bool coulomb_collision = true;
-  bool diffusion = true; //not for diffusion>1
+  bool coulomb_collision = false;
+  bool diffusion = false; //not for diffusion>1
 
   auto deviceCount = 0;
   cudaGetDeviceCount(&deviceCount);
@@ -292,7 +292,7 @@ int main(int argc, char** argv) {
   //ioni_recomb diffusion coulomb_collision thermal_force surfacemodel spectroscopy
   //  gp.checkCompatibilityWithGITRflags(iter);
 
-  if(debug)
+  if(false)
     profileAndInterpolateTest(gm, true); //move to unit_test
   printf("\ndTime %g NUM_ITERATIONS %d\n", dTime, numIterations);
   fprintf(stderr, "\n*********Main Loop**********\n");
@@ -344,7 +344,7 @@ int main(int argc, char** argv) {
 
     Kokkos::Profiling::popRegion();
     elem_ids_r = o::LOs(elem_ids);
-    gp.updateParticleDetection(elem_ids_r, iter, false);
+    gp.updateParticleDetection(elem_ids_r, iter, iter==numIterations-1, false);
     gp.updatePtclHistoryData(iter, numIterations, elem_ids_r);
 
     Kokkos::Profiling::pushRegion("rebuild");
