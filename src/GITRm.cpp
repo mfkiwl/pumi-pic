@@ -133,16 +133,19 @@ int main(int argc, char** argv) {
 
   bool debug = false; //search
   int debug2 = 0;  //routines
-  bool surfacemodel = false;
+  bool surfacemodel = true;
   bool spectroscopy = false;
   bool thermal_force = false; //false in pisces conf
-  bool coulomb_collision = false;
-  bool diffusion = false; //not for diffusion>1
+  bool coulomb_collision = true;
+  bool diffusion = true; //true means diffusion=1
 
   auto deviceCount = 0;
   cudaGetDeviceCount(&deviceCount);
+  size_t free, total;
+  cudaMemGetInfo(&free, &total);
 
   if(comm_rank == 0) {
+    std::cout << "free " << free/(1024.0*1024.0) << " total " << total/(1024.0*1024.0) << " MB\n";
     printf("device count per process %d\n", deviceCount);
     printf("world ranks %d\n", comm_size);
     printf("particle_structs floating point value size (bits): %zu\n", sizeof(fp_t));
@@ -214,15 +217,18 @@ int main(int argc, char** argv) {
     histInterval = atoi(argv[10]);
 
   std::string gitrDataFileName;
+  int useGitrRnd = 0;
   if(argc > 11) {
     gitrDataFileName = argv[11];
+    useGitrRnd = 1;
     if(!comm_rank)
       printf(" gitr comparison DataFile %s\n", gitrDataFileName.c_str());
   }
 
   std::srand(time(NULL));// TODO kokkos
   int seed = 0;//1; //TODO set to 0 : no seed
-  GitrmParticles gp(picparts, totalNumPtcls, numIterations, dTime, seed);
+
+  GitrmParticles gp(picparts, totalNumPtcls, numIterations, dTime, seed, useGitrRnd);
   if(histInterval > 0)
     gp.initPtclHistoryData(histInterval);
   //current extruded mesh has Y, Z switched
@@ -243,16 +249,13 @@ int main(int argc, char** argv) {
     gp.initPtclDetectionData(dataSize);
   }
 
-  int useGitrRandNums = USE_GITR_RND_NUMS;
   int testNumPtcls = 1;
-  if(useGitrRandNums) {
+  if(gp.useGitrRndNums) {
     gp.readGITRPtclStepDataNcFile(gitrDataFileName, testNumPtcls);
     printf("Rnd: testNumPtcls %d totalNumPtcls %d \n", testNumPtcls, totalNumPtcls);
     assert(testNumPtcls >= totalNumPtcls);
-  } else if(!gitrDataFileName.empty()) {
     if(!comm_rank)
-      printf("USE_GITR_RND_NUMS is not set\n");
-    return EXIT_FAILURE;
+      printf("useGitrRndNums is ON\n");
   }
   auto* ptcls = gp.ptcls;
   gm.initBField(bFile);

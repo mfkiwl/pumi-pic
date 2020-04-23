@@ -26,7 +26,8 @@ bool checkIfRankZero() {
 }//ns
 
 GitrmParticles::GitrmParticles(p::Mesh& picparts, long int nPtcls, int nIter,
-   double dT, int seed): ptcls(nullptr), picparts(picparts), mesh(*picparts.mesh()) {
+   double dT, int seed, int gitrRnd): ptcls(nullptr), picparts(picparts), mesh(*picparts.mesh()),
+   useGitrRndNums(gitrRnd) {
   //move to where input is handled
   totalPtcls = nPtcls;
   numIterations = nIter;
@@ -743,7 +744,7 @@ void GitrmParticles::findInitialBdryElemIdInADir(o::Real theta, o::Real phi, o::
 // Read GITR particle step data of all time steps; eg: rand numbers.
 int GitrmParticles::readGITRPtclStepDataNcFile(const std::string& ncFileName,
   int& maxNPtcls, bool debug) {
-  OMEGA_H_CHECK(USE_GITR_RND_NUMS == 1);
+  OMEGA_H_CHECK(useGitrRndNums == 1);
   if(!myRank)
     std::cout << "Reading Test GITR step data : " << ncFileName << "\n";
   OMEGA_H_CHECK(!ncFileName.empty());

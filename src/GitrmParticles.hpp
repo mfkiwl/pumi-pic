@@ -33,7 +33,8 @@ typedef p::ParticleStructure<Particle> PS;
 
 class GitrmParticles {
 public:
-  GitrmParticles(p::Mesh& picparts, long int totalPtcls, int nIter, double dT, int seed);
+  GitrmParticles(p::Mesh& picparts, long int totalPtcls, int nIter, double dT, 
+    int seed, int gitrRnd);
   ~GitrmParticles();
   GitrmParticles(GitrmParticles const&) = delete;
   void operator=(GitrmParticles const&) = delete;
@@ -133,6 +134,7 @@ public:
   void setMyCommRank();
 
   // test GITR step data
+  const int useGitrRndNums;
   o::Reals testGitrPtclStepData;
   int testGitrDataIoniRandInd = -1;
   int testGitrDataRecRandInd = -1;

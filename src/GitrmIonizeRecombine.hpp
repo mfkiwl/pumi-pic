@@ -111,8 +111,8 @@ inline void gitrm_ionize(PS* ptcls, const GitrmIonizeRecombine& gir,
   auto dxTemp = gm.tempIonDx;
   auto dzTemp = gm.tempIonDz;
 
-  bool useGitrRnd = USE_GITR_RND_NUMS;
-  //#ifdef USE_GITR_RND_NUMS
+  const int useGitrRnd = gp.useGitrRndNums;
+  //#ifdef useGitrRndNums
   if(!gp.ranIonization)
     gp.ranIonization = true;
   const auto& testGitrPtclStepData = gp.testGitrPtclStepData;
@@ -249,10 +249,10 @@ inline void gitrm_recombine(PS* ptcls, const GitrmIonizeRecombine& gir,
   auto dxTemp = gm.tempIonDx;
   auto dzTemp = gm.tempIonDz;
 
-  auto useGitrRnd = USE_GITR_RND_NUMS;
+  const int useGitrRnd = gp.useGitrRndNums;
   if(!gp.ranRecombination)
     gp.ranRecombination = true;
-  //#ifdef USE_GITR_RND_NUMS
+  //#ifdef useGitrRndNums
   const auto& testGitrPtclStepData = gp.testGitrPtclStepData;
   const auto testGDof = gp.testGitrStepDataDof;
   const auto testGrecInd = gp.testGitrDataRecRandInd;

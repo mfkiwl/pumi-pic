@@ -195,7 +195,7 @@ inline void gitrm_surfaceReflection(PS* ptcls, GitrmSurfaceModel& sm,
     return;
   auto& rpool = gp.rand_pool;
 
-  bool useGitrRnd = USE_GITR_RND_NUMS;
+  const int useGitrRnd = gp.useGitrRndNums;
   if(!gp.ranSurfaceReflection)
     gp.ranSurfaceReflection = true;
   const auto& testGitrPtclStepData = gp.testGitrPtclStepData;

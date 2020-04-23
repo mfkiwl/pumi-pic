@@ -25,7 +25,7 @@ inline void gitrm_calculateE(GitrmParticles& gp, o::Mesh &mesh,
   const auto coords = mesh.coords();
   const auto face_verts = mesh.ask_verts_of(2);
 
-  const int compareWithGitr = USE_GITR_RND_NUMS;
+  const int compareWithGitr = gp.useGitrRndNums;
   const double biasPot = BIAS_POTENTIAL;
   //if(compareWithGitr)
     ++iTimePlusOne;

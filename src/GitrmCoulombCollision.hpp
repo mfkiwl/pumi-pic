@@ -211,7 +211,7 @@ inline void gitrm_coulomb_collision(PS* ptcls, int *iteration, const GitrmMesh& 
   const auto collisionIndex3 = gp.testGitrCollisionRndxsiInd;
   auto& xfaces =gp.wallCollisionFaceIds;
 
-  bool useGitrRnd = USE_GITR_RND_NUMS;
+  const int useGitrRnd = gp.useGitrRndNums;
   auto& rpool = gp.rand_pool;
   auto updatePtclPos = PS_LAMBDA(const int& e, const int& pid, const bool& mask){ 
     if(mask > 0&& elm_ids[pid] >= 0){

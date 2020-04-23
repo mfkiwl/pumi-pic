@@ -43,7 +43,7 @@ const GitrmParticles& gp, double dt, const o::LOs& elm_ids, int debug=0)
   const auto iTimeStep = iTimePlusOne - 1;
   const auto diff_rnd1 = gp.testGitrCrossFieldDiffRndInd;
   auto& xfaces =gp.wallCollisionFaceIds;
-  bool useGitrRnd = USE_GITR_RND_NUMS;
+  const int useGitrRnd = gp.useGitrRndNums;
   auto& rpool = gp.rand_pool;
   auto psn = ptcls->capacity();
   o::HostWrite<o::Real> rnd1_h(psn), rnd2_h(psn);
