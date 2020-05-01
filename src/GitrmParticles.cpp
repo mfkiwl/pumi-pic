@@ -26,22 +26,61 @@ bool checkIfRankZero() {
 }//ns
 
 GitrmParticles::GitrmParticles(p::Mesh& picparts, long int nPtcls, int nIter,
-   double dT, int seed, int gitrRnd): ptcls(nullptr), picparts(picparts), mesh(*picparts.mesh()),
-   useGitrRndNums(gitrRnd) {
+   double dT, bool cuRnd, unsigned long int seed, bool gitrRnd):
+   picparts(picparts), mesh(*picparts.mesh()), ptcls(nullptr) {
   //move to where input is handled
+  useCudaRnd = cuRnd;
+  useGitrRndNums = gitrRnd;
   totalPtcls = nPtcls;
   numIterations = nIter;
   timeStep = dT;
-  if(seed)
-    rand_pool = Kokkos::Random_XorShift64_Pool<>(seed);
-  else
-   rand_pool = Kokkos::Random_XorShift64_Pool<>(time(NULL));
-
   setMyCommRank();
+  //if(!useGitrRndNums) //TODO testing
+    initRandGenerator(seed);
 }
 
 GitrmParticles::~GitrmParticles() {
   delete ptcls;
+  if(useCudaRnd)
+    cudaFree(cudaRndStates);
+}
+
+void GitrmParticles::initRandGenerator(unsigned long int seed) {
+  if(useCudaRnd) {
+   //NOTE : states for maximum particles initialized in all ranks.
+   //Otherwise store state seed(ptcl) and current offset in ptcls, to be used 
+   //after migration in the new rank to initialize and use with offset.
+   //NOTE: With mpi, the seeds (id's) are same in all ranks (0 to n/ranks), for even
+   //division of ptcls. This is the case in GITR. Conflict when particles migrated.
+    auto nPtcls = totalPtcls;
+    curandState* cudaRndStates;
+    cudaMalloc((void **)&cudaRndStates, nPtcls*sizeof(curandState));
+    std::cout <<" Initializing CUDA random numbers for " << nPtcls << " ptcls\n";
+    Omega_h::parallel_for(nPtcls, OMEGA_H_LAMBDA(const o::LO& id) {
+      curand_init(id, 0, 0, &cudaRndStates[id]);
+    });
+    this->cudaRndStates = cudaRndStates;
+    bool debug = false;
+    if(debug) {
+      Omega_h::parallel_for(1, OMEGA_H_LAMBDA(const o::LO& id){
+        auto localState = cudaRndStates[id];
+        double r;
+        for(int i=0; i<1000; ++i) {
+          r = curand_uniform(&localState);
+          printf(" %d gitrm-rnd %d %.15f\n", i, r);
+        }
+        cudaRndStates[id] = localState;
+      });
+    }
+  } else {
+    //TODO state id is not used currently to draw. Init nPtcls with ptcl as
+    //seeds and use rpool.get_state() => rpool.get_state(ptcl)  ?
+    //But index has to be < max.initialized.
+    if(seed)
+      rand_pool = Kokkos::Random_XorShift64_Pool<>(seed);
+    else
+     rand_pool = Kokkos::Random_XorShift64_Pool<>(time(NULL));
+  }
 }
 
 void GitrmParticles::setMyCommRank() {
@@ -100,7 +139,7 @@ void GitrmParticles::defineParticles(const o::LOs& ptclsInElem, int elId) {
     printf("\n");
   }
   //'sigma', 'V', and the 'policy' control the layout of the PS structure
-  const int sigma = INT_MAX; //full sorting
+  const int sigma = 1;//INT_MAX; //full sorting
   const int V = 128;//1024;
   Kokkos::TeamPolicy<Kokkos::DefaultExecutionSpace> policy(10000, 32);
   printf("Constructing Particles with sigma %d\n", sigma);
@@ -129,7 +168,7 @@ void GitrmParticles::assignParticles(const o::Reals& data, const o::LOs& elemIdO
   long int totalPtcls_ = 0;
   MPI_Reduce(&numInitPtcls_, &totalPtcls_, 1, MPI_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
   if(!comm_rank)
-    printf("rank $d : Particles per rank %ld total %ld \n", comm_rank,
+    printf("rank %d : Particles on rank %d ; total %ld \n", comm_rank,
       numInitPtcls, totalPtcls);
   if(!comm_rank)
     OMEGA_H_CHECK(totalPtcls_ == totalPtcls);
@@ -393,7 +432,7 @@ void GitrmParticles::convertInitPtclElemIdsToCSR(const o::LOs& numPtclsInElems,
 void GitrmParticles::setPidsOfPtclsLoadedFromFile(const o::LOs& ptclIdPtrsOfElem,
   const o::LOs& ptclIdsInElem,  const o::LOs& elemIdOfPtcls, const o::LOs& ptclDataInds) {
   int debug = 0;
-  auto nInitPtcls = numInitPtcls;
+  //auto nInitPtcls = numInitPtcls;
   //TODO for full-buffer only
   int comm_size;
   int rank = myRank;

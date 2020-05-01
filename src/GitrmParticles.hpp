@@ -3,6 +3,10 @@
 
 #include <fstream>
 #include <cstdlib>
+
+#include <cuda.h>
+#include <curand_kernel.h>
+
 #include <mpi.h>
 #include <netcdf>
 #include <Kokkos_Core.hpp>
@@ -34,7 +38,7 @@ typedef p::ParticleStructure<Particle> PS;
 class GitrmParticles {
 public:
   GitrmParticles(p::Mesh& picparts, long int totalPtcls, int nIter, double dT, 
-    int seed, int gitrRnd);
+    bool useCudaRnd=false, unsigned long int seed=0, bool gitrRnd=false);
   ~GitrmParticles();
   GitrmParticles(GitrmParticles const&) = delete;
   void operator=(GitrmParticles const&) = delete;
@@ -45,8 +49,16 @@ public:
   o::Real timeStep = 0;
   long int totalPtcls = 0;
   int numIterations = 0;
-
+  /** Random number setting
+   */
   Kokkos::Random_XorShift64_Pool<> rand_pool;
+  void initRandGenerator(unsigned long int seed);
+  /** Default is Kokkos Rnd if useCudaRnd is false
+   */
+  bool useCudaRnd;
+  curandState *cudaRndStates;
+  o::Write<curandState*> cudaRndStates_d;
+
   void assignParticles(const o::Reals& data, const o::LOs& elemIdOfPtclsAll,
    o::LOs& numPtclsInElems, o::LOs& elemIdOfPtcls, o::LOs& ptclDataInds);
 
@@ -134,7 +146,7 @@ public:
   void setMyCommRank();
 
   // test GITR step data
-  const int useGitrRndNums;
+  int useGitrRndNums;
   o::Reals testGitrPtclStepData;
   int testGitrDataIoniRandInd = -1;
   int testGitrDataRecRandInd = -1;

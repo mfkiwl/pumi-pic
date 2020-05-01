@@ -37,7 +37,7 @@ public:
   o::LOs surfaceAndMaterialOrderedIds;
   int nDetectSurfaces = 0;
   o::LOs detectorSurfaceOrderedIds;
-  o::Reals bdryFaceMaterialZs;
+  o::LOs bdryFaceMaterialZs;
 
   //from NC file
   std::string fileString{};
@@ -195,6 +195,9 @@ inline void gitrm_surfaceReflection(PS* ptcls, GitrmSurfaceModel& sm,
     return;
   auto& rpool = gp.rand_pool;
 
+  const bool useCudaRnd = gp.useCudaRnd;
+  auto* cuStates =  gp.cudaRndStates;
+  
   const int useGitrRnd = gp.useGitrRndNums;
   if(!gp.ranSurfaceReflection)
     gp.ranSurfaceReflection = true;
@@ -358,7 +361,7 @@ inline void gitrm_surfaceReflection(PS* ptcls, GitrmSurfaceModel& sm,
 
       auto materialZ = materials[fid];
       if(debug>1)
-        printf(" surf3+ timestep %d ptcl %d materialZ %g normVel %g %g %g "
+        printf(" surf3+ timestep %d ptcl %d materialZ %d normVel %g %g %g "
           "surfNormOut %g %g %g E0 %g thetaImpact %g : sizes %d %d %d \n", iTimeStep, 
           ptcl, materialZ, normVel[0], normVel[1],normVel[2], surfNormOut[0], surfNormOut[1], 
           surfNormOut[2], E0, thetaImpact, sputtYld.size(),angSputtRefCoeff.size(), 
@@ -385,7 +388,17 @@ inline void gitrm_surfaceReflection(PS* ptcls, GitrmSurfaceModel& sm,
         rand8 = testGitrPtclStepData[beg+1];
         rand9 = testGitrPtclStepData[beg+2];
         rand10 = testGitrPtclStepData[beg+3];
-      } else {
+      } else if (useCudaRnd) {
+        auto localState = cuStates[ptcl];
+        rand7 = curand_uniform(&localState);
+        rand8 = curand_uniform(&localState);
+        rand9 = curand_uniform(&localState);
+        rand10 = curand_uniform(&localState);
+        cuStates[ptcl] = localState;
+        if(false)
+          printf("cudaRndNums-surf %d tstep %d %g %g %g %g\n", ptcl, iTimeStep, 
+            rand7, rand8, rand9, rand10);
+      } else { 
         auto rnd = rpool.get_state();
         rand7 = rnd.drand();
         rand8 = rnd.drand();
@@ -551,7 +564,7 @@ inline void gitrm_surfaceReflection(PS* ptcls, GitrmSurfaceModel& sm,
       Kokkos::atomic_fetch_add(&(sumWtStrike[gridId]), addSumWtStk);
       Kokkos::atomic_fetch_add(&(sumPtclStrike[gridId]), addSumPtclStk);
       if(debug>1)
-        printf(" surf14 timestep %d ptcl %d materialZ %g newWeight %g\n",
+        printf(" surf14 timestep %d ptcl %d materialZ %d newWeight %g\n",
             iTimeStep, ptcl, materialZ, newWeight);
       if(materialZ > 0 && newWeight > 0) {
         ps_weight(pid) = newWeight;

@@ -45,6 +45,10 @@ const GitrmParticles& gp, double dt, const o::LOs& elm_ids, int debug=0)
   auto& xfaces =gp.wallCollisionFaceIds;
   const int useGitrRnd = gp.useGitrRndNums;
   auto& rpool = gp.rand_pool;
+
+  const bool useCudaRnd = gp.useCudaRnd;
+  auto* cuStates =  gp.cudaRndStates;
+
   auto psn = ptcls->capacity();
   o::HostWrite<o::Real> rnd1_h(psn), rnd2_h(psn);
   for(auto i=0; i<psn; ++i) {
@@ -157,9 +161,15 @@ const GitrmParticles& gp, double dt, const o::LOs& elm_ids, int debug=0)
 
         if( USEPERPDIFFUSION==1){
           
-          if(useGitrRnd)
+          if(useGitrRnd) {
             r3  = testGitrPtclStepData[ptcl*testGNT*testGDof + iTimeStep*testGDof + diff_rnd1];
-          else{
+          } else if (useCudaRnd) {
+            auto localState = cuStates[ptcl];
+            r3 = curand_uniform(&localState);
+            cuStates[ptcl] = localState;
+            if(false)
+              printf("cudaRndNums-diff %d tstep %d %g\n", ptcl, iTimeStep, r3);
+          } else{
             auto rnd = rpool.get_state();
             r3 = rnd.drand();
             rpool.free_state(rnd);

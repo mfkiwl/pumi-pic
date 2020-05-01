@@ -17,6 +17,8 @@
 // Angle, DebyeLength etc were calculated at center of LONG tet, using BField.
 inline void gitrm_calculateE(GitrmParticles& gp, o::Mesh &mesh,
     const GitrmMesh &gm, int debug=0) {
+  ++iTimePlusOne;
+  const auto iTimeStep = iTimePlusOne - 1; //consistent with calls in other routines
   if(debug)
     printf("CalculateE \n");
   int rank = gitrm::getCommRank();
@@ -24,16 +26,9 @@ inline void gitrm_calculateE(GitrmParticles& gp, o::Mesh &mesh,
   const auto& f2rElem = mesh.ask_up(o::FACE, o::REGION).ab2b;
   const auto coords = mesh.coords();
   const auto face_verts = mesh.ask_verts_of(2);
-
-  const int compareWithGitr = gp.useGitrRndNums;
-  const double biasPot = BIAS_POTENTIAL;
-  //if(compareWithGitr)
-    ++iTimePlusOne;
-
   //const auto larmorRadius_d = gm.larmorRadius_d;
   //const auto childLangmuirDist_d = gm.childLangmuirDist_d;
-  const auto iTimeStep = iTimePlusOne - 1;
-
+  const double biasPot = BIAS_POTENTIAL;
   const auto biasedSurface = BIASED_SURFACE;
   const auto angles = mesh.get_array<o::Real>(o::FACE, "angleBdryBfield");
   const auto potentials = mesh.get_array<o::Real>(o::FACE, "potential");
@@ -166,8 +161,8 @@ inline void gitrm_borisMove(PS* ptcls, const GitrmMesh &gm, const o::Real dTime,
   const auto& BField_2d = gm.Bfield_2d;
   const auto eFieldConst_d = gitrm::getConstEField();
   //TODO crash using these variables
-  const o::Real eQ = gitrm::ELECTRON_CHARGE;//1.60217662e-19;
-  const o::Real pMass = gitrm::PROTON_MASS;//1.6737236e-27;
+  //const o::Real eQ = gitrm::ELECTRON_CHARGE;//1.60217662e-19;
+  //const o::Real pMass = gitrm::PROTON_MASS;//1.6737236e-27;
   auto pid_ps = ptcls->get<PTCL_ID>();
   auto tgt_ps = ptcls->get<PTCL_NEXT_POS>();
   auto efield_ps  = ptcls->get<PTCL_EFIELD>();

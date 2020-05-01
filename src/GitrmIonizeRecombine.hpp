@@ -111,10 +111,13 @@ inline void gitrm_ionize(PS* ptcls, const GitrmIonizeRecombine& gir,
   auto dxTemp = gm.tempIonDx;
   auto dzTemp = gm.tempIonDz;
 
+  const bool useCudaRnd = gp.useCudaRnd;
+  auto* cuStates =  gp.cudaRndStates;
+  
   const int useGitrRnd = gp.useGitrRndNums;
   //#ifdef useGitrRndNums
   if(!gp.ranIonization)
-    gp.ranIonization = true;
+    gp.ranIonization = true; //logging, not rnd
   const auto& testGitrPtclStepData = gp.testGitrPtclStepData;
   const auto testGDof = gp.testGitrStepDataDof;
   const auto testGNT = gp.testGitrStepDataNumTsteps;
@@ -202,8 +205,16 @@ inline void gitrm_ionize(PS* ptcls, const GitrmIonizeRecombine& gir,
       double randn = 0;
       if(useGitrRnd) {
         randn = testGitrPtclStepData[ptcl*testGNT*testGDof + iTimeStep*testGDof + testGIind];
-      } else { 
-        auto rnd = rpool.get_state();
+      } else if (useCudaRnd) {
+        //NOTE : states for all particles to be initialized in all ranks
+        auto localState = cuStates[ptcl];
+        randn = curand_uniform(&localState);
+        cuStates[ptcl] = localState;
+        if(false)
+          printf("cudaRndNums-ioni %d tstep %d %g\n", ptcl, iTimeStep, randn);
+      } else {
+        //TODO use state index ? 
+        auto rnd = rpool.get_state(); //rpool.get_state(pid)  ?
         randn = rnd.drand();
         rpool.free_state(rnd);
       }
@@ -249,6 +260,9 @@ inline void gitrm_recombine(PS* ptcls, const GitrmIonizeRecombine& gir,
   auto dxTemp = gm.tempIonDx;
   auto dzTemp = gm.tempIonDz;
 
+  const bool useCudaRnd = gp.useCudaRnd;
+  auto* cuStates =  gp.cudaRndStates;
+  
   const int useGitrRnd = gp.useGitrRndNums;
   if(!gp.ranRecombination)
     gp.ranRecombination = true;
@@ -342,8 +356,13 @@ inline void gitrm_recombine(PS* ptcls, const GitrmIonizeRecombine& gir,
           randGitr = testGitrPtclStepData[ptcl*testGNT*testGDof + 
             iTimeStep*testGDof + testGrecInd];
           randn = randGitr;
-        }
-        else { 
+       } else if (useCudaRnd) {
+          auto localState = cuStates[ptcl];
+          randn = curand_uniform(&localState);
+          cuStates[ptcl] = localState;
+          if(false)
+            printf("cudaRndNums-recomb %d tstep %d %g\n", ptcl, iTimeStep, randn);
+        } else { 
           auto rnd = rpool.get_state();
           randn = rnd.drand();
           rpool.free_state(rnd);
@@ -359,8 +378,8 @@ inline void gitrm_recombine(PS* ptcls, const GitrmIonizeRecombine& gir,
           gitrInd = ptcl*testGNT*testGDof+iTimeStep*testGDof+testGrecInd;
         
         if(debug>1)
-          printf(" recomb %d ptcl %d charge %d randn %g P1 %g rateRecomb %g @ %d\n", 
-            xfid<0, ptcl, charge_ps(pid), randn, P1, rateRecomb, gitrInd);
+          printf(" recomb %d ptcl %d  tstep %d charge %d randn %g P1 %g rateRecomb %g @ %d\n", 
+            xfid<0, ptcl, iTimeStep, charge_ps(pid), randn, P1, rateRecomb, gitrInd);
       }
     } //mask 
   };

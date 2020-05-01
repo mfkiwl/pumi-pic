@@ -120,8 +120,7 @@ int main(int argc, char** argv) {
   int comm_rank, comm_size;
   MPI_Comm_rank(MPI_COMM_WORLD, &comm_rank);
   MPI_Comm_size(MPI_COMM_WORLD, &comm_size);
-  if(argc < 7)
-  {
+  if(argc < 7) {
     if(comm_rank == 0)
       std::cout << "Usage: " << argv[0]
         << " <mesh> <owners_file> <ptcls_file> <prof_file> <rate_file><surf_file>"
@@ -133,6 +132,7 @@ int main(int argc, char** argv) {
 
   bool debug = false; //search
   int debug2 = 0;  //routines
+  bool useCudaRnd = true; //replace kokkos rnd
   bool surfacemodel = true;
   bool spectroscopy = false;
   bool thermal_force = false; //false in pisces conf
@@ -217,18 +217,17 @@ int main(int argc, char** argv) {
     histInterval = atoi(argv[10]);
 
   std::string gitrDataFileName;
-  int useGitrRnd = 0;
+  bool useGitrRndNums = 0;
   if(argc > 11) {
     gitrDataFileName = argv[11];
-    useGitrRnd = 1;
+    useGitrRndNums = true;
     if(!comm_rank)
       printf(" gitr comparison DataFile %s\n", gitrDataFileName.c_str());
   }
 
-  std::srand(time(NULL));// TODO kokkos
-  int seed = 0;//1; //TODO set to 0 : no seed
-
-  GitrmParticles gp(picparts, totalNumPtcls, numIterations, dTime, seed, useGitrRnd);
+  unsigned long int seed = 0;
+  GitrmParticles gp(picparts, totalNumPtcls, numIterations, dTime, useCudaRnd,
+    seed, useGitrRndNums);
   if(histInterval > 0)
     gp.initPtclHistoryData(histInterval);
   //current extruded mesh has Y, Z switched
@@ -271,7 +270,7 @@ int main(int argc, char** argv) {
   if(readInCsrBdryData) {
     gm.readDist2BdryFacesData("bdryFaces_in.nc");
   } else {
-    gm.preprocessSelectBdryFacesFromAll(initBdry);
+    gm.preprocessSelectBdryFacesFromAll();
   }
   bool writeTextBdryFaces = WRITE_TEXT_D2BDRY_FACES;
   if(writeTextBdryFaces)
@@ -386,7 +385,10 @@ int main(int argc, char** argv) {
     sp.writeSpectroscopyFile("gitrm-spec.nc");
 
   Omega_h::vtk::write_parallel("meshvtk", mesh, mesh->dim());
-
+  cudaMemGetInfo(&free, &total);
+  double mtotal = 1.0/(1024*1024) * (double)total;
+  double mfree = 1.0/(1024*1024) * (double)free;
+  fprintf(stderr, "GPU memory: total %.0f used %.0f MB\n", mtotal, mtotal-mfree);
   fprintf(stderr, "Done\n");
   return 0;
 }

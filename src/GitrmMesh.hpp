@@ -22,13 +22,15 @@ namespace p = pumipic;
 // D3D 0.8 to 2.45 m radial
 
 namespace gitrm {
-  const double surfaceAndMaterialModelZ = 74.0;
+  const double surfaceAndMaterialModelZ = 74;
 }
 
 //TODO put in config class
 const bool CREATE_GITR_MESH = false;
 const int USE_READIN_CSR_BDRYFACES = 1;
 const int WRITE_OUT_BDRY_FACES_FILE = 0;
+const int D2BDRY_MIN_SELECT = 10;
+const int D2BDRY_MEM_FACTOR = 1; //per 8G memory
 const bool WRITE_TEXT_D2BDRY_FACES = false;
 const bool WRITE_BDRY_FACE_COORDS_NC = false;
 const bool WRITE_MESH_FACE_COORDS_NC = false;
@@ -74,7 +76,7 @@ const int SKIP_MODEL_IDS_FROM_DIST2BDRY = 0; //set to 0
   const auto face_verts = mesh.ask_verts_of(2); \
   const auto down_r2f = mesh.ask_down(3, 2).ab2b; \
   const auto down_r2fs = mesh.ask_down(3, 2).ab2b; \
-  const auto side_is_exposed = mark_exposed_sides(&mesh);
+  const auto side_is_exposed = o::mark_exposed_sides(&mesh);
 
 class GitrmMesh {
 public:
@@ -112,7 +114,11 @@ public:
   o::LOs bdryFacesCsrBFS;
   o::LOs bdryFacePtrsBFS;
 
-  void preprocessSelectBdryFacesFromAll(bool init);
+  /** Store closest boundary faces in each element in the domain.
+   * onlyMaterialSheath skip others consistent with GITR sheath hash creation. 
+   */
+  void preprocessSelectBdryFacesFromAll(bool onlyMaterialSheath=true);
+
   o::LOs bdryFacePtrsSelected;
   o::LOs bdryFacesSelectedCsr;
   void writeBdryFacesDataText(int, std::string fileName="bdryFacesData.txt");
@@ -121,6 +127,32 @@ public:
   int readDist2BdryFacesData(const std::string &);
   o::LOs bdryCsrReadInDataPtrs;
   o::LOs bdryCsrReadInData;
+
+  /** create ordered ids starting 0 for given geometric bdry ids. 
+   */
+  void setOrderedBdryIds(const o::LOs& gFaceIds, int& nSurfaces,
+    o::LOs& orderedIds, const o::LOs& gFaceValues, bool fill = false);
+
+  void markBdryFacesOnGeomModelIds(const o::LOs& gFaces,
+     o::Write<o::LO>& mark_d, o::LO newVal, bool init);
+  
+  template<typename T>
+  void createBdryFaceClassArray(const o::LOs& gFaceIds, o::Write<T>& bdryArray,
+     const o::Read<T>& gFaceValues, bool fill = false) {
+    const auto side_is_exposed = o::mark_exposed_sides(&mesh);
+    auto faceClassIds = mesh.get_array<o::ClassId>(2, "class_id");
+    auto size = gFaceIds.size();
+    o::parallel_for(mesh.nfaces(), OMEGA_H_LAMBDA(const o::LO& fid) {
+      if(side_is_exposed[fid]) {
+        for(auto id=0; id < size; ++id) {
+          if(gFaceIds[id] == faceClassIds[fid]) {
+            auto v = (fill) ? gFaceValues[id] : 1;
+            bdryArray[fid] = v;
+          }
+        }
+      }
+    });
+  }
 
   void setFaceId2BdryFaceIdMap();
   o::LOs bdryFaceOrderedIds;
@@ -133,7 +165,7 @@ public:
   o::LOs detectorSurfaceOrderedIds;
 
   void setFaceId2BdryFaceMaterialsZmap();
-  o::Reals bdryFaceMaterialZs;
+  o::LOs bdryFaceMaterialZs;
 
   void initBField(const std::string &f="bFile");
   void load3DFieldOnVtxFromFile(const std::string, const std::string &,
@@ -245,7 +277,7 @@ public:
   //get model Ids by opening mesh/model in Simmodeler
   o::HostWrite<o::LO> detectorSurfaceModelIds;
   o::HostWrite<o::LO> bdryMaterialModelIds;
-  o::HostWrite<o::Real> bdryMaterialModelIdsZ;
+  o::HostWrite<o::LO> bdryMaterialModelIdsZ;
   o::HostWrite<o::LO> surfaceAndMaterialModelIds;
   o::Write<o::Real> larmorRadius_d;
   o::Write<o::Real> childLangmuirDist_d;

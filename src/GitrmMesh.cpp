@@ -19,7 +19,7 @@ GitrmMesh::GitrmMesh(o::Mesh& m):
     523, 509, 495,481, 467,453, 439, 154};
   //source materials model ids
   bdryMaterialModelIds = o::HostWrite<o::LO>{138};
-  bdryMaterialModelIdsZ = o::HostWrite<o::Real>{74.0};
+  bdryMaterialModelIdsZ = o::HostWrite<o::LO>{74}; //Tungsten
   //top of inner cylinder and top lid of tower included
   surfaceAndMaterialModelIds = o::HostWrite<o::LO>{268, 593, 579, 565,
     551, 537, 523, 509, 495,481, 467,453, 439, 154, 150, 138};
@@ -27,7 +27,7 @@ GitrmMesh::GitrmMesh(o::Mesh& m):
   exists = true;
   setFaceId2BdryFaceIdMap();
   setFaceId2SurfaceAndMaterialIdMap();
-  setFaceId2BdryFaceMaterialsZmap();
+  //setFaceId2BdryFaceMaterialsZmap();
   setMyCommRank();
 }
 
@@ -51,7 +51,44 @@ void GitrmMesh::setFaceId2BdryFaceIdMap() {
   OMEGA_H_CHECK(nbdryFaces == (o::HostRead<o::LO>(bdryFaces_r))[nf-1]);
 }
 
+
+//create ordered ids starting 0 for given geometric bdry ids.
+//copy associated values if fill is true.
+void GitrmMesh::setOrderedBdryIds(const o::LOs& gFaceIds, int& nSurfaces,
+    o::LOs& orderedIds, const o::LOs& gFaceValues, bool fill) {
+  auto nf = mesh.nfaces();
+  o::Write<o::LO> isSurface_d(nf, 0, "isSurface");
+  createBdryFaceClassArray(gFaceIds, isSurface_d, gFaceValues, fill);
+  nSurfaces = o::get_sum(o::LOs(isSurface_d));
+  auto scanIds_r = o::offset_scan(o::LOs(isSurface_d));
+  auto scanIds_w = o::deep_copy(scanIds_r);
+  //set non-surface, ie, repeating numbers, to -1
+  o::parallel_for(nf, OMEGA_H_LAMBDA(const o::LO& fid) {
+    if(!isSurface_d[fid])
+      scanIds_w[fid]= -1;
+  });
+  orderedIds = o::LOs(scanIds_w);
+  //last index of scanned is cumulative sum
+  OMEGA_H_CHECK(nSurfaces == (o::HostRead<o::LO>(scanIds_r))[nf-1]);
+}
+
 void GitrmMesh::setFaceId2SurfaceAndMaterialIdMap() {
+  //detector surfaces only
+  setOrderedBdryIds(o::LOs(detectorSurfaceModelIds.write()), nDetectSurfaces,
+    detectorSurfaceOrderedIds, o::LOs(1), false);
+  //surface+materials
+  setOrderedBdryIds(o::LOs(surfaceAndMaterialModelIds.write()), nSurfMaterialFaces, 
+   surfaceAndMaterialOrderedIds, o::LOs(1), false);
+  //only material boundary faces
+  o::Write<o::LO> matZs(mesh.nfaces(), 0, "materialZs");
+  createBdryFaceClassArray(o::LOs(bdryMaterialModelIds.write()), 
+    matZs, o::LOs(bdryMaterialModelIdsZ.write()), true);
+  bdryFaceMaterialZs = o::LOs(matZs);
+}
+
+/*
+//TODO delete this after testing
+void setFaceId2SurfaceAndMaterialIdMap_old() {
   const auto side_is_exposed = mark_exposed_sides(&mesh);
   auto surfaceIds_d = o::LOs(detectorSurfaceModelIds.write());
   auto numSurfIds = surfaceIds_d.size();
@@ -70,6 +107,7 @@ void GitrmMesh::setFaceId2SurfaceAndMaterialIdMap() {
   auto detSurfIds_r = o::offset_scan(o::LOs(isSurface_d));
   auto detSurfIds_w = o::deep_copy(detSurfIds_r);
   auto nf = mesh.nfaces();
+  //set non-surface, ie, repeating numbers, to -1
   o::parallel_for(nf, OMEGA_H_LAMBDA(const o::LO& fid) {
     if(!isSurface_d[fid])
       detSurfIds_w[fid]= -1;
@@ -101,14 +139,14 @@ void GitrmMesh::setFaceId2SurfaceAndMaterialIdMap() {
   OMEGA_H_CHECK(nSurfMaterialFaces == (o::HostRead<o::LO>(surfMatIds_r))[nf-1]);
 }
 
-//only material boundary faces
-void GitrmMesh::setFaceId2BdryFaceMaterialsZmap() {
+//delete this after testing
+void setFaceId2BdryFaceMaterialsZmap_old() {
   const auto side_is_exposed = mark_exposed_sides(&mesh);
   auto faceClassIds = mesh.get_array<o::ClassId>(2, "class_id");
   auto materialIds = o::LOs(bdryMaterialModelIds.write());
-  auto matZ_in = o::Reals(bdryMaterialModelIdsZ.write());
+  auto matZ_in = o::LOs(bdryMaterialModelIdsZ.write());
   auto numMatIds = bdryMaterialModelIds.size();
-  o::Write<o::Real> matZ_d(mesh.nfaces(), 0, "matZ");
+  o::Write<o::LO> matZ_d(mesh.nfaces(), 0, "matZ");
   o::parallel_for(mesh.nfaces(), OMEGA_H_LAMBDA(const o::LO& fid) {
     if(side_is_exposed[fid]) {
       for(auto id=0; id < numMatIds; ++id) {
@@ -118,9 +156,9 @@ void GitrmMesh::setFaceId2BdryFaceMaterialsZmap() {
       }
     }
   });
-  bdryFaceMaterialZs = o::Reals(matZ_d);
+  bdryFaceMaterialZs = o::LOs(matZ_d);
 }
-
+*/
 //Loads only from 2D input field
 void GitrmMesh::load3DFieldOnVtxFromFile(const std::string tagName,
    const std::string &file, Field3StructInput& fs, o::Reals& readInData_d) {
@@ -518,6 +556,7 @@ void GitrmMesh::preProcessBdryFacesBfs() {
   preprocessStoreBdryFacesBfs(numBdryFaceIdsInElems, bdryFacesCsrW, csrSize);
   bdryFacesCsrBFS = o::LOs(bdryFacesCsrW);
 }
+
 // This method might be needed later
 void GitrmMesh::preprocessStoreBdryFacesBfs(o::Write<o::LO>& numBdryFaceIdsInElems,
   o::Write<o::LO>& bdryFacesCsrW, int csrSize) {
@@ -529,9 +568,9 @@ void GitrmMesh::preprocessStoreBdryFacesBfs(o::Write<o::LO>& numBdryFaceIdsInEle
       if(!myRank && bdryFacePtrsBFSHost[i]>0)
         printf("bdryFacePtrsBFShost %d  %d \n", i, bdryFacePtrsBFSHost[i] );
   }
-  constexpr int bfsLocalSize = 100000;
-  const double depth = 0.05;
-  constexpr int markFaces = SKIP_MODEL_IDS_FROM_DIST2BDRY;
+  int bfsLocalSize = 100000;
+  double depth = 0.05;
+  int markFaces = SKIP_MODEL_IDS_FROM_DIST2BDRY;
   o::LOs modelIdsToSkip(1,-1);
   int numModelIds = 0;
   if(markFaces) {
@@ -641,8 +680,8 @@ void GitrmMesh::preprocessStoreBdryFacesBfs(o::Write<o::LO>& numBdryFaceIdsInEle
   }//for
 }
 
-OMEGA_H_DEVICE int grid_points_inside_tet(const o::LOs& mesh2verts,
-   const o::Reals& coords, const o::LO elem, int ndiv, o::Real* grid) {
+OMEGA_H_DEVICE int gridPointsInTet(const o::LOs& mesh2verts,
+   const o::Reals& coords, const o::LO elem, int ndiv, o::Real* subGrid) {
   auto tetv2v = o::gather_verts<4>(mesh2verts, elem);
   auto tet = o::gather_vectors<4, 3>(coords, tetv2v);
   int npts = 0;
@@ -653,7 +692,7 @@ OMEGA_H_DEVICE int grid_points_inside_tet(const o::LOs& mesh2verts,
       for(int k=0; k<= ndiv-i-j; ++k) {
         int l = ndiv - i - j - k;
         for(int ii=0; ii<3; ++ii) {
-          grid[npts*3+ii] = (i*tet[0][ii] + j*tet[1][ii] +
+          subGrid[npts*3+ii] = (i*tet[0][ii] + j*tet[1][ii] +
                             k*tet[2][ii] + l*tet[3][ii])/ndiv;
         }
         ++npts;
@@ -663,183 +702,201 @@ OMEGA_H_DEVICE int grid_points_inside_tet(const o::LOs& mesh2verts,
   return npts;
 }
 
-//Eliminating using this will cause i/p field dependence
-OMEGA_H_DEVICE bool ifBdryAffectsEfieldAt(o::LO fid, const o::Vector<3>& ref,
-   const o::LOs& face_verts, const o::Reals& coords, const o::Real pot,
-   const o::Real angle,  const o::Real debyeLen,  const o::Real larmorRad,
-   const o::Real childLD, const o::Real emagLimit, const int biasedSurface) {
-  auto face = p::get_face_coords_of_tet(face_verts, coords, fid);
-  auto pt = p::closest_point_on_triangle(face, ref);
-  auto d2bdry = o::norm(pt - ref);
-  double emag = 0;
-  if(biasedSurface)
-    emag = pot/(2.0*childLD)* exp(-d2bdry/(2.0*childLD));
-  else {
-    o::Real fd = 0.98992 + 5.1220E-03 * angle - 7.0040E-04 * pow(angle,2.0) +
-                 3.3591E-05 * pow(angle,3.0) - 8.2917E-07 * pow(angle,4.0) +
-                 9.5856E-09 * pow(angle,5.0) - 4.2682E-11 * pow(angle,6.0);
-    emag = pot*(fd/(2.0 * debyeLen)* exp(-d2bdry/(2.0 * debyeLen))+
-           (1.0 - fd)/(larmorRad)* exp(-d2bdry/larmorRad));
-  }
-  return (emag >= emagLimit);
+//add bdry faces on the model ids. If newVal=1 then default is expected
+//to be 0 and init should be false, ie, only matching should be 1.
+void GitrmMesh::markBdryFacesOnGeomModelIds(const o::LOs& gFaces,
+   o::Write<o::LO>& mark_d, o::LO newVal, bool init) {
+  if(init && newVal)
+    std::cout << "****WARNING markBdryFacesOnGeomModelIds init = newVal\n";
+  const auto side_is_exposed = o::mark_exposed_sides(&mesh);
+  auto faceClassIds = mesh.get_array<o::ClassId>(2, "class_id");
+  auto nIds = gFaces.size();
+  auto lambda = OMEGA_H_LAMBDA(const o::LO& fid) {
+    auto val = mark_d[fid];
+    if(init && side_is_exposed[fid])
+      val = 1;
+    for(o::LO id=0; id < nIds; ++id)
+      if(gFaces[id] == faceClassIds[fid]) {
+        val = newVal;
+      }
+    mark_d[fid] = val;
+  };
+  o::parallel_for(mesh.nfaces(), lambda, "MarkFaces");
 }
 
-void GitrmMesh::preprocessSelectBdryFacesFromAll(bool initBdry) {
-  int debug = 0;
+//Select non-zero entries, and store their indices in result array.
+//Input array values: marked or selected=1, others=0
+o::LOs selectMarkedFaceIds(const o::LOs& mark_d, o::LO n) {
+  auto size = o::get_sum(mark_d);
+  auto scan = o::offset_scan(mark_d);
+  printf("selecting marked faces size %d\n", size);
+  o::Write<o::LO> selected(size, -1, "selected");
+  auto lambda = OMEGA_H_LAMBDA(const o::LO& i) {
+    if(mark_d[i]) {
+      selected[scan[i]] = i;
+    }
+  };
+  o::parallel_for(n, lambda, "selectMarked");
+  return selected;
+}
+
+//TODO the distance finder shouldn't cross obstacles or boundaries.
+void GitrmMesh::preprocessSelectBdryFacesFromAll( bool onlyMaterialSheath) {
+  int debug = 2;
   int myRank = this->myRank;
-  OMEGA_H_CHECK(initBdry);
   MESHDATA(mesh);
   const double minDist = DBL_MAX;
+  int nFaces = mesh.nfaces();
+  o::Write<o::LO> markedFaces_w(nFaces, 0, "markedFaces");
+  if(!onlyMaterialSheath && SKIP_MODEL_IDS_FROM_DIST2BDRY) //false
+    markBdryFacesOnGeomModelIds(o::LOs(detectorSurfaceModelIds), 
+      markedFaces_w, 0, true);
+
+  //only sheath bdry faces to be included. Overwriting markedFaces_w
+  if(onlyMaterialSheath) {
+    markBdryFacesOnGeomModelIds(o::LOs(bdryMaterialModelIds), markedFaces_w, 1, false); 
+  }
+  auto markedFaces = o::LOs(markedFaces_w);
+  auto selected = selectMarkedFaceIds(markedFaces_w, nFaces);
   const auto& f2rPtr = mesh.ask_up(o::FACE, o::REGION).a2ab;
   const auto& f2rElem = mesh.ask_up(o::FACE, o::REGION).ab2b;
 
-  int nFaces = mesh.nfaces();
-  //no skipping
-  constexpr int skipGeometricModelIds = SKIP_MODEL_IDS_FROM_DIST2BDRY;
-  //to skip geometric model faces
-  o::LOs modelIdsToSkip = o::LOs(detectorSurfaceModelIds);
-  o::LO numModelIds = 0;
-  if(skipGeometricModelIds)
-    numModelIds = modelIdsToSkip.size();
-  auto faceClassIds = mesh.get_array<o::ClassId>(2, "class_id");
-
-  int biasedSurface = BIASED_SURFACE;
-  const auto angles = mesh.get_array<o::Real>(o::FACE, "angleBdryBfield");
-  const auto potentials = mesh.get_array<o::Real>(o::FACE, "potential");
-  const auto debyeLengths = mesh.get_array<o::Real>(o::FACE, "DebyeLength");
-  const auto larmorRadii = mesh.get_array<o::Real>(o::FACE, "LarmorRadius");
-  const auto childLDs = mesh.get_array<o::Real>(o::FACE, "ChildLangmuirDist");
-
-  // delete the marking if not needed
-  if(!myRank)
-    printf("Marking Bdry faces \n");
-  o::Write<o::LO> markedFaces_w(mesh.nfaces(), 0, "markedFaces");
-  auto lambda1 = OMEGA_H_LAMBDA(const o::LO& fid) {
-    o::LO val = 0;
-    if(side_is_exposed[fid])
-      val = 1;
-
-    for(o::LO id=0; id < numModelIds; ++id)
-      if(modelIdsToSkip[id] == faceClassIds[fid]) {
-        val = 0;
-        //auto el = p::elem_id_of_bdry_face_of_tet(fid, f2rPtr, f2rElem);
-        //printf(" skip:fid:el %d %d \n", fid, el);
-      }
-    markedFaces_w[fid] = val;
-  };
-  o::parallel_for(mesh.nfaces(), lambda1, "MarkFaces");
-  auto markedFaces = o::LOs(markedFaces_w);
-
+  const int nMin = D2BDRY_MIN_SELECT; 
   const int ndiv = D2BDRY_GRIDS_PER_TET; //6->84
   const int ngrid = ((ndiv+1)*(ndiv+2)*(ndiv+3))/6;
   if(!myRank)
     printf("Selecting Bdry-faces: ndiv %d ngrid %d\n", ndiv, ngrid);
-  const int sizeLimit = 1e9;
-  int loopStep = sizeLimit/ngrid;
-  auto nelems = mesh.nelems();
-  int rem = (nelems%loopStep) ? 1: 0;
-  int last = nelems%loopStep;
-  int nLoop = nelems/loopStep + rem;
-  if(!myRank && debug)
-     printf(" nLoop %d last %d rem %d\n", nLoop, last, rem);
-  //TODO complete this replacement
+  const int sizeLimit = D2BDRY_MEM_FACTOR*3e8; //1*300M*4*3arrays=3.6G
+  int loopSize = sizeLimit/(ngrid*nMin);
+  OMEGA_H_CHECK(loopSize > 0);
+  int nelems = mesh.nelems();
+  int last = nelems%loopSize;
+  int rem = (last >0) ? 1:0;
+  int nLoop = nelems/loopSize + rem;
+  if(nLoop==1)
+    loopSize = nelems;
+  if(debug)
+    printf("rank %d nLoop %d last %d plus-rem %d loopSize %d sizeLimit %d \n", myRank,
+      nLoop, last, rem, loopSize, sizeLimit);
 
-  o::Write<o::Real> minDists(ngrid, minDist, "minDists");
-  o::Write<o::LO> bfids(ngrid, -1, "bfids");
-  o::Write<o::LO> bdryFaces_nums(mesh.nelems(), 0, "bdryFaces_nums");
-  o::Write<o::LO> bdryFaces_w(mesh.nelems()*ngrid, 0, "bdryFaces");
-  o::Write<o::Real> grid(3*ngrid, 0);
-  auto lambda2 = OMEGA_H_LAMBDA(const o::LO& elem) {
-    // can't pass Write<> for grid and get filled in ?
-    auto npts = grid_points_inside_tet(mesh2verts, coords, elem, ndiv, grid.data());
-    for(o::LO fid=0; fid<nFaces; ++fid) {
-      if(!markedFaces[fid])
-        continue;
-      const auto face = p::get_face_coords_of_tet(face_verts, coords, fid);
-      for(o::LO ipt=0; ipt < npts; ++ipt) {
-        auto ref = o::zero_vector<3>();
-        for(auto j=0; j<3; ++j)
-          ref[j] = grid[3*ipt+j];
-        auto pt = p::closest_point_on_triangle(face, ref);
-        auto dist = o::norm(pt - ref);
-        if(fid==0 || dist < minDists[ipt]) {
-          minDists[ipt] = dist;
-          bfids[ipt] = fid;
+  o::Write<o::LO> ptrs_d(1,-1,"ptrs_d");
+  o::Write<o::LO> bdryFacesTrim_w(1, -1, "bdryFacesTrim");
+
+  o::Write<o::LO> bdryFaces_nums(nelems, 0, "bdryFaces_nums");
+  for(int iLoop = 0; iLoop<nLoop; ++iLoop) {
+    int lsize = (iLoop==nLoop-1 && last>0) ? last: loopSize;
+    Kokkos::fence();
+    int asize = lsize*ngrid*nMin;
+    o::Write<o::Real> minDists(asize, minDist, "minDists");
+    o::Write<o::LO> bfids(asize, -1, "bfids");
+    o::Write<o::LO> bdryFaces_w(asize, -1, "bdryFaces");
+    o::Write<o::Real> grid(lsize*ngrid*3, 0, "grid");
+    int nSelected = selected.size();
+    auto lambda2 = OMEGA_H_LAMBDA(const o::LO& e) {
+      o::LO elem = iLoop*loopSize + e;
+      // pass Write<> for grid and get filled in ?
+      auto npts = gridPointsInTet(mesh2verts, coords, elem, ndiv, grid.data()+e*ngrid*3);
+      //use npts within the current element, not on all-elem data
+      OMEGA_H_CHECK((npts <= ngrid));
+      for(o::LO ind=0; ind < nSelected; ++ind) {
+        auto fid = selected[ind];
+        OMEGA_H_CHECK((1 == markedFaces[fid]));
+        if(false && debug && !elem) {
+          auto bel = p::elem_id_of_bdry_face_of_tet(fid,  f2rPtr, f2rElem);
+          printf("rank %d sheath-bdry fid %d el %d\n", myRank, fid, bel);
+        }
+        const auto face = p::get_face_coords_of_tet(face_verts, coords, fid);
+        for(o::LO ipt=0; ipt < npts; ++ipt) {
+          auto ref = o::zero_vector<3>();
+          for(auto j=0; j<3; ++j)
+            ref[j] = grid[e*ngrid*3 + 3*ipt+j];
+          auto pt = p::closest_point_on_triangle(face, ref);
+          auto dist = o::norm(pt - ref);
+          //replace the first largest distances if < dist
+          int beg = e*ngrid*nMin+ipt*nMin;
+          int imax = -1;
+          o::Real max = 0;
+          for(int k=0; k<nMin; ++k) {
+            auto distk = minDists[beg+k];
+            if(dist < distk && distk > max) {
+              imax = k;
+              max = distk;
+            }
+          }
+          if(imax > -1) {
+            if(debug >2)
+              printf("select: rank %d loop %d e %d elem %d ipt %d fid %d dist %g imax %d @ %d\n",
+                myRank, iLoop, e, elem, ipt, fid, dist, imax, beg+imax);
+            minDists[beg + imax] = dist;
+            bfids[beg + imax] = fid;
+          }
         }
       }
-    }
-    //remove duplicates
-    o::LO nb = 0;
-    for(int i=0; i<npts; ++i) {
-      for(int j=i+1; j<npts; ++j)
-        if(bfids[i] != -1 && bfids[i] == bfids[j])
-          bfids[j] = -1;
-    }
-    for(int i=0; i<npts; ++i) {
-      auto faceId = bfids[i];
-      if(faceId >=0) {
-        bool add = true;
-        double emagLimit = 0;
-        if(emagLimit >0) {//not used now
-          auto point = o::zero_vector<3>();
-          for(auto j=0; j<3; ++j)
-            point[j] = grid[3*i+j];
-          add = ifBdryAffectsEfieldAt(faceId, point, face_verts, coords,
-           potentials[faceId], angles[faceId], debyeLengths[faceId],
-           larmorRadii[faceId], childLDs[faceId], emagLimit, biasedSurface);
-        }
-        if(add) {
-          bdryFaces_w[elem*ngrid+nb] = faceId;
+      //remove duplicates
+      o::LO nb = 0;
+      int beg = e*ngrid*nMin;
+      for(int i=0; i<npts*nMin; ++i)
+        for(int j=i+1; j<npts*nMin; ++j)
+          if(bfids[beg+i] != -1 && bfids[beg+i] == bfids[beg+j])
+            bfids[beg+j] = -1; //stored on all-elem data based on ngrid
+
+      for(int i=0; i<npts*nMin; ++i) {
+        auto faceId = bfids[beg+i];
+        //Array for elems in this loop, elem ids e=0..lsize. Valid fids first, then -1's
+        if(faceId >=0) {
+          bdryFaces_w[beg + nb] = faceId;
           ++nb;
         }
-        if(false && debug) {
-          auto bel = p::elem_id_of_bdry_face_of_tet(faceId,  f2rPtr, f2rElem);
-          if(!add)
-            printf("skipping-fid %d bel %d from-refel %d\n", faceId, bel, elem);
-          printf("adding-fid  %d bel %d : @ %d ref-elem %d nb %d\n",
-            faceId, bel, elem*ngrid+nb, elem, nb);
-        }
       }
-    }
-    bdryFaces_nums[elem] = nb;
-    if(!myRank && debug)
-      printf("e %d  nb %d\n", elem, nb);
-  };
-  o::parallel_for(nel, lambda2, "preprocessSelectFromAll");
+      bdryFaces_nums[elem] = nb;
+      if(debug >1)
+        printf("rank %d loop %d e %d elem %d nb %d\n", myRank, iLoop, e, elem, nb);
+    };
+    o::parallel_for(lsize, lambda2, "preprocessSelectFromAll");
+ 
+    /** merging csr array with previous csr **/
+    // LOs& can't be passed as reference to fill-in  ?
+    int csrSize = 0;
+    //bdryFaces_nums added up
+    ptrs_d = makeCsrPtrs(bdryFaces_nums, nelems, csrSize);
+    //bdryFacePtrsSelected = o::LOs(ptrs_d); //set member and use in same funtion ?
+    if(debug > 1)
+      printf("rank %d :loop %d Converting to CSR Bdry faces: size %d\n", myRank,iLoop, csrSize);
+    //pointers are for augmented array, and will be same even when more elements added
+    //Elements are from local array bdryFaces_w
+    auto bdryFacesPre = bdryFacesTrim_w;
+    bdryFacesTrim_w = o::Write<o::LO>(csrSize, -1, "bdryFacesTrim");
+    auto lambda3 = OMEGA_H_LAMBDA(const o::LO& i) {
+      bdryFacesTrim_w[i] = bdryFacesPre[i]; 
+    };
+    if(iLoop > 0)
+      o::parallel_for(bdryFacesPre.size(), lambda3, "copy_bdryFacesPre");
 
-  // LOs& can't be passed as reference to fill-in  ?
-  int csrSize = 0;
-  auto ptrs_d = makeCsrPtrs(bdryFaces_nums, nel, csrSize);
-  //bdryFacePtrsSelected = o::LOs(ptrs_d); //crash setting class member and
-  //using in same funtion ?
-  if(!myRank)
-    printf("Converting to CSR Bdry faces: size %d\n", csrSize);
-
-  o::Write<o::LO> bdryFacesTrim_w(csrSize, -1, "bdryFacesTrim");
-  auto lambda3 = OMEGA_H_LAMBDA(const o::LO& elem) {
-    if(false && !myRank && ptrs_d[elem] < ptrs_d[elem+1])
-      printf("elem %d  %d \n", elem, ptrs_d[elem]);
-    auto beg = elem*ngrid;
-    auto ptr = ptrs_d[elem];
-    auto size = ptrs_d[elem+1] - ptr;
-    for(int i=0; i<size; ++i) {
-      if(false && !myRank)
-        printf(" %d  <= %d\n", bdryFaces_w[beg+i],  bdryFacesTrim_w[ptr+i]);
-      bdryFacesTrim_w[ptr+i] = bdryFaces_w[beg+i];
-    }
-  };
-  o::parallel_for(nel, lambda3, "preprocessTrimBFids");
+    //trim
+    auto lambda4 = OMEGA_H_LAMBDA(const o::LO& el) {
+      int e = el + loopSize*iLoop;
+      auto beg = el*ngrid*nMin;
+      auto ptr = ptrs_d[e];
+      auto size = ptrs_d[e+1] - ptrs_d[e];
+      for(int i=0; i<size; ++i) {
+        if(debug>2)
+          printf("rank %d loop %d  i %d ptr %d beg %d %d <= %d \n", myRank, iLoop, 
+            i, ptr, beg, bdryFaces_w[beg+i], bdryFacesTrim_w[ptr+i]);
+        bdryFacesTrim_w[ptr+i] = bdryFaces_w[beg+i];
+      }
+    };
+    o::parallel_for(lsize, lambda4, "preprocessTrimBFids");
+  } // iLoop
+  
   bdryFacesSelectedCsr = o::LOs(bdryFacesTrim_w);
   bdryFacePtrsSelected = o::LOs(ptrs_d);
-  if(!myRank)
-    printf("Done preprocessing Bdry faces\n");
+  //if(!myRank)
+    printf("rank %d Done preprocessing Bdry faces\n", myRank);
 }
 
-// nums_d should have size one extra for last ptr
 o::Write<o::LO> GitrmMesh::makeCsrPtrs(o::Write<o::LO>& nums_d, int tot, int& sum) {
-  auto size =  nums_d.size();
-  OMEGA_H_CHECK(tot+1 == size);
-  OMEGA_H_CHECK(0 == (o::HostRead<o::LO>(nums_d))[size-1]);
+  auto check = (tot == nums_d.size());
+  OMEGA_H_CHECK(check);
   sum = o::get_sum(o::LOs(nums_d));
   return o::deep_copy(o::offset_scan(o::LOs(nums_d)));
 }
@@ -1219,7 +1276,10 @@ void GitrmMesh::createSurfaceGitrMesh() {
   auto BCxBA = o::HostRead<o::Real>(BCxBA_d);
   auto CAxCB = o::HostRead<o::Real>(CAxCB_d);
   auto area = o::HostRead<o::Real>(area_d);
-  auto materialZ_h = o::HostRead<o::Real>(bdryFaceMaterialZs);
+  auto materialZ_l = o::HostRead<o::LO>(bdryFaceMaterialZs);
+  o::HostWrite<o::Real> materialZ_h(materialZ_l.size(), 0);
+  for(int i=0; i<materialZ_l.size(); ++i)
+    materialZ_h[i] = materialZ_l[i];
   auto surface = o::HostRead<o::LO>(surface_d);
   auto inDir = o::HostRead<o::LO>(inDir_d);
   auto exposed = o::HostRead<o::Byte>(side_is_exposed);

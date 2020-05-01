@@ -213,6 +213,10 @@ inline void gitrm_coulomb_collision(PS* ptcls, int *iteration, const GitrmMesh& 
 
   const int useGitrRnd = gp.useGitrRndNums;
   auto& rpool = gp.rand_pool;
+
+  const bool useCudaRnd = gp.useCudaRnd;
+  auto* cuStates =  gp.cudaRndStates;
+
   auto updatePtclPos = PS_LAMBDA(const int& e, const int& pid, const bool& mask){ 
     if(mask > 0&& elm_ids[pid] >= 0){
       o::LO el = elm_ids[pid];
@@ -302,6 +306,14 @@ inline void gitrm_coulomb_collision(PS* ptcls, int *iteration, const GitrmMesh& 
         n1  = testGitrPtclStepData[ptcl*testGNT*testGDof + iTimeStep*testGDof + collisionIndex1];
         n2  = testGitrPtclStepData[ptcl*testGNT*testGDof + iTimeStep*testGDof + collisionIndex2];
         xsi = testGitrPtclStepData[ptcl*testGNT*testGDof + iTimeStep*testGDof + collisionIndex3];
+      } else if (useCudaRnd) {
+        auto localState = cuStates[ptcl];
+        n1 = curand_uniform(&localState);
+        n2 = curand_uniform(&localState);
+        xsi = curand_uniform(&localState);
+        cuStates[ptcl] = localState;
+        if(false)
+          printf("cudaRndNums-coulomb %d tstep %d %g %g %g\n", ptcl, iTimeStep,n1,n2,xsi);
       } else {
         auto rnd = rpool.get_state();
         n1 = rnd.drand();
