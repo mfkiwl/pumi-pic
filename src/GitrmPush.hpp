@@ -74,20 +74,6 @@ inline void gitrm_calculateE(GitrmParticles& gp, o::Mesh &mesh,
           closest[i] = closestPoints[pid*3+i];
 
         //get Tel, Nel
-        auto nelMesh = elDensity[faceId];
-        auto telMesh = elTemp[faceId];
-        auto bfel = p::elem_id_of_bdry_face_of_tet(faceId, f2rPtr, f2rElem);
-        auto bface_coords = p::get_face_coords_of_tet(face_verts, coords, faceId);
-        auto bmid = p::centroid_of_triangle(bface_coords);
-        if(debug>1)
-          printf(" rank %d calcE0: ptcl %d ppos %.15e %.15e %.15e nelMesh %.15e TelMesh %.15e "
-            "  bfidmid %g %g %g bfid %d bfel %d bface_verts %g %g %g ,"
-            " %g %g %g, %g %g %g \n", rank,
-            ptcl, pos[0], pos[1], pos[2], nelMesh, telMesh, bmid[0], bmid[1], bmid[2],
-            faceId, bfel, bface_coords[0][0], bface_coords[0][1], bface_coords[0][2],
-            bface_coords[1][0], bface_coords[1][1], bface_coords[1][2],
-            bface_coords[2][0], bface_coords[2][1], bface_coords[2][2]);
-
         auto distVector = closest - pos;
         auto dirUnitVector = o::normalize(distVector);
         auto d2bdry = o::norm(distVector);
@@ -103,11 +89,6 @@ inline void gitrm_calculateE(GitrmParticles& gp, o::Mesh &mesh,
         }
         if(isnan(emag))
           emag = 0;
-        if(debug>1)
-          printf(" calcE1- ptcl %d  distVec %.15e %.15e %.15e dirUnitVec %.15e %.15e %.15e\n",
-           ptcl, distVector[0], distVector[1], distVector[2], dirUnitVector[0],
-           dirUnitVector[1], dirUnitVector[2]);
-
         if(o::are_close(d2bdry, 0.0) || o::are_close(larmorRadius, 0.0)) {
           emag = 0.0;
           dirUnitVector[0] = dirUnitVector[1] = dirUnitVector[2] = 0;
@@ -117,19 +98,17 @@ inline void gitrm_calculateE(GitrmParticles& gp, o::Mesh &mesh,
           efield_ps(pid, i) = exd[i];
 
         if(debug>1)
-          printf(" calcE2: ptcl %d bdryface:%d  bfel %d emag %.15e "
-              " pos %.15e %.15e %.15e closest %.15e %.15e %.15e distVec %.15e %.15e %.15e "
-              " dirUnitVec %g %g %g \n",
-              ptcl, faceId, bfel, emag, pos[0], pos[1], pos[2],
-              closest[0], closest[1], closest[2], distVector[0], distVector[1],
-              distVector[2], dirUnitVector[0], dirUnitVector[1], dirUnitVector[2]);
+          printf(" calcE: ptcl %d emag %.15e distVec %g %g %.15e dirUnitVec %g %g %g \n",
+            ptcl, emag, distVector[0], distVector[1], distVector[2], dirUnitVector[0],
+            dirUnitVector[1], dirUnitVector[2]);
 
+        auto nelMesh = elDensity[faceId];
+        auto telMesh = elTemp[faceId];
         if(debug>1)
           printf(" calcE_this:gitr ptcl %d timestep %d charge %d  dist2bdry %.15e"
              " CLD %.15e efield %.15e  %.15e  %.15e  CLD %.15e  Nel %.15e Tel %.15e \n",
-            ptcl, iTimeStep, charge_ps(pid), d2bdry, childLangmuirDist,
-            efield_ps(pid, 0), efield_ps(pid, 1),
-            efield_ps(pid, 2), childLangmuirDist, nelMesh, telMesh);
+            ptcl, iTimeStep, charge_ps(pid), d2bdry, childLangmuirDist, efield_ps(pid, 0),
+            efield_ps(pid, 1), efield_ps(pid, 2), childLangmuirDist, nelMesh, telMesh);
       } //faceId
     } //mask
   };

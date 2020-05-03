@@ -67,7 +67,7 @@ void GitrmParticles::initRandGenerator(unsigned long int seed) {
         double r;
         for(int i=0; i<1000; ++i) {
           r = curand_uniform(&localState);
-          printf(" %d gitrm-rnd %d %.15f\n", i, r);
+          printf("gitrm-rnd %d %.15f\n", i, r);
         }
         cudaRndStates[id] = localState;
       });
@@ -139,8 +139,8 @@ void GitrmParticles::defineParticles(const o::LOs& ptclsInElem, int elId) {
     printf("\n");
   }
   //'sigma', 'V', and the 'policy' control the layout of the PS structure
-  const int sigma = 1;//INT_MAX; //full sorting
-  const int V = 128;//1024;
+  const int sigma = INT_MAX; //full sorting
+  const int V = 64; //128;//1024;
   Kokkos::TeamPolicy<Kokkos::DefaultExecutionSpace> policy(10000, 32);
   printf("Constructing Particles with sigma %d\n", sigma);
   //Create the particle structure
@@ -957,12 +957,12 @@ void GitrmParticles::updatePtclHistoryData(int iter, int nT, const o::LOs& elem_
   auto pos_ps = ptcls->get<PTCL_POS>();
   auto pos_next = ptcls->get<PTCL_NEXT_POS>();
   auto pid_ps = ptcls->get<PTCL_ID>();
-  auto xfids = wallCollisionFaceIds;
+  auto xfaces_d = wallCollisionFaceIds;
   auto xpts = wallCollisionPts;
   auto lastSteps = lastFilledTimeSteps;
   if(debug && !myRank)
     printf(" histupdate iter %d iThistory %d size %d ndi %d nh %d nelid %d nfid %d\n",
-      iter, iThistory, size, ndi, nh, elem_ids.size(), xfids.size());
+      iter, iThistory, size, ndi, nh, elem_ids.size(), xfaces_d.size());
   auto lambda = PS_LAMBDA(const int& elem, const int& pid, const int& mask) {
     if(mask >0) {
       auto ptcl = pid_ps(pid);
@@ -971,10 +971,10 @@ void GitrmParticles::updatePtclHistoryData(int iter, int nT, const o::LOs& elem_
       if(iter < 0)
         pos = p::makeVector3(pid, pos_ps);
       else {
-        auto check = (elem_ids[pid] >= 0 || xfids[pid] >=0);
+        auto check = (elem_ids[pid] >= 0 || xfaces_d[pid] >=0);
         OMEGA_H_CHECK(check);
       }
-      if(iter >=0 && xfids[pid] >=0) {
+      if(iter >=0 && xfaces_d[pid] >=0) {
         for(int i=0; i<3; ++i) {
           pos[i] = xpts[pid*3+i];
         }
@@ -1049,13 +1049,13 @@ void GitrmParticles::writeOutPtclEndPoints(const std::string& file) const {
     //test rank0
     outf << "only on RANK 0 \n";
     for(int i=0; i<pts_in.size(); i=i+3)
-      outf <<  "Pos( " << i/3 << ",:) = [ " <<  pts_in[i] << " " << pts_in[i+1] << " "
+      outf <<  "Pos( " << i/3 << ",:) = [ 0 " <<  pts_in[i] << " " << pts_in[i+1] << " "
         << pts_in[i+2] << " ];\n";
   }
   if(myRank==1) {
     std::ofstream outf("positions-rank1.m");
     for(int i=0; i<pts_in.size(); i=i+3)
-      outf <<  "Pos( " << i/3 << ",:) = [ " <<  pts_in[i] << " " << pts_in[i+1] << " "
+      outf <<  "Pos( " << i/3 << ",:) = [ 0 " <<  pts_in[i] << " " << pts_in[i+1] << " "
       << pts_in[i+2] << " ];\n";
   }
 }
@@ -1082,14 +1082,14 @@ void GitrmParticles::updateParticleDetection(const o::LOs& elem_ids, o::LO iter,
   auto pid_ps = ptcls->get<PTCL_ID>();
   auto pos_next = ptcls->get<PTCL_NEXT_POS>();
   const auto& xpoints = wallCollisionPts;
-  auto& xpointFids = wallCollisionFaceIds;
+  auto& xfaces_d = wallCollisionFaceIds;
   //array of global id won't work for large no of ptcls
   auto& ptclEndPts = ptclEndPoints;
   auto lamb = PS_LAMBDA(const int& e, const int& pid, const int& mask) {
     if(mask >0) {
       auto ptcl = pid_ps(pid);
       auto pos = p::makeVector3(pid, pos_next);
-      auto fid = xpointFids[pid];
+      auto fid = xfaces_d[pid];
       auto elm = elem_ids[pid];
       if(last) {
         for(int i=0; i<3; ++i)

@@ -132,13 +132,13 @@ int main(int argc, char** argv) {
 
   bool debug = false; //search
   int debug2 = 0;  //routines
-  bool useCudaRnd = true; //replace kokkos rnd
-  bool surfacemodel = true;
-  bool spectroscopy = false;
-  bool thermal_force = false; //false in pisces conf
+  bool useCudaRnd = false; //replace kokkos rnd
   bool coulomb_collision = true;
   bool diffusion = true; //true means diffusion=1
-
+  bool surfacemodel = true;
+  bool spectroscopy = true;
+  
+  bool thermal_force = false; //false in pisces conf
   auto deviceCount = 0;
   cudaGetDeviceCount(&deviceCount);
   size_t free, total;

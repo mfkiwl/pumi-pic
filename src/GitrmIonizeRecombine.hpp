@@ -210,7 +210,7 @@ inline void gitrm_ionize(PS* ptcls, const GitrmIonizeRecombine& gir,
         auto localState = cuStates[ptcl];
         randn = curand_uniform(&localState);
         cuStates[ptcl] = localState;
-        if(false)
+        if(debug>1)
           printf("cudaRndNums-ioni %d tstep %d %g\n", ptcl, iTimeStep, randn);
       } else {
         //TODO use state index ? 
@@ -356,11 +356,11 @@ inline void gitrm_recombine(PS* ptcls, const GitrmIonizeRecombine& gir,
           randGitr = testGitrPtclStepData[ptcl*testGNT*testGDof + 
             iTimeStep*testGDof + testGrecInd];
           randn = randGitr;
-       } else if (useCudaRnd) {
+        } else if (useCudaRnd) {
           auto localState = cuStates[ptcl];
           randn = curand_uniform(&localState);
           cuStates[ptcl] = localState;
-          if(false)
+          if(debug>1)
             printf("cudaRndNums-recomb %d tstep %d %g\n", ptcl, iTimeStep, randn);
         } else { 
           auto rnd = rpool.get_state();
@@ -380,7 +380,7 @@ inline void gitrm_recombine(PS* ptcls, const GitrmIonizeRecombine& gir,
         if(debug>1)
           printf(" recomb %d ptcl %d  tstep %d charge %d randn %g P1 %g rateRecomb %g @ %d\n", 
             xfid<0, ptcl, iTimeStep, charge_ps(pid), randn, P1, rateRecomb, gitrInd);
-      }
+      } //charge >0
     } //mask 
   };
   p::parallel_for(ptcls, lambda, "RecombineKernel");
