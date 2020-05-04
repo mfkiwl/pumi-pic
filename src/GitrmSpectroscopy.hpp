@@ -34,8 +34,7 @@ public:
 };
 
 inline void gitrm_spectroscopy(PS* ptcls, GitrmSpectroscopy& sp, o::LOs& elm_ids,
-    bool debug = false) {
-
+   int debug = 0) {
   const auto istep = iTimePlusOne - 1;
   const auto nX = sp.nX;
   const auto nY = sp.nY;
@@ -74,16 +73,16 @@ inline void gitrm_spectroscopy(PS* ptcls, GitrmSpectroscopy& sp, o::LOs& elm_ids
 	auto weight = weight_ps(pid);
 	auto index = nBins*nX*nY*nZ + indZ*nX*nY +indY*nX+ indX;
 	auto old = Kokkos::atomic_fetch_add(&(bins[index]), weight);
-        if(debug)
+        if(debug>1)
           printf( "spec ptcl %d step %d bins %g index %d weight %g charge %d "
-           "nBins %d pos %g %g %g nX %d nY %d nZ %d indX %d indY %d indZ %d dy %g gridy0 %g\n", 
+           " pos %g %g %g indX %d indY %d indZ %d dy %g gridy0 %g\n", 
             ptcl, istep, old+weight, index, weight, 
-            charge, nBins, x, y, z, nX, nY, nZ, indX, indY, indZ, dy,  gridY0);
+            charge, x, y, z, indX, indY, indZ, dy,  gridY0);
         if(charge < nBins) {
 	  auto ind = charge*nX*nY*nZ + indZ*nX*nY + indY*nX+ indX;
 	  OMEGA_H_CHECK(ind >=0);
 	  auto old = Kokkos::atomic_fetch_add(&bins[ind], weight);
-          if(debug)
+          if(debug>1)
             printf("spec: ptcl %d step %d ind %d bins %g \n", ptcl, istep, ind, old+weight);
 	}
       } // z

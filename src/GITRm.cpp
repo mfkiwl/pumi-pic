@@ -132,7 +132,7 @@ int main(int argc, char** argv) {
 
   bool debug = false; //search
   int debug2 = 0;  //routines
-  bool useCudaRnd = false; //replace kokkos rnd
+  bool useCudaRnd = true; //replace kokkos rnd
   bool coulomb_collision = true;
   bool diffusion = true; //true means diffusion=1
   bool surfacemodel = true;

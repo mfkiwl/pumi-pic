@@ -321,7 +321,8 @@ o::LO GitrmParticles::searchPtclsByAdjSearchFromParent(const o::Reals& data,
         o::LO minInd = p::min_index(bcc, 4);
         auto dual_elem_id = dual_faces[elem];
         o::LO findex = 0;
-        for(auto iface = elem*4; iface < (elem+1)*4; ++iface) {
+        int beg = elem*4;
+        for(auto iface = beg; iface < beg+4; ++iface) {
           auto face_id = down_r2fs[iface];
           bool exposed = side_is_exposed[face_id];
           if(!exposed) {

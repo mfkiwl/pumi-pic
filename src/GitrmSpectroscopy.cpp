@@ -57,18 +57,17 @@ void GitrmSpectroscopy::writeSpectroscopyFile(const std::string& file) {
   }
 
   netCDF::NcFile ncf(file, netCDF::NcFile::replace);
+  netCDF::NcDim ncnBins = ncf.addDim("nBins", nBins+1); //TODO ?
   netCDF::NcDim ncnR = ncf.addDim("nR", nX);
   netCDF::NcDim ncnY = ncf.addDim("nY", nY);
   netCDF::NcDim ncnZ = ncf.addDim("nZ", nZ);
-  netCDF::NcDim ncnBins = ncf.addDim("nBins", nBins+1); //TODO ?
   std::vector<netCDF::NcDim> dims;
-  dims.push_back(ncnR);
-  dims.push_back(ncnY);
-  dims.push_back(ncnZ);
   dims.push_back(ncnBins);
+  dims.push_back(ncnZ);
+  dims.push_back(ncnY);
+  dims.push_back(ncnR);
   netCDF::NcVar ncn = ncf.addVar("n", netCDF::ncDouble, dims);
 
-  //move to hpp if needed
   auto gridX = o::Write<o::Real>(nX);
   auto gridY = o::Write<o::Real>(nY);
   auto gridZ = o::Write<o::Real>(nZ);
