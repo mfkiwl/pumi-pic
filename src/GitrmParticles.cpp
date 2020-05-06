@@ -1047,17 +1047,13 @@ void GitrmParticles::writeOutPtclEndPoints(const std::string& file) const {
     for(int i=0; i<pts.size(); i=i+3)
       outf <<  "Pos( " << i/3 << ",:) = [ " <<  pts[i] << " " << pts[i+1] << " "
         << pts[i+2] << " ];\n";
-    //test rank0
-    outf << "only on RANK 0 \n";
-    for(int i=0; i<pts_in.size(); i=i+3)
-      outf <<  "Pos( " << i/3 << ",:) = [ 0 " <<  pts_in[i] << " " << pts_in[i+1] << " "
-        << pts_in[i+2] << " ];\n";
   }
-  if(myRank==1) {
-    std::ofstream outf("positions-rank1.m");
+  if(myRank) {
+    std::string name = "positions-rank_" + std::to_string(myRank) + ".txt";
+    std::ofstream outf(name);
     for(int i=0; i<pts_in.size(); i=i+3)
-      outf <<  "Pos( " << i/3 << ",:) = [ 0 " <<  pts_in[i] << " " << pts_in[i+1] << " "
-      << pts_in[i+2] << " ];\n";
+      outf <<  "Pos " << i/3 << " = " <<  pts_in[i] << " " << pts_in[i+1] << " "
+      << pts_in[i+2] << "\n";
   }
 }
 
