@@ -55,7 +55,8 @@ void GitrmParticles::initRandGenerator(unsigned long int seed) {
     auto nPtcls = totalPtcls;
     curandState* cudaRndStates;
     cudaMalloc((void **)&cudaRndStates, nPtcls*sizeof(curandState));
-    std::cout <<" Initializing CUDA random numbers for " << nPtcls << " ptcls\n";
+    if(!myRank)
+      std::cout <<" Initializing CUDA random numbers for " << nPtcls << " ptcls\n";
     Omega_h::parallel_for(nPtcls, OMEGA_H_LAMBDA(const o::LO& id) {
       curand_init(id, 0, 0, &cudaRndStates[id]);
     });
@@ -76,6 +77,8 @@ void GitrmParticles::initRandGenerator(unsigned long int seed) {
     //TODO state id is not used currently to draw. Init nPtcls with ptcl as
     //seeds and use rpool.get_state() => rpool.get_state(ptcl)  ?
     //But index has to be < max.initialized.
+    if(!myRank)
+      printf("Initializing Kokkos random numbers for %d ptcls\n", totalPtcls);
     if(seed)
       rand_pool = Kokkos::Random_XorShift64_Pool<>(seed);
     else

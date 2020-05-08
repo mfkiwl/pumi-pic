@@ -194,10 +194,10 @@ int readInputDataNcFileFS3(const std::string& ncFileName,
       ncvar.getVar(&temp[0]);
       for(int j=0; j<ncSizePerComp; ++j) {
         fs.data[j*fs.nComp + i] = temp[j];
-        if(debug && j <10)
+        if(debug && j <10) {
           printf(" i,j,dat %d %d %g ", i,j,fs.data[j*fs.nComp+i]);
-        if(debug)
           printf("\n");
+        }
       }
     }    
     for(int i=0; i< fs.nVarNames.size(); ++i) {

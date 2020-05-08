@@ -163,11 +163,13 @@ const GitrmParticles& gp, double dt, const o::LOs& elm_ids, int debug=0)
           
           if(useGitrRnd) {
             r3  = testGitrPtclStepData[ptcl*testGNT*testGDof + iTimeStep*testGDof + diff_rnd1];
+            if(debug >1)
+              printf("gitrRndNums-diff %d tstep %d %g\n", ptcl, iTimeStep, r3);
           } else if (useCudaRnd) {
             auto localState = cuStates[ptcl];
             r3 = curand_uniform(&localState);
             cuStates[ptcl] = localState;
-            if(false)
+            if(debug >1)
               printf("cudaRndNums-diff %d tstep %d %g\n", ptcl, iTimeStep, r3);
           } else{
             auto rnd = rpool.get_state();

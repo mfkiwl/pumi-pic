@@ -205,6 +205,8 @@ inline void gitrm_ionize(PS* ptcls, const GitrmIonizeRecombine& gir,
       double randn = 0;
       if(useGitrRnd) {
         randn = testGitrPtclStepData[ptcl*testGNT*testGDof + iTimeStep*testGDof + testGIind];
+        if(debug>1)
+          printf("gitrRnd:ioni ptcl %d t %d rand %g\n", ptcl, iTimeStep, randn);
       } else if (useCudaRnd) {
         //NOTE : states for all particles to be initialized in all ranks
         auto localState = cuStates[ptcl];
@@ -356,6 +358,8 @@ inline void gitrm_recombine(PS* ptcls, const GitrmIonizeRecombine& gir,
           randGitr = testGitrPtclStepData[ptcl*testGNT*testGDof + 
             iTimeStep*testGDof + testGrecInd];
           randn = randGitr;
+          if(debug>1)
+            printf("gitrRnd:recomb ptcl %d t %d rand %g\n", ptcl, iTimeStep, randn);
         } else if (useCudaRnd) {
           auto localState = cuStates[ptcl];
           randn = curand_uniform(&localState);

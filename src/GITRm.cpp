@@ -16,6 +16,7 @@
 #include "GitrmThermalForce.hpp"
 #include "GitrmCrossDiffusion.hpp"
 #include "GitrmSpectroscopy.hpp"
+//#include "GitrmInput.hpp"
 
 void printTiming(const char* name, double t) {
   fprintf(stderr, "kokkos %s (seconds) %f\n", name, t);
@@ -117,8 +118,8 @@ int main(int argc, char** argv) {
   auto start_sim = std::chrono::system_clock::now();
   pumipic::Library pic_lib(&argc, &argv);
   Omega_h::Library& lib = pic_lib.omega_h_lib();
-  int comm_rank, comm_size;
-  MPI_Comm_rank(MPI_COMM_WORLD, &comm_rank);
+  const auto comm_rank = lib.world()->rank();
+  int comm_size;
   MPI_Comm_size(MPI_COMM_WORLD, &comm_size);
   if(argc < 7) {
     if(comm_rank == 0)
@@ -132,12 +133,14 @@ int main(int argc, char** argv) {
 
   bool debug = false; //search
   int debug2 = 0;  //routines
-  bool useCudaRnd = false; //replace kokkos rnd
+  bool useCudaRnd = true; //replace kokkos rnd
   bool coulomb_collision = true;
   bool diffusion = true; //true means diffusion=1
   bool surfacemodel = true;
   bool spectroscopy = true;
-  
+//GitrmInput inp("gitrInput.cfg", true);
+//  inp.testInputConfig();
+
   bool thermal_force = false; //false in pisces conf
   auto deviceCount = 0;
   cudaGetDeviceCount(&deviceCount);
@@ -160,27 +163,12 @@ int main(int argc, char** argv) {
   }
   auto full_mesh = readMesh(argv[1], lib);
   MPI_Barrier(MPI_COMM_WORLD);
-
-  Omega_h::HostWrite<Omega_h::LO> host_owners(full_mesh.nelems());
-  if(comm_size > 1) {
-    std::ifstream in_str(argv[2]);
-    if (!in_str) {
-      if (!comm_rank)
-        fprintf(stderr,"Cannot open file %s\n", argv[2]);
-      return EXIT_FAILURE;
-    }
-    int own;
-    int index = 0;
-    while(in_str >> own)
-      host_owners[index++] = own;
-  }
-  else
-    for (int i = 0; i < full_mesh.nelems(); ++i)
-      host_owners[i] = 0;
-  Omega_h::Write<Omega_h::LO> owner(host_owners);
-
+  o::CommPtr world = lib.world();
   //Create Picparts with the full mesh
-  p::Mesh picparts(full_mesh, owner);
+  p::Input::Method bm = p::Input::Method::FULL;
+  p::Input::Method safem = p::Input::Method::NONE;
+  p::Input pp_input(full_mesh, argv[2], bm, safem, world);
+  p::Mesh picparts(pp_input);
   o::Mesh* mesh = picparts.mesh();
   mesh->ask_elem_verts(); //caching adjacency info
 

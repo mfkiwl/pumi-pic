@@ -13,9 +13,9 @@ set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS}")
 #bob_public_dep(NetCDF)
 
 find_package(PkgConfig REQUIRED)
-pkg_check_modules(NetCDF REQUIRED IMPORTED_TARGET netcdf>4.6.2)
-pkg_check_modules(NetCDF-CXX4 REQUIRED IMPORTED_TARGET netcdf-cxx4>4.3.0)
-pkg_check_modules(libConfig REQUIRED IMPORTED_TARGET libconfig++>=1.7.2)
+pkg_check_modules(NetCDF REQUIRED IMPORTED_TARGET netcdf>=4.6.3)
+pkg_check_modules(NetCDF-CXX4 REQUIRED IMPORTED_TARGET netcdf-cxx4>=4.3.1)
+#pkg_check_modules(libConfig REQUIRED IMPORTED_TARGET libconfig++>=1.7.2)
 
 find_package(pumipic REQUIRED)
 set(gitrm_USE_pumipic_DEFAULT ON)
@@ -28,7 +28,8 @@ target_link_libraries(GITRm
   pumipic::pumipic
   PkgConfig::NetCDF
   PkgConfig::NetCDF-CXX4
-  PkgConfig::libConfig)
+  #PkgConfig::libConfig
+  )
 
 #Settings options for testing
 enable_testing()

@@ -85,7 +85,7 @@ public:
   ~GitrmMesh(){};
 
   GitrmMesh(GitrmMesh const&) = delete;
-  void operator =(GitrmMesh const&) = delete;
+  GitrmMesh& operator =(GitrmMesh const&) = delete;
 
   void setMyCommRank();
   int getCommRank() const { return myRank;}

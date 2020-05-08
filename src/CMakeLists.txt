@@ -11,6 +11,7 @@ set(HEADERS
   ${CD}/GitrmThermalForce.hpp
   ${CD}/GitrmCrossDiffusion.hpp
   ${CD}/GitrmSpectroscopy.hpp
+  #  ${CD}/GitrmInput.hpp
   PARENT_SCOPE
 )
 
@@ -21,6 +22,7 @@ set(SOURCES
   ${CD}/GitrmInputOutput.cpp
   ${CD}/GitrmSurfaceModel.cpp
   ${CD}/GitrmSpectroscopy.cpp
+  #  ${CD}/GitrmInput.cpp
   PARENT_SCOPE
 )
 
