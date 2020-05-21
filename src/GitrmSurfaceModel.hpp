@@ -438,19 +438,18 @@ inline void gitrm_surfaceReflection(PS* ptcls, GitrmSurfaceModel& sm,
              nEnSputtRefDistOutRef, nAngSputtRefDistIn, nEnSputtRefDistIn, 
              energyDistGrid01Ref, angSputtRefDistIn, enLogSputtRefDistIn, 
              enDist_CDF_R_regrid);
-          if(debug>1)
-            printf(" surf6 reflects timestep %d ptcl %d  weight %g newWeight %g "
-              "totalYR %g aInterpVal %g  eInterpVal %g \n", 
-              iTimeStep, ptcl, weight, newWeight, totalYR, aInterpVal, eInterpVal);
           int eDistInd = floor((eInterpVal-en0Dist)/dEdist);
           int aDistInd = floor((aInterpVal-ang0Dist)/dAdist);
           if(surfId >=0 && eDistInd >= 0 && eDistInd < nEnDist && 
              aDistInd >= 0 && aDistInd < nAngDist) {
             auto idx = surfId*nEnDist*nAngDist + eDistInd*nAngDist + aDistInd;
-            if(debug>1)
-              printf(" surf61 timestep %d ptcl %d reflDist @ %d newWeight %g"
-                " prev %g \n", iTimeStep, ptcl, idx, newWeight, reflDist[idx]);
-            Kokkos::atomic_fetch_add(&(reflDist[idx]), newWeight);
+            auto old = Kokkos::atomic_fetch_add(&(reflDist[idx]), newWeight);
+         //   if(debug>1)
+              printf("surfRefl step %d ptcl %d tot-refl %g idx %d Aind %d Eind %d"
+                " aInterp %g  eInterp %g\n", iTimeStep, ptcl, old+newWeight,
+                idx, aDistInd, eDistInd, aInterpVal, eInterpVal);
+              printf("surfRefl step %d ptcl %d surfid %d r8 %g wt %g YR %g thetaImpact %g"
+                " newWt %g \n", iTimeStep, ptcl, surfId, rand8, weight, totalYR, thetaImpact, newWeight);
           }
  
           if(surfId >= 0) { //id 0..

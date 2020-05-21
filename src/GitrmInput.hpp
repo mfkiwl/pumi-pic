@@ -13,7 +13,7 @@ public:
   GitrmInput& operator=(const GitrmInput&) = delete;
   int parseConfigFile();
   template <typename T=std::string>
-  T getConfigVar (const std::string& s);
+  T readConfigVar (const std::string& s);
 
   void testInputConfig();
 private:
@@ -24,7 +24,7 @@ private:
 
 
 template <typename T>
-T GitrmInput::getConfigVar(const std::string& s) {
+T GitrmInput::readConfigVar(const std::string& s) {
   T var;
   if(cfg->lookupValue(s, var)) {
   } else {
