@@ -1,0 +1,66 @@
+The workflow is:
+
+==model translation==
+ssh <rhel7system>
+module load gcc mpich pumi/develop-int32-shared-sim-tml2cn2
+simTranslate picpes_geom_with_holes.x_t pisces_with_holes.smd
+
+==mesh generation==
+ssh <rhel7system>
+module load simmetrix/simModeler/7.0-190513dev
+<open model 'pisces_with_holes.smd', generate mesh, save mesh as pisces.sms>
+
+==conversion to omega_h==
+ssh <rhel7system>
+module load gcc mpich simmetrix-simmodsuite/14.0-190513dev-drlrpas
+/lore/cwsmith/develop/build-omegah-meshSim-rhel7/src/meshsim2osh 
+pisces.sms pisces_with_holes.smd pisces.osh
+
+In this process the only geometric model information that is maintained 
+is classification.  It is stored in the '.osh' mesh.
+
+Using the listed versions of simmodeler and simmodsuite are critical - 
+there is incompatibility of old simmodsuite with newer simmodeler 
+generated meshes.  If needed, we can rebuild omega-h as needed to match 
+whatever new/latest version of simmodeler.
+
+---------------------------
+mesh size: absolute 0.005  (5mm)
+mesh curv Ref relative  0.03 
+elem order 1
+volume mesh type 1
+surface mesh type 1
+There is field dicretization problem.
+Use finer mesh: 1mm size (0.001) only on inner bottom face; others same
+--------------------------
+
+Use nx to create/edit model. Native file is .prt.  Export it as parasolid .x_t
+
+Radius 10 cm, ht 45 cm. 
+replace radius of 0.075.. and ht 0.55.. to 0.100000... and 0.40.....
+ (ht 60 cm => 45 means ht =40 cm excluding small base cylinder)
+
+
+C1 = (0,0,-0.05)
+D1 = .152
+H1 = 0.6
+> 
+> * cylinder 2: coordinates of center (C2, is it same as C1), diameter (D2) and height (H2)
+> (2 values only if C1=C2)
+C2=C1=(0,0,-0.05)
+D2 = 0.0975
+H2 = 0.05 (so that the W surface is at z=0)
+> 
+> * cylinder 3 (tower): coordinates of center (C3, is there a gap between top face of cylinder 2 and bottom face of cylinder 3), diameter (D3) and height (H3)
+> (5 values)
+C3 = (0.0446,0,0)
+D3 = 0.01
+H3 = .14275
+
+> 
+> * 14 segments of cylinder 3: l1 through l14
+> (14 values unless all or some segments are of equal length)
+> 
+Edges of cylinder/divisions in z coordinates for insulating piece and 13 beads (15 values including top and bottom)
+z=0, 0.01275, 0.02275, 0.03275, 0.04275, 0.05275, 0.06275, 0.07275, 0.08275, 0.09275, 0.10275, 0.11275, 0.12275, 0.13275, 0.14275  
+

@@ -4,11 +4,13 @@ import sys,os
 import numpy as np
 import io,libconf
 import math
+from numpy import linalg as LA
 
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FormatStrFormatter
 from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+from matplotlib.colors import LogNorm
 
 # imports within other functions
 # from netCDF4 import Dataset
@@ -57,7 +59,7 @@ class gitr:
 		
 		self.data = {}
 		# load NetCDF output files
-		self.files = ['surface','spec'] #['surface','history','positions','particleSource','forces', 'spec']
+		self.files = ['surface','spec', 'compare-spec', 'compare-surface'] #['surface','history','positions','particleSource','forces', 'spec']
 		for key in self.files:
 			file = self.path + 'output/' + key + '.nc'
 			if os.path.isfile(file): self.data[key] = openNCfile(file)
@@ -90,7 +92,9 @@ class gitr:
 		#self.plotParticleHistograms()
 		#self.plotOrbits(N)
 		self.plotDensity()
-		self.plotEnergyDist()
+		#self.plotErosion()
+                self.plotEnergyDist()
+                #self.plotEnergyDistLog()
 		self.plotReflDist()
 		self.plotSputtDist()
 	  
@@ -248,7 +252,27 @@ class gitr:
 		if abs(digit) > 1:
 			factor = 10**digit
 			sumdens /= factor
-		sumdens[sumdens <= 0] = np.nan		# makes areas with zero density white in the plot
+		if 'compare-spec' in self.data:
+                    copy = sumdens.copy()
+                    copy[copy <= 0] = 0
+		    mdens =  self.data['compare-spec']['n'][-1,:,:,:]
+		    mgridR =  self.data['compare-spec']['gridR']
+		    mgridY =  self.data['compare-spec']['gridY']
+		    mgridZ =  self.data['compare-spec']['gridZ']
+		    msumdens = np.sum(mdens,1)/len(self.data['compare-spec']['gridY'])
+		    mdigit = int(np.floor(np.log10(msumdens.max())))
+		    if abs(mdigit) > 1:
+			    mfactor = 10**mdigit
+			    msumdens /= mfactor
+                    mcopy = msumdens.copy()
+                    mcopy[mcopy <= 0] = 0
+                    diffspec= copy - mcopy
+                    norm0 = LA.norm(diffspec) #diffspec.ravel(), 0)
+                    norm = LA.norm(sumdens)
+                    print('density diff. norm',norm0, 'GITR',norm,'percent',norm0/norm*100)
+
+                sumdens[sumdens <= 0] = np.nan		# makes areas with zero density white in the plot
+                #np.set_printoptions(threshold=np.inf)
 		fig = plt.figure(figsize = (10,6))		
 		cs = plt.imshow(sumdens, extent = [gridR.min(), gridR.max(), gridZ.min(), gridZ.max()], cmap = 'cool', origin = 'lower', aspect = 'auto', interpolation = 'nearest')
 		plt.xlabel('x [m]')
@@ -260,8 +284,30 @@ class gitr:
 			C.set_label('Density [count]', rotation = 270, size = FONTSIZE, va = 'bottom')
 		plt.title('X-section Particle Density', fontsize = FONTSIZE)
 		plt.plot(gridR, gridR* np.sin(np.pi/6.0), 'k-', lw = 2)
-		
-	
+
+	def plotEnergyDistLog(self):
+		"""
+		Plot the Energy-Angle distribution of the particles
+		"""
+		#if not self.data.has_key('surface'): 
+		if 'surface' not in self.data:
+			print( 'surface.nc not available')
+			return
+		print( 'ploting surface.nc')
+		edist = self.data['surface']['surfEDist'].flatten()
+		edist = edist.reshape(self.data['surface']['nSurfaces'],self.data['surface']['nEnergies'],self.data['surface']['nAngles'])
+		eDtotal = np.sum(edist,0).T
+		#eDtotal *= 100.0/eDtotal.max()
+		eDtotal[eDtotal <= 0] = np.nan		# makes areas with zero density white in the plot
+		#fig = plt.figure(figsize = (10,6))	
+		cs = plt.imshow(np.log10(eDtotal), extent = [0, 1000, 0, 90], cmap = 'cool', origin = 'lower', aspect = 'auto', interpolation = 'nearest')
+		plt.xlabel('Energy [eV]')
+		plt.ylabel('Angle [deg]')
+		plt.xscale('log')
+		C = plt.colorbar(cs, pad = 0.01, format = '%.3g')
+		C.set_label('Particles [a.u.]', rotation = 270, size = FONTSIZE, va = 'bottom')
+		plt.title('Energy Distribution', fontsize = FONTSIZE)
+
 	def plotEnergyDist(self, all = False):
 		"""
 		Plot the Energy-Angle distribution of the particles
@@ -279,16 +325,29 @@ class gitr:
 				plt.title(key, fontsize = FONTSIZE)
 				plt.xlabel('Surface #')
 				plt.ylabel('Value [a.u.]')
-		
 		edist = self.data['surface']['surfEDist'].flatten()
 		edist = edist.reshape(self.data['surface']['nSurfaces'],self.data['surface']['nEnergies'],self.data['surface']['nAngles'])
 		eDtotal = np.sum(edist,0).T
 		#eDtotal *= 100.0/eDtotal.max()
+                if 'compare-surface' in self.data:
+                    copy = eDtotal.copy()
+                    copy[copy <= 0] = 0
+		    medist = self.data['compare-surface']['surfEDist'].flatten()
+		    medist = medist.reshape(self.data['compare-surface']['nSurfaces'],self.data['compare-surface']['nEnergies'],self.data['compare-surface']['nAngles'])
+		    meDtotal = np.sum(medist,0).T
+                    mcopy = meDtotal.copy()
+                    mcopy[mcopy <= 0] = 0
+                    diffdist = (mcopy - copy)
+                    #diffSelect = diffdist[diffdist>5]/copy[diffdist>5] * 100.0
+                    norm0 = LA.norm(diffdist) #diffdist.ravel(), 0)
+                    norm = LA.norm(eDtotal)
+                    print('Energy-dist diff. norm', norm0,'GITR',norm,'percent',norm0/norm*100)
 		eDtotal[eDtotal <= 0] = np.nan		# makes areas with zero density white in the plot
 		fig = plt.figure(figsize = (10,6))		
 		cs = plt.imshow(eDtotal, extent = [0, 1000, 0, 90], cmap = 'cool', origin = 'lower', aspect = 'auto', interpolation = 'nearest')
 		plt.xlabel('Energy [eV]')
 		plt.ylabel('Angle [deg]')
+                #plt.xscale('log')
 		C = plt.colorbar(cs, pad = 0.01, format = '%.3g')
 		C.set_label('Particles [a.u.]', rotation = 270, size = FONTSIZE, va = 'bottom')
 		plt.title('Energy Distribution', fontsize = FONTSIZE)
@@ -310,11 +369,22 @@ class gitr:
 				plt.title(key, fontsize = FONTSIZE)
 				plt.xlabel('Surface #')
 				plt.ylabel('Value [a.u.]')
-		
 		edist = self.data['surface']['surfReflDist'].flatten()
 		edist = edist.reshape(self.data['surface']['nSurfaces'],self.data['surface']['nEnergies'],self.data['surface']['nAngles'])
 		eDtotal = np.sum(edist,0).T
 		#eDtotal *= 100.0/eDtotal.max()
+                if 'compare-surface' in self.data:
+                    copy = eDtotal.copy()
+                    copy[copy <= 0] = 0
+                    medist = self.data['compare-surface']['surfReflDist'].flatten()
+                    medist = medist.reshape(self.data['compare-surface']['nSurfaces'],self.data['compare-surface']['nEnergies'],self.data['compare-surface']['nAngles'])
+                    meDtotal = np.sum(medist,0).T
+                    diffdist = meDtotal - eDtotal
+                    norm0 = LA.norm(diffdist)
+                    norm = LA.norm(eDtotal)
+                    #print(diffdist[diffdist>5])
+                    #print(eDtotal[diffdist>5])
+                    print('Reflection diff. norm',norm0, 'GITR',norm,'percent',norm0/norm*100)
 		eDtotal[eDtotal <= 0] = np.nan		# makes areas with zero density white in the plot
 		fig = plt.figure(figsize = (10,6))		
 		cs = plt.imshow(eDtotal, extent = [0, 1000, 0, 90], cmap = 'cool', origin = 'lower', aspect = 'auto', interpolation = 'nearest')
@@ -342,14 +412,28 @@ class gitr:
 				plt.title(key, fontsize = FONTSIZE)
 				plt.xlabel('Surface #')
 				plt.ylabel('Value [a.u.]')
-		
 		edist = self.data['surface']['surfSputtDist'].flatten()
 		edist = edist.reshape(self.data['surface']['nSurfaces'],self.data['surface']['nEnergies'],self.data['surface']['nAngles'])
 		eDtotal = np.sum(edist,0).T
+		#print(np.nonzero(eDtotal)[0])
+                #np.set_printoptions(precision=3)
+                #print(eDtotal[eDtotal>0])
+                # print(len(edist))
 		#eDtotal *= 100.0/eDtotal.max()
+                if 'compare-surface' in self.data:
+                    copy = eDtotal.copy()
+                    copy[copy <= 0] = 0
+                    medist = self.data['compare-surface']['surfSputtDist'].flatten()
+                    medist = medist.reshape(self.data['compare-surface']['nSurfaces'],self.data['compare-surface']['nEnergies'],self.data['compare-surface']['nAngles'])
+                    meDtotal = np.sum(medist,0).T
+                    diffdist = meDtotal - eDtotal
+                    norm0 = LA.norm(diffdist)
+                    norm = LA.norm(eDtotal)
+                    print('Sputtering diff. norm',norm0, 'GITR',norm,'percent',norm0/norm*100)
 		eDtotal[eDtotal <= 0] = np.nan		# makes areas with zero density white in the plot
 		fig = plt.figure(figsize = (10,6))		
-		cs = plt.imshow(eDtotal, extent = [0, 1000, 0, 90], cmap = 'cool', origin = 'lower', aspect = 'auto', interpolation = 'nearest')
+		cs = plt.imshow(eDtotal, extent = [0, 1000, 0, 90], cmap='cool', origin = 'lower', aspect = 'auto', interpolation = 'nearest')
+		#plt.xscale('log')
 		plt.xlabel('Energy [eV]')
 		plt.ylabel('Angle [deg]')
 		C = plt.colorbar(cs, pad = 0.01, format = '%.3g')
