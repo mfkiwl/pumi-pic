@@ -9,6 +9,7 @@ const GitrmParticles& gp, double dt, const o::LOs& elm_ids, int debug=0)
 {
 
   auto pid_ps = ptcls->get<PTCL_ID>();
+  auto pid_ps_global=ptcls->get<PTCL_ID_GLOBAL>();
   auto x_ps_d = ptcls->get<PTCL_POS>();
   auto xtgt_ps_d = ptcls->get<PTCL_NEXT_POS>();
   auto vel_ps_d = ptcls->get<PTCL_VEL>();
@@ -62,6 +63,7 @@ const GitrmParticles& gp, double dt, const o::LOs& elm_ids, int debug=0)
 	{ if(mask > 0  && elm_ids[pid] >= 0)
     	{	
         o::LO el            = elm_ids[pid];
+	auto ptcl_global    = pid_ps_global(pid);
         auto ptcl           = pid_ps(pid);
         auto charge         = charge_ps_d(pid);
         auto fid            = xfaces[pid];
@@ -160,10 +162,10 @@ const GitrmParticles& gp, double dt, const o::LOs& elm_ids, int debug=0)
         }*/
 
         if( USEPERPDIFFUSION==1){
-          
-          if(useGitrRnd) {
-            r3  = testGitrPtclStepData[ptcl*testGNT*testGDof + iTimeStep*testGDof + diff_rnd1];
-            if(debug >1)
+      
+          if(useGitrRnd){
+            r3  = testGitrPtclStepData[ptcl_global*testGNT*testGDof + iTimeStep*testGDof + diff_rnd1];
+      	    if(debug >1)
               printf("gitrRndNums-diff %d tstep %d %g\n", ptcl, iTimeStep, r3);
           } else if (useCudaRnd) {
             auto localState = cuStates[ptcl];

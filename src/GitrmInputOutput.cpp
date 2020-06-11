@@ -6,6 +6,7 @@
 #include "Omega_h_array.hpp"
 #include "Omega_h_array_ops.hpp"
 #include <netcdf>
+#include <netcdf_par.h>
 #include <cstddef>
 #include "GitrmInputOutput.hpp"
 
@@ -74,13 +75,122 @@ int verifyNetcdfFile(const std::string& ncFileName, int nc_err) {
   return status;
 } 
 
+
 bool readParticleSourceNcFile(std::string ncFileName, o::HostWrite<o::Real>& data,
-   int& numPtcls, bool replaceNaN) {
-  constexpr int dof = 6;
-  bool status = true;
-  verifyNetcdfFile(ncFileName);
-  try {
-    netCDF::NcFile ncf(ncFileName, netCDF::NcFile::read);
+   int& numPtcls, size_t each_chunk, size_t each_chunk_pos, bool replaceNaN) {
+  
+    
+    int myrank, numranks, ncid, err, np_id, num_vrs;
+    char str_char[100];
+    size_t np_length;
+    bool status=true;
+    MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
+    MPI_Comm_size(MPI_COMM_WORLD, &numranks);
+    //printf("While reading num ranks is %d \n", numranks);
+
+    size_t myrank_s=size_t(myrank);
+    //std::cout<<"The passed string is"<<ncFileName<<std::endl;
+    std::strcpy (str_char, ncFileName.c_str());
+
+    char const *vrs[]={"x","y","z","vx","vy","vz"};
+    num_vrs=sizeof(vrs)/sizeof(vrs[0]);
+    //printf("Number of variables in netCDF file %d \n",num_vrs);
+    int* vrs_ind;
+    vrs_ind=(int *)calloc(num_vrs, sizeof(int));
+
+    err=nc_open_par(str_char, NC_NETCDF4|NC_NOWRITE, MPI_COMM_WORLD, MPI_INFO_NULL, &ncid);
+      if (err!=0){
+        printf("The error0 status should be 0 is %d \n" , err);
+        printf("%s\n", nc_strerror(err));
+        exit(-1);
+      }
+    
+    err=nc_inq_dimid(ncid, "nP", &np_id);
+     if (err!=0){
+      printf("The error1 status should be 0 is %d \n" , err);
+      printf("%s\n", nc_strerror(err));
+      exit(-1);
+    }
+  
+    err=nc_inq_dimlen(ncid, np_id, &np_length);
+    if (err!=0){
+      printf("The error2 status should be 0 is %d \n" , err);
+      printf("%s\n", nc_strerror(err));
+      exit(-1);
+    }
+    
+
+    numPtcls=int(each_chunk);
+    //double * nc_values;
+    static size_t start[] = {myrank_s*each_chunk_pos};
+    static size_t count[] = {each_chunk};
+    //nc_values=(double*)calloc(num_vrs*num_ptcls, sizeof(double));
+    data = o::HostWrite<o::Real>(numPtcls*num_vrs);
+
+    for (int i=0; i<num_vrs; i++){
+
+      err=nc_inq_varid (ncid, vrs[i], vrs_ind+i);
+      if (err!=0){
+
+        printf("The error3 status should be 0 is %d \n" , err);
+        printf("%s\n", nc_strerror(err));
+        exit(-1);
+
+      } 
+
+      err = nc_var_par_access(ncid, *(vrs_ind+i), NC_INDEPENDENT);
+      if (err!=0){
+
+        printf("The error4 status should be 0 is %d \n" , err);
+        printf("%s\n", nc_strerror(err));
+        exit(-1);
+
+      } 
+
+      err=nc_get_vara_double(ncid, *(vrs_ind+i), start, count, &data[i*each_chunk]);
+      if (err!=0){
+
+        printf("The error5 status should be 0 is %d \n" , err);
+        printf("%s\n", nc_strerror(err));
+        exit(-1);
+
+      }
+    }
+
+      err=nc_close(ncid);
+        if (err!=0){
+          printf("The error5 status should be 0 is %d \n" , err);
+          printf("%s\n", nc_strerror(err));
+          exit(-1);
+        }
+
+      if(replaceNaN) {
+        
+        long int nans = 0;
+          for(auto i=0; i<data.size(); ++i)
+            if(std::isnan(data[i])) {
+              data[i] = 0;
+              ++nans;
+            }
+        if(nans)
+            printf("\n*******WARNING replaced %ld NaNs in ptclSrc *******\n\n", nans);
+      }
+
+      free (vrs_ind);
+      return status;
+
+}
+
+
+/*
+bool readParticleSourceNcFile(std::string ncFileName, o::HostWrite<o::Real>& data,
+int& numPtcls, bool replaceNaN) {
+  
+    constexpr int dof = 6;
+    bool status = true;
+    verifyNetcdfFile(ncFileName);
+    try {
+      netCDF::NcFile ncf(ncFileName, netCDF::NcFile::read);
     netCDF::NcDim ncf_np(ncf.getDim("nP"));
     auto np = ncf_np.getSize();
     OMEGA_H_CHECK(numPtcls <= np);
@@ -101,11 +211,12 @@ bool readParticleSourceNcFile(std::string ncFileName, o::HostWrite<o::Real>& dat
     ncvx.getVar(&data[3*np]);
     ncvy.getVar(&data[4*np]);
     ncvz.getVar(&data[5*np]);
-  } catch (netCDF::exceptions::NcException &e) {
+    } catch (netCDF::exceptions::NcException &e) {
     std::cout << e.what() << std::endl;
     status = false;
-  }
-  if(replaceNaN) {
+    }
+    printf("The starting data is %p %e %p \n", data, data[0], &data[0]);
+    if(replaceNaN) {
     long int nans = 0;
     for(auto i=0; i<data.size(); ++i)
       if(std::isnan(data[i])) {
@@ -114,11 +225,14 @@ bool readParticleSourceNcFile(std::string ncFileName, o::HostWrite<o::Real>& dat
       }
     if(nans)
       printf("\n*******WARNING replaced %ld NaNs in ptclSrc *******\n\n", nans);
+      printf("The total size of data to be loaded in GPU is %d\n",data.size());
   }
   if(!status)
     Omega_h_fail("ERROR: reading file %s\n", ncFileName.c_str());
   return status;
 }
+*/
+
 
 //Reads from 0 to 3 grids having gridNames; .
 int readInputDataNcFileFS3(const std::string& ncFileName,
@@ -271,6 +385,116 @@ void writeOutBdryFaceCoordsNcFile(const std::string& fileName,
     Omega_h_fail("ERROR: failed writing file %s\n", fileName.c_str());
 }
 
+/*
+
+void writeOutputNcFile( o::HostWrite<o::Real>& ptclHistoryData, int numPtcls,
+  long int totalPtcls, int nThistory, std::string outNcFileName) {
+  
+    int myrank, numranks, ncid, err, np_id, num_vrs, num_dim, each_chunk;
+    char str_char[100];
+
+
+    char const *vrs[]={"x","y","z","vx","vy","vz"};
+    char const *dim[]={"nP", "nT"};
+    num_vrs=sizeof(vrs)/sizeof(vrs[0]);
+    num_dim=sizeof(dim)/sizeof(dim[0]);
+
+    //printf("Number of variables in result netCDF file %d \n",num_vrs);
+    //printf("Number of dimesnions in result netCDF file %d \n",num_dim);
+
+    int* vrs_ind;
+    int* dim_ind;
+    long int* dim_count;
+
+    vrs_ind=(int *)calloc(num_vrs, sizeof(int));
+    dim_ind=(int *)calloc(num_dim, sizeof(int));
+    dim_count=(long int *)calloc(num_dim, sizeof(long int));
+    
+    dim_count[0]=totalPtcls;
+    dim_count[1]=nThistory;
+
+    MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
+    MPI_Comm_size(MPI_COMM_WORLD, &numranks);
+
+    each_chunk=totalPtcls/numranks;
+    size_t each_chunk_pos=each_chunk;
+    if (myrank==numranks-1) each_chunk=each_chunk+ totalPtcls%numranks;
+    //printf("Total ptcls is %d \n",totalPtcls);
+    //printf("Total ranks is %d \n",numranks);
+    //printf("Each chunk is %d \n", each_chunk);
+
+    std::strcpy(str_char, outNcFileName.c_str());
+    size_t myrank_s=size_t(myrank);
+    //printf("Entering parallel netCDF routine \n");
+    err=nc_create_par(str_char, NC_NETCDF4|NC_MPIIO, MPI_COMM_WORLD, MPI_INFO_NULL, &ncid);
+      if (err!=0){
+        printf("The error0 status should be 0 is %d \n" , err);
+        printf("%s\n", nc_strerror(err));
+        exit(-1);
+      }
+
+    for (int i=0; i<num_dim;i++){
+      err=nc_def_dim(ncid, dim[i], dim_count[i], dim_ind+i);
+        if (err!=0){
+          printf("The error1 status should be 0 is %d \n" , err);
+          printf("%s\n", nc_strerror(err));
+          exit(-1);
+        }
+    }
+
+    for (int i=0; i<num_vrs;i++){
+      err=nc_def_var(ncid, vrs[i], NC_DOUBLE, num_dim, dim_ind, vrs_ind+i);
+        if (err!=0){
+          printf("The error2 status should be 0 is %d \n" , err);
+          printf("%s\n", nc_strerror(err));
+          exit(-1);
+        }
+    }
+
+    size_t start[2];
+    size_t count[2];
+    //printf("ptclHistoryData.size() is %d \n", ptclHistoryData.size());
+
+    for (int i=0; i<num_vrs;i++){
+
+      err=nc_var_par_access(ncid, *(vrs_ind+i), NC_INDEPENDENT);
+        if (err!=0){
+          printf("The error3 status should be 0 is %d \n" , err);
+          printf("%s\n", nc_strerror(err));
+          exit(-1);
+      }
+
+      //int ref = i*totalPtcls*nThistory+myrank_s*each_chunk*nThistory;
+      int ref=i*each_chunk*nThistory;
+      start[0]=myrank_s*(each_chunk_pos);
+      //printf("Starting is %d \n", start[0]);
+      start[1] = 0;
+      count[0] = each_chunk;
+      count[1] = nThistory;
+
+      err=nc_put_vara_double(ncid, *(vrs_ind+i), start, count, &ptclHistoryData[ref]);
+        if (err!=0){
+          printf("The error4 status should be 0 is %d \n" , err);
+          printf("%s\n", nc_strerror(err));
+          exit(-1);
+        }
+    }
+
+      err=nc_close(ncid);
+        if (err!=0){
+          printf("The error5 status should be 0 is %d \n" , err);
+          printf("%s\n", nc_strerror(err));
+          exit(-1);
+        }
+
+    free(vrs_ind);
+    free(dim_ind);
+    free(dim_count);
+    
+}
+*/
+
+
 void writeOutputNcFile( o::HostWrite<o::Real>& ptclHistoryData, int numPtcls,
   int dof, OutputNcFileFieldStruct& st, std::string outNcFileName) {
   //if ext not nc, 
@@ -319,6 +543,8 @@ void writeOutputNcFile( o::HostWrite<o::Real>& ptclHistoryData, int numPtcls,
   if(status)
     Omega_h_fail("ERROR: failed writing file %s \n", outNcFileName.c_str());
 }
+
+
 
 int readCsrFile(const std::string& ncFileName,  
   const std::vector<std::string>& vars,

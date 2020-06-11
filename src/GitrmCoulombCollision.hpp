@@ -135,6 +135,8 @@ OMEGA_H_DEVICE void get_direc(const Omega_h::Vector<3> &vel, const Omega_h::Vect
 
 inline void gitrm_coulomb_collision(PS* ptcls, int *iteration, const GitrmMesh& gm,
    const GitrmParticles& gp, double dt, const o::LOs& elm_ids, int debug=0) {
+  
+  auto pid_ps_global=ptcls->get<PTCL_ID_GLOBAL>();
   auto pid_ps = ptcls->get<PTCL_ID>();
   auto x_ps_d = ptcls->get<PTCL_POS>();
   auto xtgt_ps_d = ptcls->get<1>();
@@ -222,6 +224,7 @@ inline void gitrm_coulomb_collision(PS* ptcls, int *iteration, const GitrmMesh& 
     if(mask > 0 && elm_ids[pid] >= 0) {
       o::LO el = elm_ids[pid];
       auto ptcl           = pid_ps(pid);
+      auto ptcl_global    = pid_ps_global(pid);
       auto charge         = charge_ps_d(pid);
       auto fid            = xfaces[pid];
       if(!charge || fid >=0)
@@ -306,9 +309,10 @@ inline void gitrm_coulomb_collision(PS* ptcls, int *iteration, const GitrmMesh& 
       double n2  = 0;
       double xsi = 0;
       if(useGitrRnd) {
-        n1  = testGitrPtclStepData[ptcl*testGNT*testGDof + iTimeStep*testGDof + collisionIndex1];
-        n2  = testGitrPtclStepData[ptcl*testGNT*testGDof + iTimeStep*testGDof + collisionIndex2];
-        xsi = testGitrPtclStepData[ptcl*testGNT*testGDof + iTimeStep*testGDof + collisionIndex3];
+
+        n1  = testGitrPtclStepData[ptcl_global*testGNT*testGDof + iTimeStep*testGDof + collisionIndex1];
+        n2  = testGitrPtclStepData[ptcl_global*testGNT*testGDof + iTimeStep*testGDof + collisionIndex2];
+        xsi = testGitrPtclStepData[ptcl_global*testGNT*testGDof + iTimeStep*testGDof + collisionIndex3];
         if(debug >1)
           printf("gitrRndNums-coulomb ptcl %d tstep %d n1 %.15f n2 %.15f xsi %.15f\n",
            ptcl, iTimeStep, n1, n2, xsi);
@@ -321,6 +325,7 @@ inline void gitrm_coulomb_collision(PS* ptcls, int *iteration, const GitrmMesh& 
         if(debug >1)
           printf("cudaRndNums-coulomb ptcl %d tstep %d n1 %.15f n2 %.15f xsi %.15f nu_parallel %.15f\n",
            ptcl, iTimeStep,n1,n2,xsi, nu_parallel);
+
       } else {
         auto rnd = rpool.get_state();
         n1 = rnd.normal(); //TODO test normal dist

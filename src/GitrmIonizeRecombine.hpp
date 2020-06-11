@@ -89,7 +89,7 @@ OMEGA_H_DEVICE o::Real interpolateRateCoeff(const o::Reals &data,
 }
 
 inline void gitrm_ionize(PS* ptcls, const GitrmIonizeRecombine& gir, 
-  GitrmParticles& gp, const GitrmMesh& gm, const o::LOs& elm_ids, bool debug = 0) {
+  GitrmParticles& gp, const GitrmMesh& gm, const o::LOs& elm_ids, int debug = 0) {
   if(!gir.chargedPtclTracking)
     return;
   if(debug)
@@ -148,6 +148,7 @@ inline void gitrm_ionize(PS* ptcls, const GitrmIonizeRecombine& gir,
   auto tempWrite = o::deep_copy(mesh.get_array<o::Real>(o::VERT, "IonTempVtx"));
 
   auto pid_ps = ptcls->get<PTCL_ID>();
+  auto pid_ps_global = ptcls->get<PTCL_ID_GLOBAL>(); //NELY ADDED
   auto new_pos = ptcls->get<PTCL_NEXT_POS>();
   auto charge_ps = ptcls->get<PTCL_CHARGE>();
   auto first_ionizeZ_ps = ptcls->get<PTCL_FIRST_IONIZEZ>();
@@ -164,6 +165,7 @@ inline void gitrm_ionize(PS* ptcls, const GitrmIonizeRecombine& gir,
      // element of next_pos
       o::LO el = elm_ids[pid];
       auto ptcl = pid_ps(pid);
+      auto ptcl_global=pid_ps_global(pid);
       auto pos = p::makeVector3(pid, new_pos);
       auto charge = charge_ps(pid);
       auto pos_previous = p::makeVector3(pid, pos_prev);
@@ -204,8 +206,10 @@ inline void gitrm_ionize(PS* ptcls, const GitrmIonizeRecombine& gir,
       o::Real P1 = 1.0 - exp(-dt/rateIon);
       double randn = 0;
       if(useGitrRnd) {
-        randn = testGitrPtclStepData[ptcl*testGNT*testGDof + iTimeStep*testGDof + testGIind];
-        if(debug>1)
+
+      randn = testGitrPtclStepData[ptcl_global*testGNT*testGDof + iTimeStep*testGDof + testGIind];
+    
+      if(debug>1)
           printf("gitrRnd:ioni ptcl %d t %d rand %g\n", ptcl, iTimeStep, randn);
       } else if (useCudaRnd) {
         //NOTE : states for all particles to be initialized in all ranks
@@ -298,6 +302,7 @@ inline void gitrm_recombine(PS* ptcls, const GitrmIonizeRecombine& gir,
   const auto densVtx = mesh.get_array<o::Real>(o::VERT, "IonDensityVtx");
   //const auto& tIonVtx = gm.densElVtx_d;
   //const auto& densVtx = gm.tempElVtx_d;
+  auto pid_ps_global = ptcls->get<PTCL_ID_GLOBAL>(); //NELY ADDED
   auto pid_ps = ptcls->get<PTCL_ID>();
   auto new_pos = ptcls->get<PTCL_NEXT_POS>();
   auto charge_ps = ptcls->get<PTCL_CHARGE>();
@@ -310,6 +315,7 @@ inline void gitrm_recombine(PS* ptcls, const GitrmIonizeRecombine& gir,
     if(mask > 0 && elm_ids[pid] >= 0) {
       auto el = elm_ids[pid];
       auto ptcl = pid_ps(pid);
+      auto ptcl_global=pid_ps_global(pid);
       auto charge = charge_ps(pid);
       auto pos = p::makeVector3(pid, new_pos);
       o::Real rateRecomb = 0;
@@ -355,7 +361,7 @@ inline void gitrm_recombine(PS* ptcls, const GitrmIonizeRecombine& gir,
         double randGitr = 0;
         int gitrInd = -1;
         if(useGitrRnd) {
-          randGitr = testGitrPtclStepData[ptcl*testGNT*testGDof + 
+          randGitr = testGitrPtclStepData[ptcl_global*testGNT*testGDof + 
             iTimeStep*testGDof + testGrecInd];
           randn = randGitr;
           if(debug>1)
