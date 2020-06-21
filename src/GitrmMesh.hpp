@@ -56,8 +56,8 @@ const o::Real CONSTANT_EFIELD0 = 0;
 const o::Real CONSTANT_EFIELD1 = 0;
 const o::Real CONSTANT_EFIELD2 = 0;
 
-const o::Real CONSTANT_BFIELD0 = 5;
-const o::Real CONSTANT_BFIELD1 = 5;
+const o::Real CONSTANT_BFIELD0 = 0;
+const o::Real CONSTANT_BFIELD1 = 0;
 const o::Real CONSTANT_BFIELD2 = -0.08;
 
 const o::Real CONSTANT_FLOW_VELOCITY0 = 0;

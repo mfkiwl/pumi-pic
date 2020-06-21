@@ -70,14 +70,14 @@ void rebuild(p::Mesh& picparts, PS* ptcls, o::LOs elem_ids,
       //Added to check migration
       auto ptcl = pid_ps(pid);
       auto ptcl_global=pid_ps_global(pid);
-
-     // printf("Rank:%d ptcl:%d global_particle:%d \n",ps_process_ids(pid), ptcl, ptcl_global);
-      // Delete later if reqd
+      if(output)
+        printf("Rank:%d ptcl:%d global_particle:%d \n",ps_process_ids(pid), ptcl, ptcl_global);
 
       if (new_elem != -1 && is_safe[new_elem] == 0) {
         ps_process_ids(pid) = elm_owners[new_elem];
       }
-     // printf("New rank:%d ptcl:%d global_particle:%d \n",ps_process_ids(pid), ptcl, ptcl_global);
+      if(output)
+        printf("New rank:%d ptcl:%d global_particle:%d \n",ps_process_ids(pid), ptcl, ptcl_global);
     }
   };
   ps::parallel_for(ptcls, lamb);
@@ -148,14 +148,16 @@ int main(int argc, char** argv) {
   bool piscesRun = true; // add as argument later
 
   bool debug = false; //search
-  int debug2 = 1;  //routines
+  int debug2 = 0;  //routines
 
   bool surfacemodel = true;
   bool spectroscopy = true;
-  bool thermal_force = true; //false in pisces conf
+  bool thermal_force = false; //false in pisces conf
+  if(piscesRun)
+    OMEGA_H_CHECK(!thermal_force);
   bool coulomb_collision = true;
   bool diffusion = true; //not for diffusion>1
-  bool useCudaRnd = true; //replace kokkos rnd
+  bool useCudaRnd = false; //replace kokkos rnd
   
 //GitrmInput inp("gitrInput.cfg", true);
 //  inp.testInputConfig();
@@ -182,28 +184,6 @@ int main(int argc, char** argv) {
   auto full_mesh = readMesh(argv[1], lib);
   MPI_Barrier(MPI_COMM_WORLD);
 
-/*
-  Omega_h::HostWrite<Omega_h::LO> host_owners(full_mesh.nelems());
-  if(comm_size > 1) {
-    std::ifstream in_str(argv[2]);
-    if (!in_str) {
-      if (!comm_rank)
-        fprintf(stderr,"Cannot open file %s\n", argv[2]);
-      return EXIT_FAILURE;
-    }
-    int own;
-    int index = 0;
-    while(in_str >> own)
-      host_owners[index++] = own;
-  }
-  else
-    for (int i = 0; i < full_mesh.nelems(); ++i)
-      host_owners[i] = 0;
-  Omega_h::Write<Omega_h::LO> owner(host_owners);
-
-  //Create Picparts with the full mesh
-  p::Mesh picparts(full_mesh, owner);
-*/
   o::CommPtr world = lib.world();
   //Create Picparts with the full mesh
   p::Input::Method bm = p::Input::Method::FULL;
@@ -262,8 +242,6 @@ int main(int argc, char** argv) {
     seed, useGitrRndNums);
   if(histInterval > 0)
     gp.initPtclHistoryData(histInterval);
-  //current extruded mesh has Y, Z switched
-  // ramp: 330, 90, 1.5, 200,10; tgt 324, 90...; upper: 110, 0
   if(!comm_rank)
     printf("Initializing Particles\n");
   gp.initPtclsFromFile(ptclSource, 100, true);
@@ -323,9 +301,6 @@ int main(int argc, char** argv) {
   GitrmSurfaceModel sm(gm, surfModelFile);
   GitrmSpectroscopy sp;
 
-  //ioni_recomb diffusion coulomb_collision thermal_force surfacemodel spectroscopy
-  //  gp.checkCompatibilityWithGITRflags(iter);
-
   if(false)
     profileAndInterpolateTest(gm, true); //move to unit_test
   printf("\ndTime %g NUM_ITERATIONS %d\n", dTime, numIterations);
@@ -344,9 +319,13 @@ int main(int argc, char** argv) {
     }
     if(comm_rank == 0)
       fprintf(stderr, "=================iter %d===============\n", iter);
-    Kokkos::Profiling::pushRegion("BorisMove");
+    Kokkos::Profiling::pushRegion("dist2bdry");
     gitrm_findDistanceToBdry(gp, gm, debug2);
+    Kokkos::Profiling::popRegion();
+    Kokkos::Profiling::pushRegion("calculateE");
     gitrm_calculateE(gp, *mesh, gm, debug2);
+    Kokkos::Profiling::popRegion();
+    Kokkos::Profiling::pushRegion("borisMove");
     gitrm_borisMove(ptcls, gm, dTime, debug2);
     Kokkos::Profiling::popRegion();
     MPI_Barrier(MPI_COMM_WORLD);
@@ -355,27 +334,39 @@ int main(int argc, char** argv) {
     o::Write<o::LO> elem_ids(psCapacity,-1);
     search(picparts, gp, elem_ids, debug);
     auto elem_ids_r = o::LOs(elem_ids);
-    Kokkos::Profiling::pushRegion("otherRoutines");
+    Kokkos::Profiling::pushRegion("spectroscopy");
     if(spectroscopy)
       gitrm_spectroscopy(ptcls, sp, elem_ids_r, debug2);
+    Kokkos::Profiling::popRegion();
     
+    Kokkos::Profiling::pushRegion("ionize");
     gitrm_ionize(ptcls, gir, gp, gm, elem_ids_r, debug2);
+    Kokkos::Profiling::popRegion();
+    Kokkos::Profiling::pushRegion("recombine");
     gitrm_recombine(ptcls, gir, gp, gm, elem_ids_r, debug2);  
+    Kokkos::Profiling::popRegion();
     if(diffusion) {
-      gitrm_cross_diffusion(ptcls, &iter, gm, gp,dTime, elem_ids_r, debug2);
+      Kokkos::Profiling::pushRegion("diffusion");
+      gitrm_cross_diffusion(ptcls, gm, gp,dTime, elem_ids_r, debug2);
+      Kokkos::Profiling::popRegion();
       search(picparts, gp, elem_ids, debug);
     }
+    Kokkos::Profiling::pushRegion("coulomb_collision");
     if(coulomb_collision)
       gitrm_coulomb_collision(ptcls, &iter, gm, gp, dTime, elem_ids_r, debug2);
+    Kokkos::Profiling::popRegion();
+    Kokkos::Profiling::pushRegion("thermal_force");
     if(thermal_force)
       gitrm_thermal_force(ptcls, &iter, gm, gp, dTime, elem_ids_r, debug2);
+    Kokkos::Profiling::popRegion();
     if(surfacemodel) {
+      Kokkos::Profiling::pushRegion("surface_refl");
       gitrm_surfaceReflection(ptcls, sm, gp, gm, debug2);
+      Kokkos::Profiling::popRegion();
       //reflected ptcl is searched beginning at orig, not from wall hit point.
       search(picparts, gp, elem_ids, debug);
     }
 
-    Kokkos::Profiling::popRegion();
     elem_ids_r = o::LOs(elem_ids);
     gp.updateParticleDetection(elem_ids_r, iter, iter==numIterations-1, false);
 
@@ -385,7 +376,7 @@ int main(int argc, char** argv) {
     Kokkos::Profiling::popRegion();
     gp.resetPtclWallCollisionData();
 
-   // if(comm_rank == 0 && iter%1000 ==0)
+    if(comm_rank == 0 && iter%1000 ==0)
       fprintf(stderr, "rank %d  nPtcls %d \n", comm_rank, ptcls->nPtcls());
     ps_np = ptcls->nPtcls();
     MPI_Allreduce(&ps_np, &np, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);

@@ -151,7 +151,7 @@ const GitrmParticles& gp, double dt, const o::LOs& elm_ids, int debug=0)
         } 
     	}
     };
-    ps::parallel_for(ptcls, update_thermal);
+    p::parallel_for(ptcls, update_thermal, "thermal_force_kernel");
     
 }
 #endif

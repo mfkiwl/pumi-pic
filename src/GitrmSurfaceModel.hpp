@@ -217,14 +217,6 @@ inline void gitrm_surfaceReflection(PS* ptcls, GitrmSurfaceModel& sm,
   auto amu = gitrm::PTCL_AMU;
   auto elCharge = gitrm::ELECTRON_CHARGE;
   auto protonMass = gitrm::PROTON_MASS;
-  auto mesh = sm.mesh;
-  const auto coords = mesh.coords();
-  const auto face_verts = mesh.ask_verts_of(2);
-  const auto f2r_ptr = mesh.ask_up(o::FACE, o::REGION).a2ab;
-  const auto f2r_elem = mesh.ask_up(o::FACE, o::REGION).ab2b;
-  const auto side_is_exposed = mark_exposed_sides(&mesh);
-  const auto mesh2verts = mesh.ask_elem_verts();
-  const auto down_r2fs = mesh.ask_down(3, 2).ab2b;
   //input data
   const auto nEnSputtRefCoeff = sm.nEnSputtRefCoeff; // nE_sputtRefCoeff
   const auto nAngSputtRefCoeff = sm.nAngSputtRefCoeff; // nA_sputtRefCoeff 
@@ -261,6 +253,15 @@ inline void gitrm_surfaceReflection(PS* ptcls, GitrmSurfaceModel& sm,
   const auto dAdist = sm.dAdist; 
   //data collection
   //auto surfaces = mesh.get_array<o::LO>(o::FACE, "SurfaceIndex");
+  Kokkos::Profiling::pushRegion("surf_mesh_data+tag_copy");
+  auto mesh = sm.mesh;
+  const auto coords = mesh.coords();
+  const auto face_verts = mesh.ask_verts_of(2);
+  const auto f2r_ptr = mesh.ask_up(o::FACE, o::REGION).a2ab;
+  const auto f2r_elem = mesh.ask_up(o::FACE, o::REGION).ab2b;
+  const auto side_is_exposed = mark_exposed_sides(&mesh);
+  const auto mesh2verts = mesh.ask_elem_verts();
+  const auto down_r2fs = mesh.ask_down(3, 2).ab2b;
   auto sumPtclStrike = o::deep_copy(
     mesh.get_array<o::Int>(o::FACE, "SumParticlesStrike"),"sumPtclStrike");
   auto sputtYldCount = o::deep_copy(
@@ -272,15 +273,17 @@ inline void gitrm_surfaceReflection(PS* ptcls, GitrmSurfaceModel& sm,
   auto grossErosion = o::deep_copy(
     mesh.get_array<o::Real>(o::FACE, "GrossErosion"), "grossErosion");
   auto aveSputtYld = o::deep_copy(
-    mesh.get_array<o::Real>(o::FACE, "AveSputtYld"), "aveSputtYld");  
+    mesh.get_array<o::Real>(o::FACE, "AveSputtYld"), "aveSputtYld");
+  Kokkos::Profiling::popRegion();
+
   const auto& xpoints = gp.wallCollisionPts; //idexed by pid of scs
   const auto& xfaces = gp.wallCollisionFaceIds;
-  auto energyDist = sm.energyDistribution;
+  auto& energyDist = sm.energyDistribution;
   auto energyDist_size = energyDist.size();
-  auto sputtDist = sm.sputtDistribution;
-  auto reflDist = sm.reflDistribution;
-  auto surfaceIds = sm.surfaceAndMaterialOrderedIds;
-  auto materials = sm.bdryFaceMaterialZs;
+  auto& sputtDist = sm.sputtDistribution;
+  auto& reflDist = sm.reflDistribution;
+  auto& surfaceIds = sm.surfaceAndMaterialOrderedIds;
+  auto& materials = sm.bdryFaceMaterialZs;
 
   auto pid_ps = ptcls->get<PTCL_ID>();
   auto next_pos_ps = ptcls->get<PTCL_NEXT_POS>();
@@ -444,12 +447,13 @@ inline void gitrm_surfaceReflection(PS* ptcls, GitrmSurfaceModel& sm,
              aDistInd >= 0 && aDistInd < nAngDist) {
             auto idx = surfId*nEnDist*nAngDist + eDistInd*nAngDist + aDistInd;
             auto old = Kokkos::atomic_fetch_add(&(reflDist[idx]), newWeight);
-         //   if(debug>1)
+            if(debug>1) {
               printf("surfRefl step %d ptcl %d tot-refl %g idx %d Aind %d Eind %d"
                 " aInterp %g  eInterp %g\n", iTimeStep, ptcl, old+newWeight,
                 idx, aDistInd, eDistInd, aInterpVal, eInterpVal);
               printf("surfRefl step %d ptcl %d surfid %d r8 %g wt %g YR %g thetaImpact %g"
                 " newWt %g \n", iTimeStep, ptcl, surfId, rand8, weight, totalYR, thetaImpact, newWeight);
+            }
           }
  
           if(surfId >= 0) { //id 0..

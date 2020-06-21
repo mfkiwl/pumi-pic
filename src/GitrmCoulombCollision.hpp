@@ -381,7 +381,7 @@ inline void gitrm_coulomb_collision(PS* ptcls, int *iteration, const GitrmMesh& 
       vel_ps_d(pid,2)=vel[2];  
     }
   };
-  ps::parallel_for(ptcls, updatePtclPos);
+  p::parallel_for(ptcls, updatePtclPos, "coulomb_collision_kernel");
 }
 
 #endif

@@ -311,7 +311,7 @@ inline void gitrm_findDistanceToBdry(GitrmParticles& gp,
       } //if nFaces
     }
   };
-  p::parallel_for(ptcls, lambda);
+  p::parallel_for(ptcls, lambda, "dist2bdry_kernel");
   gp.closestPoints = o::Reals(closestPoints);
   gp.closestBdryFaceIds = o::LOs(closestBdryFaceIds);
 }

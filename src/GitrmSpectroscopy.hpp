@@ -88,7 +88,7 @@ inline void gitrm_spectroscopy(PS* ptcls, GitrmSpectroscopy& sp, o::LOs& elm_ids
       } // z
     } //mask
   };
-  p::parallel_for(ptcls, lambda, "spectroscopy");
+  p::parallel_for(ptcls, lambda, "spectroscopy_kernel");
 }
 
 #endif

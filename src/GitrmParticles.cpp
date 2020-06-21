@@ -144,7 +144,7 @@ void GitrmParticles::defineParticles(const o::LOs& ptclsInElem, int elId) {
   }
   //'sigma', 'V', and the 'policy' control the layout of the PS structure
   const int sigma = INT_MAX; //full sorting
-  const int V = 64; //128;//1024;
+  const int V = 64;//128;
   Kokkos::TeamPolicy<Kokkos::DefaultExecutionSpace> policy(10000, 32);
   printf("Constructing Particles with sigma %d\n", sigma);
   //Create the particle structure
