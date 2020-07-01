@@ -46,12 +46,10 @@ GitrmParticles::~GitrmParticles() {
 }
 
 void GitrmParticles::initRandGenerator(unsigned long int seed) {
+  bool debug = true;
   if(useCudaRnd) {
-   //NOTE : states for maximum particles initialized in all ranks.
-   //Otherwise store state seed(ptcl) and current offset in ptcls, to be used 
-   //after migration in the new rank to initialize and use with offset.
-   //NOTE: With mpi, the seeds (id's) are same in all ranks (0 to n/ranks), for even
-   //division of ptcls. This is the case in GITR. Conflict when particles migrated.
+   //Caution : CUDA states for total particles initialized in all ranks.
+   //This is to match with that in GITR, but ONLY VALID when migration is off.
     auto nPtcls = totalPtcls;
     curandState* cudaRndStates;
     cudaMalloc((void **)&cudaRndStates, nPtcls*sizeof(curandState));
@@ -74,15 +72,22 @@ void GitrmParticles::initRandGenerator(unsigned long int seed) {
       });
     }
   } else {
-    //TODO state id is not used currently to draw. Init nPtcls with ptcl as
-    //seeds and use rpool.get_state() => rpool.get_state(ptcl)  ?
-    //But index has to be < max.initialized.
-    if(!myRank)
-      printf("Initializing Kokkos random numbers for %d ptcls\n", totalPtcls);
-    if(seed)
-      rand_pool = Kokkos::Random_XorShift64_Pool<>(seed);
-    else
-     rand_pool = Kokkos::Random_XorShift64_Pool<>(time(NULL));
+    // kokkos initialze generators for maximum threads in this device.
+    // The seed=0 not accepted since in kokkos it results using a default seed.
+    // No sequence accepted in kokkos.
+    if(!seed) {
+      int comm_size;
+      MPI_Comm_size(MPI_COMM_WORLD, &comm_size);
+      auto time0 = std::chrono::high_resolution_clock::now();
+      auto nano = time0.time_since_epoch().count();
+      std::srand(nano);
+      for(int i=0; i <= myRank; ++i)
+        seed = std::rand();
+    }
+    if(!myRank || debug)
+      std::cout << " rank " << myRank << " initialized Kokkos rnd with seed "
+                << seed << "\n";
+    rand_pool = Kokkos::Random_XorShift64_Pool<>(seed);
   }
 }
 

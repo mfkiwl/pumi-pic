@@ -237,7 +237,7 @@ int main(int argc, char** argv) {
       printf(" gitr comparison DataFile %s\n", gitrDataFileName.c_str());
   }
 
-  unsigned long int seed = 0;
+  unsigned long int seed = 0; // zero value for seed not considered !
   GitrmParticles gp(picparts, totalNumPtcls, numIterations, dTime, useCudaRnd,
     seed, useGitrRndNums);
   if(histInterval > 0)
