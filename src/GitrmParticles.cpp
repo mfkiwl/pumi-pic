@@ -2,6 +2,8 @@
 #include <cstdlib>
 #include <vector>
 #include <set>
+#include <random>
+#include <chrono>
 #include <Omega_h_int_scan.hpp>
 #include "GitrmMesh.hpp"
 #include "GitrmParticles.hpp"
@@ -79,15 +81,16 @@ void GitrmParticles::initRandGenerator(unsigned long int seed) {
       int comm_size;
       MPI_Comm_size(MPI_COMM_WORLD, &comm_size);
       auto time0 = std::chrono::high_resolution_clock::now();
-      auto nano = time0.time_since_epoch().count();
-      std::srand(nano);
-      for(int i=0; i <= myRank; ++i)
-        seed = std::rand();
+      seed = time0.time_since_epoch().count();
     }
+    std::mt19937 gen(seed); 
+    unsigned long int seedThis;
+    for(int i=0; i <= myRank; ++i)
+      seedThis = gen();
     if(!myRank || debug)
       std::cout << " rank " << myRank << " initialized Kokkos rnd with seed "
-                << seed << "\n";
-    rand_pool = Kokkos::Random_XorShift64_Pool<>(seed);
+                << seedThis << "\n";
+    rand_pool = Kokkos::Random_XorShift64_Pool<>(seedThis);
   }
 }
 
