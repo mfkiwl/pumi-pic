@@ -1068,10 +1068,25 @@ void GitrmMesh::writeDist2BdryFacesData(const std::string outFileName, int ndiv)
 int GitrmMesh::readDist2BdryFacesData(const std::string& ncFileName) {
   std::vector<std::string> vars{"nindices", "nfaces"};
   std::vector<std::string> datNames{"indices", "bdryfaces"};
-  auto stat = readCsrFile(ncFileName, vars, datNames, bdryCsrReadInDataPtrs,
-    bdryCsrReadInData);
+  o::HostWrite<o::LO> ptrs_h;
+  o::HostWrite<o::LO> data_h;
+  auto stat = readCsrFile(ncFileName, vars, datNames, ptrs_h, data_h);
   if(stat)
     Omega_h_fail("Error: No Dist2BdryFaces File \n");
+  
+  bdryCsrReadInDataPtrs = std::make_shared<o::LOs>(ptrs_h.write());
+  bdryCsrReadInData = std::make_shared<o::LOs>(data_h.write());
+  
+  bool debug = false;
+  if(debug) {
+    printf("bdry data :\n");  
+    auto pt = *bdryCsrReadInDataPtrs;
+    auto dt = *bdryCsrReadInData;
+    int n = 5;
+    o::parallel_for(n, OMEGA_H_LAMBDA(int i) {
+      printf("%d %d\n", pt[i], dt[i]);
+    });
+  }
   return stat;
 }
 
@@ -1083,7 +1098,7 @@ void GitrmMesh::writeBdryFaceCoordsNcFile(int mode, std::string fileName) {
   auto readInBdry = USE_READIN_CSR_BDRYFACES;
   o::LOs bdryFaces;
   if(readInBdry)
-    bdryFaces = bdryCsrReadInData;
+    bdryFaces = *bdryCsrReadInData;
   else
     bdryFaces = bdryFacesSelectedCsr;
   const auto& face_verts = mesh.ask_verts_of(2);
@@ -1133,8 +1148,8 @@ void GitrmMesh::writeBdryFacesDataText(int nSubdiv, std::string fileName) {
   auto data_d = bdryFacesSelectedCsr;
   auto ptrs_d = bdryFacePtrsSelected;
   if(USE_READIN_CSR_BDRYFACES) {
-    data_d = bdryCsrReadInData;
-    ptrs_d = bdryCsrReadInDataPtrs;
+    data_d = *bdryCsrReadInData;
+    ptrs_d = *bdryCsrReadInDataPtrs;
   }
   o::Write<o::LO> bfel_d(data_d.size(), -1, "bfel");
   const auto& f2rPtr = mesh.ask_up(o::FACE, o::REGION).a2ab;

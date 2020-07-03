@@ -232,8 +232,8 @@ inline void gitrm_findDistanceToBdry(GitrmParticles& gp,
   const auto down_r2fs = mesh.ask_down(3, 2).ab2b;
 
   const int useReadInCsr = USE_READIN_CSR_BDRYFACES;
-  const auto& bdryCsrReadInDataPtrs = gm.bdryCsrReadInDataPtrs;
-  const auto& bdryCsrReadInData = gm.bdryCsrReadInData;
+  const auto& bdryCsrReadInDataPtrs = *(gm.bdryCsrReadInDataPtrs);
+  const auto& bdryCsrReadInData = *(gm.bdryCsrReadInData);
   const auto& bdryFaceOrderedIds = gm.bdryFaceOrderedIds;
 
   const auto nel = mesh.nelems();

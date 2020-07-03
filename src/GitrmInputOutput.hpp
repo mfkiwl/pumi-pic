@@ -38,9 +38,12 @@ void writeOutputCsrFile(const std::string& outFileName,
     const std::vector<std::string>& vars, const std::vector<std::string>& datNames, 
     o::LOs& ptrs_d, o::LOs& data_d, int* valExtra=nullptr);
 
-int readCsrFile(const std::string& ncFileName,  
-  const std::vector<std::string>& vars,
+int readCsrFile(const std::string& ncFileName, const std::vector<std::string>& vars,
   const std::vector<std::string>& datNames, o::LOs& ptrs, o::LOs& data);
+
+int readCsrFile(const std::string& ncFileName, const std::vector<std::string>& vars,
+  const std::vector<std::string>& datNames, o::HostWrite<o::LO>& ptrs,
+  o::HostWrite<o::LO>& data);
 
 struct Field3StructInput {
   static constexpr int MAX_SIZE = 3; // add grid data before resizing

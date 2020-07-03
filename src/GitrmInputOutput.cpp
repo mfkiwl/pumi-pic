@@ -519,11 +519,9 @@ void writeOutputNcFile( o::HostWrite<o::Real>& ptclHistoryData, int numPtcls,
     Omega_h_fail("ERROR: failed writing file %s \n", outNcFileName.c_str());
 }
 
-
-
-int readCsrFile(const std::string& ncFileName,  
-  const std::vector<std::string>& vars,
-  const std::vector<std::string>& datNames, o::LOs& ptrs, o::LOs& data) {
+int readCsrFile(const std::string& ncFileName, const std::vector<std::string>& vars,
+  const std::vector<std::string>& datNames, o::HostWrite<o::LO>& ptrs,
+  o::HostWrite<o::LO>& data) {
   int status = 0;
   try {
     netCDF::NcFile ncf(ncFileName, netCDF::NcFile::read);
@@ -531,22 +529,20 @@ int readCsrFile(const std::string& ncFileName,
     auto psize = ncPtrName.getSize();
     std::cout << ncFileName << " : " << vars[0] << " : " << psize << "\n";
  
-    auto pdat = o::HostWrite<o::LO>(psize);
+    ptrs = o::HostWrite<o::LO>(psize);
     netCDF::NcVar ncp(ncf.getVar(datNames[0]));
-    ncp.getVar(&(pdat[0]));
-    ptrs = o::LOs(pdat);
+    ncp.getVar(&(ptrs[0]));
 
     netCDF::NcDim ncDataName(ncf.getDim(vars[1]));
     auto dsize = ncDataName.getSize();
     std::cout << ncFileName << " : " << vars[1] << " : " << dsize << "\n";
-    auto dat = o::HostWrite<o::LO>(dsize);
+    data = o::HostWrite<o::LO>(dsize);
     netCDF::NcVar ncd(ncf.getVar(datNames[1]));
-    ncd.getVar(&(dat[0]));
-    data = o::LOs(dat);
+    ncd.getVar(&(data[0]));
 
     int nans = 0;
-    for(int i=0; i<dat.size(); ++i)
-      if(std::isnan(dat[i]))
+    for(int i=0; i<data.size(); ++i)
+      if(std::isnan(data[i]))
         ++nans;
     if(nans)
       printf("\n*******WARNING found %d NaNs in data ******\n\n", nans);

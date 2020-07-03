@@ -129,8 +129,9 @@ public:
   void writeBdryFaceCoordsNcFile(int mode, std::string fileName="meshFaces.nc");
 
   int readDist2BdryFacesData(const std::string &);
-  o::LOs bdryCsrReadInDataPtrs;
-  o::LOs bdryCsrReadInData;
+  //ptrs introduced to solve empty array error
+  std::shared_ptr<o::LOs> bdryCsrReadInDataPtrs;
+  std::shared_ptr<o::LOs> bdryCsrReadInData;
 
   /** create ordered ids starting 0 for given geometric bdry ids. 
    */
