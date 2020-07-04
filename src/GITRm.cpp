@@ -145,7 +145,7 @@ int main(int argc, char** argv) {
     exit(1);
   }
   bool chargedTracking = true; //false for neutral tracking
-  bool piscesRun = true; // add as argument later
+  bool piscesRun = false; // add as argument later
 
   bool debug = false; //search
   int debug2 = 0;  //routines
@@ -253,11 +253,12 @@ int main(int argc, char** argv) {
   if(CREATE_GITR_MESH)
     gm.createSurfaceGitrMesh();
 
-  if(piscesRun) {
-    gm.markDetectorSurfaces(true);
-    int dataSize = 14;
-    gp.initPtclDetectionData(dataSize);
-  }
+  int dataSize = 1;
+  if(piscesRun)
+    dataSize = 14;
+
+  gm.markDetectorSurfaces(true);
+  gp.initPtclDetectionData(dataSize);
 
   int testNumPtcls = 1;
   if(gp.useGitrRndNums) {
@@ -369,7 +370,8 @@ int main(int argc, char** argv) {
     }
 
     elem_ids_r = o::LOs(elem_ids);
-    gp.updateParticleDetection(elem_ids_r, iter, iter==numIterations-1, false);
+    if(piscesRun)
+      gp.updateParticleDetection(elem_ids_r, iter, iter==numIterations-1, false);
 
     gp.updatePtclHistoryData(iter, numIterations, elem_ids_r);
     Kokkos::Profiling::pushRegion("rebuild");

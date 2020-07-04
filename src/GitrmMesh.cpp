@@ -15,14 +15,12 @@ namespace p = pumipic;
 GitrmMesh::GitrmMesh(o::Mesh& m):
   mesh(m) {
   //mesh ht 50cm, rad 10cm. Top lid of small sylinder not included
-  detectorSurfaceModelIds = o::HostWrite<o::LO>{268, 593, 579, 565, 551, 537,
-    523, 509, 495,481, 467,453, 439, 154};
+  detectorSurfaceModelIds = o::HostWrite<o::LO>{354,581,295};
   //source materials model ids
-  bdryMaterialModelIds = o::HostWrite<o::LO>{138};
+  bdryMaterialModelIds = o::HostWrite<o::LO>{354};
   bdryMaterialModelIdsZ = o::HostWrite<o::LO>{74}; //Tungsten
   //top of inner cylinder and top lid of tower included
-  surfaceAndMaterialModelIds = o::HostWrite<o::LO>{268, 593, 579, 565,
-    551, 537, 523, 509, 495,481, 467,453, 439, 154, 150, 138};
+  surfaceAndMaterialModelIds = o::HostWrite<o::LO>{354,581,295};
   OMEGA_H_CHECK(!exists);
   exists = true;
   setFaceId2BdryFaceIdMap();

@@ -28,7 +28,7 @@ namespace gitrm {
 //TODO put in config class
 
 const bool CREATE_GITR_MESH = false;
-const int USE_READIN_CSR_BDRYFACES = 0;
+const int USE_READIN_CSR_BDRYFACES = 1;
 const int WRITE_OUT_BDRY_FACES_FILE = 0;
 const int D2BDRY_MIN_SELECT = 10;
 const int D2BDRY_MEM_FACTOR = 1; //per 8G memory
@@ -45,7 +45,7 @@ const int USE2D_INPUTFIELDS = 1;
 const int USE_CONSTANT_FLOW_VELOCITY=1;
 const int USE_CONSTANT_BFIELD = 0; //used for pisces
 const int USE_CYL_SYMMETRY = 1;
-const int PISCESRUN  = 1;
+const int PISCESRUN  = 0;
 const o::LO BACKGROUND_Z = 1;
 const o::Real BIAS_POTENTIAL = 250.0;
 const o::LO BIASED_SURFACE = 1;
