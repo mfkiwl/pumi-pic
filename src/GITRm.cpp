@@ -141,7 +141,7 @@ int main(int argc, char** argv) {
     if(comm_rank == 0)
       std::cout << "Usage: " << argv[0]
         << " <mesh> <owners_file> <ptcls_file> <prof_file> <rate_file><surf_file>"
-        << " <thermal_gradient_file> [<nPtcls><nIter> <histInterval> <gitrDataInFileName> ]\n";
+        << " <thermal_gradient_file> <bField_fle> [<nPtcls><nIter> <histInterval> <gitrDataInFileName> ]\n";
     exit(1);
   }
   bool chargedTracking = true; //false for neutral tracking
@@ -202,9 +202,9 @@ int main(int argc, char** argv) {
   std::string ptclSource = argv[3];
   std::string profFile = argv[4];
   std::string ionizeRecombFile = argv[5];
-  std::string bFile="bFile"; //TODO
   std::string surfModelFile = argv[6];
   std::string thermGradientFile = argv[7];
+  std::string bFile = argv[8];
   if (!comm_rank) {
     if(!chargedTracking)
       printf("WARNING: neutral particle tracking is ON \n");
@@ -215,23 +215,24 @@ int main(int argc, char** argv) {
     printf(" Gradient profile File %s\n", thermGradientFile.c_str());
     printf(" SurfModel File %s\n", surfModelFile.c_str());
     printf(" Gradient profile File %s\n", thermGradientFile.c_str());
+    printf(" Bfile %s\n", bFile.c_str());
   }
   long int totalNumPtcls = 1;
   int histInterval = 0;
   double dTime = 5e-9; //pisces:5e-9 for 100,000 iterations
   int numIterations = 1; //higher beads needs >10K
 
-  if(argc > 8)
-    totalNumPtcls = atol(argv[8]);
   if(argc > 9)
-    numIterations = atoi(argv[9]);
+    totalNumPtcls = atol(argv[9]);
   if(argc > 10)
-    histInterval = atoi(argv[10]);
+    numIterations = atoi(argv[10]);
+  if(argc > 11)
+    histInterval = atoi(argv[11]);
 
   std::string gitrDataFileName;
   bool useGitrRndNums = 0;
-  if(argc > 11) {
-    gitrDataFileName = argv[11];
+  if(argc > 12) {
+    gitrDataFileName = argv[12];
     useGitrRndNums = true;
     if(!comm_rank)
       printf(" gitr comparison DataFile %s\n", gitrDataFileName.c_str());

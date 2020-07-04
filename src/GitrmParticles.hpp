@@ -72,6 +72,8 @@ public:
 
   void initPtclsInADirection(o::Real theta, o::Real phi, o::Real r,
     o::LO maxLoops = 100, o::Real outer=2);
+  
+  void initPtclsOnGeometricIdSurfaces();
 
   void setInitialTargetCoords(o::Real dTime);
 

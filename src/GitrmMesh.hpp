@@ -27,18 +27,15 @@ namespace gitrm {
 
 //TODO put in config class
 
-
-
-
 const bool CREATE_GITR_MESH = false;
-const int USE_READIN_CSR_BDRYFACES = 1;
+const int USE_READIN_CSR_BDRYFACES = 0;
 const int WRITE_OUT_BDRY_FACES_FILE = 0;
 const int D2BDRY_MIN_SELECT = 10;
 const int D2BDRY_MEM_FACTOR = 1; //per 8G memory
 const bool WRITE_TEXT_D2BDRY_FACES = false;
 const bool WRITE_BDRY_FACE_COORDS_NC = false;
 const bool WRITE_MESH_FACE_COORDS_NC = false;
-const o::LO D2BDRY_GRIDS_PER_TET = 15;// if csr bdry not re-used
+const o::LO D2BDRY_GRIDS_PER_TET = 10;// if csr bdry not re-used
 
 const int USE_2DREADIN_IONI_REC_RATES = 1;
 const int USE3D_BFIELD = 0;
@@ -46,7 +43,7 @@ const int USE2D_INPUTFIELDS = 1;
 
 // in GITR only constant EField is used.
 const int USE_CONSTANT_FLOW_VELOCITY=1;
-const int USE_CONSTANT_BFIELD = 1; //used for pisces
+const int USE_CONSTANT_BFIELD = 0; //used for pisces
 const int USE_CYL_SYMMETRY = 1;
 const int PISCESRUN  = 1;
 const o::LO BACKGROUND_Z = 1;
@@ -290,4 +287,34 @@ private:
   int myRank = -1;
   bool exists = false;
 };
+
+
+namespace gitrm {
+/** @brief Function to mark (to newVal) bdry faces on the classified model ids.
+ * Also if init is true, the passed in array is initialized to 1 if the 
+ * corresponding element is on the classified model ids. If newVal=1 then
+ * the default is expected to be 0 and init should be false, ie, only 
+ * matching entries should be 1. Otherwise the initialized values won't be
+ * different from that of matching class ids.
+*/
+inline void markBdryFacesOnGeomModelIds(o::Mesh& mesh, const o::LOs& gFaces,
+   o::Write<o::LO>& mark_d, o::LO newVal, bool init) {
+  if(init && newVal)
+    std::cout << "****WARNING markBdryFacesOnGeomModelIds init = newVal\n";
+  const auto side_is_exposed = o::mark_exposed_sides(&mesh);
+  auto faceClassIds = mesh.get_array<o::ClassId>(2, "class_id");
+  auto nIds = gFaces.size();
+  auto lambda = OMEGA_H_LAMBDA(const o::LO& fid) {
+    auto val = mark_d[fid];
+    if(init && side_is_exposed[fid])
+      val = 1;
+    for(o::LO id=0; id < nIds; ++id)
+      if(gFaces[id] == faceClassIds[fid]) {
+        val = newVal;
+      }
+    mark_d[fid] = val;
+  };
+  o::parallel_for(mesh.nfaces(), lambda, "MarkFaces");
+}
+}
 #endif// define

@@ -86,79 +86,6 @@ void GitrmMesh::setFaceId2SurfaceAndMaterialIdMap() {
   bdryFaceMaterialZs = o::LOs(matZs);
 }
 
-/*
-//TODO delete this after testing
-void setFaceId2SurfaceAndMaterialIdMap_old() {
-  const auto side_is_exposed = mark_exposed_sides(&mesh);
-  auto surfaceIds_d = o::LOs(detectorSurfaceModelIds.write());
-  auto numSurfIds = surfaceIds_d.size();
-  auto faceClassIds = mesh.get_array<o::ClassId>(2, "class_id");
-  o::Write<o::LO> isSurface_d(mesh.nfaces(), 0, "isSurface");
-  o::parallel_for(mesh.nfaces(), OMEGA_H_LAMBDA(const o::LO& fid) {
-    if(side_is_exposed[fid]) {
-      for(auto id=0; id < numSurfIds; ++id) {
-        if(surfaceIds_d[id] == faceClassIds[fid]) {
-          isSurface_d[fid] = 1;
-        }
-      }
-    }
-  });
-  nDetectSurfaces = o::get_sum(o::LOs(isSurface_d));
-  auto detSurfIds_r = o::offset_scan(o::LOs(isSurface_d));
-  auto detSurfIds_w = o::deep_copy(detSurfIds_r);
-  auto nf = mesh.nfaces();
-  //set non-surface, ie, repeating numbers, to -1
-  o::parallel_for(nf, OMEGA_H_LAMBDA(const o::LO& fid) {
-    if(!isSurface_d[fid])
-      detSurfIds_w[fid]= -1;
-  });
-  detectorSurfaceOrderedIds = o::LOs(detSurfIds_w);
-  OMEGA_H_CHECK(nDetectSurfaces == (o::HostRead<o::LO>(detSurfIds_r))[nf-1]);
-
-  //surface+materials
-  auto surfaceAndMaterialIds = o::LOs(surfaceAndMaterialModelIds.write());
-  auto numSurfMatIds = surfaceAndMaterialIds.size();
-  o::Write<o::LO> isSurfMat_d(mesh.nfaces(), 0, "isSurfMat");
-  o::parallel_for(mesh.nfaces(), OMEGA_H_LAMBDA(const o::LO& fid) {
-    if(side_is_exposed[fid]) {
-      for(auto id=0; id < numSurfMatIds; ++id) {
-        if(surfaceAndMaterialIds[id] == faceClassIds[fid]) {
-          isSurfMat_d[fid] = 1;
-        }
-      }
-    }
-  });
-  nSurfMaterialFaces = o::get_sum(o::LOs(isSurfMat_d));
-  auto surfMatIds_r = o::offset_scan(o::LOs(isSurfMat_d));
-  auto surfMatIds_w = o::deep_copy(surfMatIds_r);
-  o::parallel_for(mesh.nfaces(), OMEGA_H_LAMBDA(const o::LO& fid) {
-    if(!isSurfMat_d[fid])
-      surfMatIds_w[fid]= -1;
-  });
-  surfaceAndMaterialOrderedIds = o::LOs(surfMatIds_w);
-  OMEGA_H_CHECK(nSurfMaterialFaces == (o::HostRead<o::LO>(surfMatIds_r))[nf-1]);
-}
-
-//delete this after testing
-void setFaceId2BdryFaceMaterialsZmap_old() {
-  const auto side_is_exposed = mark_exposed_sides(&mesh);
-  auto faceClassIds = mesh.get_array<o::ClassId>(2, "class_id");
-  auto materialIds = o::LOs(bdryMaterialModelIds.write());
-  auto matZ_in = o::LOs(bdryMaterialModelIdsZ.write());
-  auto numMatIds = bdryMaterialModelIds.size();
-  o::Write<o::LO> matZ_d(mesh.nfaces(), 0, "matZ");
-  o::parallel_for(mesh.nfaces(), OMEGA_H_LAMBDA(const o::LO& fid) {
-    if(side_is_exposed[fid]) {
-      for(auto id=0; id < numMatIds; ++id) {
-        if(materialIds[id] == faceClassIds[fid]) {
-          matZ_d[fid] = matZ_in[id];
-        }
-      }
-    }
-  });
-  bdryFaceMaterialZs = o::LOs(matZ_d);
-}
-*/
 //Loads only from 2D input field
 void GitrmMesh::load3DFieldOnVtxFromFile(const std::string tagName,
    const std::string &file, Field3StructInput& fs, o::Reals& readInData_d) {
@@ -222,7 +149,7 @@ void GitrmMesh::initBField(const std::string &bFile) {
   }else {
     mesh.add_tag<o::Real>(o::VERT, "BField", 3);
     // set bt=0. Pisces BField is perpendicular to W target base plate.
-    Field3StructInput fb({"br", "bt", "bz"}, {"gridR", "gridZ"}, {"nR", "nZ"});
+    Field3StructInput fb({"br", "bt", "bz"}, {"r", "z"}, {"nR", "nZ"});
     load3DFieldOnVtxFromFile("BField", bFile, fb, Bfield_2d);
     bGridX0 = fb.getGridMin(0);
     bGridZ0 = fb.getGridMin(1);
@@ -348,10 +275,10 @@ bool GitrmMesh::addTagsAndLoadProfileData(const std::string &profileFile,
   //mesh.add_tag<o::Real>(o::VERT, "gradTeTVtx", 1);
   //mesh.add_tag<o::Real>(o::VERT, "gradTeZVtx", 1);
   //Till here
-  Field3StructInput fd({"ni"}, {"gridR", "gridZ"}, {"nR", "nZ"});
+  Field3StructInput fd({"ni"}, {"r", "z"}, {"nR", "nZ"});
   loadScalarFieldOnBdryFacesFromFile("IonDensity", profileDensityFile, fd);
 
-  Field3StructInput fdv({"ni"}, {"gridR", "gridZ"}, {"nR", "nZ"});
+  Field3StructInput fdv({"ni"}, {"r", "z"}, {"nR", "nZ"});
   load1DFieldOnVtxFromFile("IonDensityVtx", profileDensityFile, fdv,
     densIon_d, densIonVtx_d);
   densIonX0 = fdv.getGridMin(0);
@@ -361,9 +288,9 @@ bool GitrmMesh::addTagsAndLoadProfileData(const std::string &profileFile,
   densIonDx = fdv.getGridDelta(0);
   densIonDz = fdv.getGridDelta(1);
 
-  Field3StructInput fne({"ne"}, {"gridR", "gridZ"}, {"nR", "nZ"});
+  Field3StructInput fne({"ne"}, {"r", "z"}, {"nR", "nZ"});
   loadScalarFieldOnBdryFacesFromFile("ElDensity", profileFile, fne);
-  Field3StructInput fnev({"ne"}, {"gridR", "gridZ"}, {"nR", "nZ"});
+  Field3StructInput fnev({"ne"}, {"r", "z"}, {"nR", "nZ"});
   load1DFieldOnVtxFromFile("ElDensityVtx", profileFile, fnev, densEl_d, densElVtx_d);
   densElX0 = fne.getGridMin(0);
   densElZ0 = fne.getGridMin(1);
@@ -372,9 +299,9 @@ bool GitrmMesh::addTagsAndLoadProfileData(const std::string &profileFile,
   densElDx = fne.getGridDelta(0);
   densElDz = fne.getGridDelta(1);
 
-  Field3StructInput fti({"ti"}, {"gridR", "gridZ"}, {"nR", "nZ"});
+  Field3StructInput fti({"ti"}, {"r", "z"}, {"nR", "nZ"});
   loadScalarFieldOnBdryFacesFromFile("IonTemp", profileFile, fti);
-  Field3StructInput ftiv({"ti"}, {"gridR", "gridZ"}, {"nR", "nZ"});
+  Field3StructInput ftiv({"ti"}, {"r", "z"}, {"nR", "nZ"});
   load1DFieldOnVtxFromFile("IonTempVtx", profileFile, ftiv, temIon_d, tempIonVtx_d);
 
   tempIonX0 = ftiv.getGridMin(0);
@@ -385,9 +312,9 @@ bool GitrmMesh::addTagsAndLoadProfileData(const std::string &profileFile,
   tempIonDz = ftiv.getGridDelta(1);
 
   // electron Temperature
-  Field3StructInput fte({"te"}, {"gridR", "gridZ"}, {"nR", "nZ"});
+  Field3StructInput fte({"te"}, {"r", "z"}, {"nR", "nZ"});
   loadScalarFieldOnBdryFacesFromFile("ElTemp", profileFile, fte);
-  Field3StructInput ftev({"te"}, {"gridR", "gridZ"}, {"nR", "nZ"});
+  Field3StructInput ftev({"te"}, {"r", "z"}, {"nR", "nZ"});
   load1DFieldOnVtxFromFile("ElTempVtx", profileFile, ftev, temEl_d, tempElVtx_d);
 
   tempElX0 = fte.getGridMin(0);
@@ -398,8 +325,8 @@ bool GitrmMesh::addTagsAndLoadProfileData(const std::string &profileFile,
   tempElDz = fte.getGridDelta(1);
 
   //gradTiR
-  Field3StructInput fgTi({"gradTiR", "gradTiT" , "gradTiZ"},
-    {"gridx_gradTi", "gridz_gradTi"}, {"nX_gradTi", "nZ_gradTi"});
+  Field3StructInput fgTi({"gradTir", "gradTiy" , "gradTiz"},
+    {"r", "z"}, {"nR", "nZ"});
   load3DFieldOnVtxFromFile("gradTiVtx", profileGradientFile, fgTi,  gradTi_d);
 
   gradTiX0 = fgTi.getGridMin(0);
@@ -409,8 +336,8 @@ bool GitrmMesh::addTagsAndLoadProfileData(const std::string &profileFile,
   gradTiDx = fgTi.getGridDelta(0);
   gradTiDz = fgTi.getGridDelta(1);
    //gradTeR
-  Field3StructInput fgTe({"gradTeR", "gradTeT", "gradTeZ"},
-    {"gridx_gradTe", "gridz_gradTe"}, {"nX_gradTe", "nZ_gradTe"});
+  Field3StructInput fgTe({"gradTer", "gradTey", "gradTez"},
+    {"r", "z"}, {"nR", "nZ"});
   load3DFieldOnVtxFromFile("gradTeVtx", profileGradientFile, fgTe, gradTe_d);
 
   gradTeX0 = fgTe.getGridMin(0);
@@ -702,6 +629,7 @@ OMEGA_H_DEVICE int gridPointsInTet(const o::LOs& mesh2verts,
   return npts;
 }
 
+//TODO use the global function 
 //add bdry faces on the model ids. If newVal=1 then default is expected
 //to be 0 and init should be false, ie, only matching should be 1.
 void GitrmMesh::markBdryFacesOnGeomModelIds(const o::LOs& gFaces,
@@ -849,7 +777,7 @@ void GitrmMesh::preprocessSelectBdryFacesFromAll( bool onlyMaterialSheath) {
         }
       }
       bdryFaces_nums[elem] = nb;
-      if(debug >1)
+      if(debug >2)
         printf("rank %d loop %d e %d elem %d nb %d\n", myRank, iLoop, e, elem, nb);
     };
     o::parallel_for(lsize, lambda2, "preprocessSelectFromAll");
