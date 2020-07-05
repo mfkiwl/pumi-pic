@@ -280,11 +280,13 @@ inline void gitrm_surfaceReflection(PS* ptcls, GitrmSurfaceModel& sm,
   const auto& xfaces = gp.wallCollisionFaceIds;
   auto& energyDist = sm.energyDistribution;
   auto energyDist_size = energyDist.size();
+
   auto& sputtDist = sm.sputtDistribution;
   auto& reflDist = sm.reflDistribution;
   auto& surfaceIds = sm.surfaceAndMaterialOrderedIds;
   auto& materials = sm.bdryFaceMaterialZs;
-
+  
+  auto pid_ps_global=ptcls->get<PTCL_ID_GLOBAL>();
   auto pid_ps = ptcls->get<PTCL_ID>();
   auto next_pos_ps = ptcls->get<PTCL_NEXT_POS>();
   auto pos_ps = ptcls->get<PTCL_POS>();
@@ -297,6 +299,7 @@ inline void gitrm_surfaceReflection(PS* ptcls, GitrmSurfaceModel& sm,
     if(mask >0  && xfaces[pid] >= 0) {
       auto elemId = elem;
       auto ptcl = pid_ps(pid);
+      auto ptcl_global=pid_ps_global(pid);
       auto fid = xfaces[pid];
       if(debug>1 && side_is_exposed[fid])
         printf(" surf0 timestep %d ptcl %d fid %d\n", iTimeStep, ptcl, fid);
@@ -386,18 +389,18 @@ inline void gitrm_surfaceReflection(PS* ptcls, GitrmSurfaceModel& sm,
 
       double rand7 = 0, rand8 = 0, rand9 = 0, rand10 = 0;
       if(useGitrRnd) {
-        auto beg = ptcl*testGNT*testGDof + iTimeStep*testGDof + testGitrReflInd;
+        auto beg = ptcl_global*testGNT*testGDof + iTimeStep*testGDof + testGitrReflInd;
         rand7 = testGitrPtclStepData[beg];
         rand8 = testGitrPtclStepData[beg+1];
         rand9 = testGitrPtclStepData[beg+2];
         rand10 = testGitrPtclStepData[beg+3];
       } else if (useCudaRnd) {
-        auto localState = cuStates[ptcl];
+        auto localState = cuStates[ptcl_global];
         rand7 = curand_uniform(&localState);
         rand8 = curand_uniform(&localState);
         rand9 = curand_uniform(&localState);
         rand10 = curand_uniform(&localState);
-        cuStates[ptcl] = localState;
+        cuStates[ptcl_global] = localState;
         if(false)
           printf("cudaRndNums-surf %d tstep %d %g %g %g %g\n", ptcl, iTimeStep, 
             rand7, rand8, rand9, rand10);

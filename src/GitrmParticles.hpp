@@ -38,7 +38,7 @@ typedef p::ParticleStructure<Particle> PS;
 class GitrmParticles {
 public:
   GitrmParticles(p::Mesh& picparts, long int totalPtcls, int nIter, double dT, 
-    bool useCudaRnd=false, unsigned long int seed=0, bool gitrRnd=false);
+    bool useCudaRnd=false, unsigned long int seed=0, unsigned long int seq=0, bool useSeed=false, bool gitrRnd=false);
   ~GitrmParticles();
   GitrmParticles(GitrmParticles const&) = delete;
   void operator=(GitrmParticles const&) = delete;
@@ -190,7 +190,7 @@ void reallocate_data(o::Write<T>& data, o::LO size, T init=0) {
   data = o::Write<T>(n+size, init);
   o::parallel_for(n, OMEGA_H_LAMBDA(const int& i) {
     data[i] = dataIn[i];
-  });
+  },"kernel_reallocate_data");
 }
 
 inline int getCommRank() {
@@ -311,6 +311,7 @@ inline void gitrm_findDistanceToBdry(GitrmParticles& gp,
       } //if nFaces
     }
   };
+
   p::parallel_for(ptcls, lambda, "dist2bdry_kernel");
   gp.closestPoints = o::Reals(closestPoints);
   gp.closestBdryFaceIds = o::LOs(closestBdryFaceIds);

@@ -28,7 +28,7 @@ bool checkIfRankZero() {
 }//ns
 
 GitrmParticles::GitrmParticles(p::Mesh& picparts, long int nPtcls, int nIter,
-   double dT, bool cuRnd, unsigned long int seed, bool gitrRnd):
+   double dT, bool cuRnd, unsigned long int seed, unsigned long int seq, bool useSeed, bool gitrRnd):
    picparts(picparts), mesh(*picparts.mesh()), ptcls(nullptr) {
   //move to where input is handled
   useCudaRnd = cuRnd;
@@ -427,7 +427,7 @@ void GitrmParticles::findElemIdsOfPtclCoordsByAdjSearch(const o::Reals& data,
         printf("rank %d : NOTdet i %d %g %g %g :vel: %g %g %g\n",
           comm_rank, i, v[0], v[1], v[2], v[3], v[4], v[5] );
       }
-    });
+    },"kernel_findElemIdsOfPtclCoordsByAdjSearch");
   }
   //works only for full-buffer
   //OMEGA_H_CHECK(min >=0);
@@ -977,7 +977,7 @@ void GitrmParticles::writePtclStepHistoryFile(std::string ncfile, bool debug) co
         }
       }
     };
-    o::parallel_for(numPtcls, lambda);
+    o::parallel_for(numPtcls, lambda,"write_history_nc");
     if(!myRank)
       printf("writing history nc file \n");
     o::HostWrite<o::Real> histData(histData_d);
@@ -1260,6 +1260,7 @@ void GitrmParticles::updateParticleDetection(const o::LOs& elem_ids, o::LO iter,
   double dz = 0.01; //m ht of beads 2..14
   auto& data_d = collectedPtcls;
   auto pisces_ids = mesh.get_array<o::LO>(o::FACE, "DetectorSurfaceIndex");
+  auto pid_ps_global=ptcls->get<PTCL_ID_GLOBAL>();
   auto pid_ps = ptcls->get<PTCL_ID>();
   auto pos_next = ptcls->get<PTCL_NEXT_POS>();
   const auto& xpoints = wallCollisionPts;
@@ -1269,12 +1270,14 @@ void GitrmParticles::updateParticleDetection(const o::LOs& elem_ids, o::LO iter,
   auto lamb = PS_LAMBDA(const int& e, const int& pid, const int& mask) {
     if(mask >0) {
       auto ptcl = pid_ps(pid);
+      auto ptcl_global=pid_ps_global(pid);
       auto pos = p::makeVector3(pid, pos_next);
       auto fid = xfaces_d[pid];
       auto elm = elem_ids[pid];
       if(last) {
         for(int i=0; i<3; ++i)
-          ptclEndPts[3*ptcl+i] = pos[i];
+         // ptclEndPts[3*ptcl+i] = pos[i];
+         ptclEndPts[3*ptcl_global+i] = pos[i];
         if(debug && !rank)
           printf("rank %d p %d %g %g %g \n", rank, ptcl, pos[0], pos[1], pos[2]);
       }
@@ -1283,7 +1286,8 @@ void GitrmParticles::updateParticleDetection(const o::LOs& elem_ids, o::LO iter,
         for(o::LO i=0; i<3; ++i) {
           xpt[i] = xpoints[pid*3+i]; //ptcl = 0..numPtcls
           //TODO secondary wall collision
-          ptclEndPts[3*ptcl+i] = xpt[i];
+         // ptclEndPts[3*ptcl+i] = xpt[i];
+          ptclEndPts[3*ptcl_global+i] = xpt[i];
           if(debug && !rank)
             printf("rank %d p %d %g %g %g \n",rank, ptcl, xpt[0], xpt[1], xpt[2]);
         }

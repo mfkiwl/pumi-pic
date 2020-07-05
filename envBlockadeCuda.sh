@@ -13,4 +13,3 @@ export CMAKE_PREFIX_PATH=${pp}:${ncxx}:${libconf}:$CMAKE_PREFIX_PATH
 kksrc=/lore/gopan/install/kokkos
 export MPICH_CXX=${kksrc}/bin/nvcc_wrapper
 
-

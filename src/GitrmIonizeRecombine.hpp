@@ -81,7 +81,7 @@ OMEGA_H_DEVICE o::Real interpolateRateCoeff(const o::Reals &data,
     auto eq = p::almost_equal(RClocal*dens, 0, 1e-20, 1e-20); 
     if(eq)
       printf("tem %g dens %g RClocal %g\n", tem, dens, RClocal);
-    OMEGA_H_CHECK(!eq);
+   // OMEGA_H_CHECK(!eq);
     rate = 1/(RClocal*dens);
   }
   OMEGA_H_CHECK(!isnan(rate));
@@ -213,11 +213,11 @@ inline void gitrm_ionize(PS* ptcls, const GitrmIonizeRecombine& gir,
           printf("gitrRnd:ioni ptcl %d t %d rand %g\n", ptcl, iTimeStep, randn);
       } else if (useCudaRnd) {
         //NOTE : states for all particles to be initialized in all ranks
-        auto localState = cuStates[ptcl];
+        auto localState = cuStates[ptcl_global];
         randn = curand_uniform(&localState);
-        cuStates[ptcl] = localState;
+        cuStates[ptcl_global] = localState;
         if(debug>1)
-          printf("cudaRndNums-ioni %d tstep %d %g\n", ptcl, iTimeStep, randn);
+          printf("cudaRndNums-ioni %ld tstep %d %g\n", ptcl_global, iTimeStep, randn);
       } else {
         //TODO use state index ? 
         auto rnd = rpool.get_state(); //rpool.get_state(pid)  ?
@@ -367,9 +367,9 @@ inline void gitrm_recombine(PS* ptcls, const GitrmIonizeRecombine& gir,
           if(debug>1)
             printf("gitrRnd:recomb ptcl %d t %d rand %g\n", ptcl, iTimeStep, randn);
         } else if (useCudaRnd) {
-          auto localState = cuStates[ptcl];
+          auto localState = cuStates[ptcl_global];
           randn = curand_uniform(&localState);
-          cuStates[ptcl] = localState;
+          cuStates[ptcl_global] = localState;
           if(debug>1)
             printf("cudaRndNums-recomb %d tstep %d %g\n", ptcl, iTimeStep, randn);
         } else { 

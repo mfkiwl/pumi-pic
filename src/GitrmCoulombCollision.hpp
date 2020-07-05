@@ -317,11 +317,12 @@ inline void gitrm_coulomb_collision(PS* ptcls, int *iteration, const GitrmMesh& 
           printf("gitrRndNums-coulomb ptcl %d tstep %d n1 %.15f n2 %.15f xsi %.15f\n",
            ptcl, iTimeStep, n1, n2, xsi);
       } else if (useCudaRnd) {
-        auto localState = cuStates[ptcl];
+        auto localState = cuStates[ptcl_global];
         n1 = curand_normal(&localState);
         n2 = curand_normal(&localState);
         xsi = curand_uniform(&localState);
-        cuStates[ptcl] = localState;
+        cuStates[ptcl_global] = localState;
+       
         if(debug >1)
           printf("cudaRndNums-coulomb ptcl %d tstep %d n1 %.15f n2 %.15f xsi %.15f nu_parallel %.15f\n",
            ptcl, iTimeStep,n1,n2,xsi, nu_parallel);

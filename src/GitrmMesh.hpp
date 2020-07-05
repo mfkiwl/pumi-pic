@@ -156,7 +156,7 @@ public:
           }
         }
       }
-    });
+    },"kernel_createBdryFaceClassArray");
   }
 
   void setFaceId2BdryFaceIdMap();

@@ -45,7 +45,7 @@ void GitrmMesh::setFaceId2BdryFaceIdMap() {
   o::parallel_for(nf, OMEGA_H_LAMBDA(const o::LO& fid) {
     if(!side_is_exposed[fid])
       bdryFaces_d[fid] = -1;
-  });
+  },"kernel_faceid_2_bdryface_map");
   bdryFaceOrderedIds = o::LOs(bdryFaces_d);
   nbdryFaces = o::get_sum(exposed);
   OMEGA_H_CHECK(nbdryFaces == (o::HostRead<o::LO>(bdryFaces_r))[nf-1]);
@@ -66,7 +66,7 @@ void GitrmMesh::setOrderedBdryIds(const o::LOs& gFaceIds, int& nSurfaces,
   o::parallel_for(nf, OMEGA_H_LAMBDA(const o::LO& fid) {
     if(!isSurface_d[fid])
       scanIds_w[fid]= -1;
-  });
+  },"kerenel_setOrderedBdryIds");
   orderedIds = o::LOs(scanIds_w);
   //last index of scanned is cumulative sum
   OMEGA_H_CHECK(nSurfaces == (o::HostRead<o::LO>(scanIds_r))[nf-1]);
@@ -928,7 +928,7 @@ void GitrmMesh::writeResultAsMeshTag(o::Write<o::LO>& result_d) {
         }
       }
     }
-  });
+  },"kernel_write_result_as_face_tag");
   mesh.add_tag<o::LO>(o::EDGE, "Result_edge", 1, o::LOs(edgeTagIds));
   mesh.add_tag<o::LO>(o::REGION, "Result_region", 1, o::LOs(elemTagAsCounts));
 }
@@ -955,7 +955,7 @@ int GitrmMesh::markDetectorSurfaces(bool render) {
         }
       }
     }
-  });
+  },"kernel_mark_detctor_surface");
   mesh.add_tag<o::LO>(o::FACE, "DetectorSurfaceIndex", 1, o::LOs(faceTagIds));
   mesh.add_tag<o::LO>(o::REGION, "detectorSurfaceRegionInds", 1, o::LOs(elemTagIds));
   auto count_h = o::HostWrite<o::LO>(detFaceCount);
@@ -1003,7 +1003,7 @@ void GitrmMesh::printDensityTempProfile(double rmax, int gridsR,
         temp, dens, pos[0], pos[2], ir, i);
     }
   };
-  o::parallel_for(gridsR, lambda);
+  o::parallel_for(gridsR, lambda,"printDensityProfile");
 }
 
 
@@ -1140,7 +1140,7 @@ void GitrmMesh::writeBdryFaceCoordsNcFile(int mode, std::string fileName) {
       }
     }
   };
-  o::parallel_for(nFaces, lambda);
+  o::parallel_for(nFaces, lambda,"kernel_writeBdryFaceCoordsNcFile");
   writeOutBdryFaceCoordsNcFile(fileName, bdryx, bdryy, bdryz, nf);
 }
 
@@ -1166,7 +1166,7 @@ void GitrmMesh::writeBdryFacesDataText(int nSubdiv, std::string fileName) {
       bfel_d[i] = el;
     }
   };
-  o::parallel_for(ptrs_d.size()-1, lambda);
+  o::parallel_for(ptrs_d.size()-1, lambda,"kernel_writeBdryFacesData");
 
   std::ofstream outf("Dist2BdryFaces_div"+ std::to_string(nSubdiv)+".txt");
   auto data_h = o::HostRead<o::LO>(data_d);

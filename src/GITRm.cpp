@@ -80,7 +80,7 @@ void rebuild(p::Mesh& picparts, PS* ptcls, o::LOs elem_ids,
         printf("New rank:%d ptcl:%d global_particle:%d \n",ps_process_ids(pid), ptcl, ptcl_global);
     }
   };
-  ps::parallel_for(ptcls, lamb);
+  ps::parallel_for(ptcls, lamb,"lamda_within rebuild");
   ptcls->migrate(ps_elem_ids, ps_process_ids); //migrate /  rebuild
 }
 
@@ -148,16 +148,18 @@ int main(int argc, char** argv) {
   bool piscesRun = true; // add as argument later
 
   bool debug = false; //search
-  int debug2 = 0;  //routines
-
+  int debug2 =0 ;  //routines
+  
   bool surfacemodel = true;
   bool spectroscopy = true;
   bool thermal_force = false; //false in pisces conf
+  
   if(piscesRun)
-    OMEGA_H_CHECK(!thermal_force);
+  	OMEGA_H_CHECK(!thermal_force);
+
   bool coulomb_collision = true;
   bool diffusion = true; //not for diffusion>1
-  bool useCudaRnd = false; //replace kokkos rnd
+  bool useCudaRnd = true; //replace kokkos rnd
   
 //GitrmInput inp("gitrInput.cfg", true);
 //  inp.testInputConfig();
@@ -220,7 +222,7 @@ int main(int argc, char** argv) {
   int histInterval = 0;
   double dTime = 5e-9; //pisces:5e-9 for 100,000 iterations
   int numIterations = 1; //higher beads needs >10K
-
+  unsigned long int seq=0; //CUDA RND sequence
   if(argc > 8)
     totalNumPtcls = atol(argv[8]);
   if(argc > 9)
@@ -319,6 +321,7 @@ int main(int argc, char** argv) {
     }
     if(comm_rank == 0)
       fprintf(stderr, "=================iter %d===============\n", iter);
+    
     Kokkos::Profiling::pushRegion("dist2bdry");
     gitrm_findDistanceToBdry(gp, gm, debug2);
     Kokkos::Profiling::popRegion();

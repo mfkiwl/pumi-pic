@@ -16,8 +16,10 @@ int verifyNetcdfFile(const std::string& ncFileName, int nc_err=1);
 bool readParticleSourceNcFile(std::string ncFileName, o::HostWrite<o::Real>& data,
    int& numPtcls, size_t each_chunk, size_t each_chunk_pos, bool replaceNaN = false);
 
+/*
 bool readParticleSourceNcFile(std::string ncFileName, o::HostWrite<o::Real>& data,
   int& numPtcls, bool replaceNaN = false);
+*/
 
 int readInputDataNcFileFS3(const std::string& ncFileName,
   Field3StructInput& fs, bool debug=false);
@@ -28,9 +30,9 @@ int readInputDataNcFileFS3(const std::string& ncFileName,
 
 void writeOutputNcFile( o::HostWrite<o::Real>& ptclHistoryData, int numPtcls, 
   int dof, OutputNcFileFieldStruct& st, std::string outNcFileName); 
-
-void writeOutputNcFile( o::HostWrite<o::Real>& ptclHistoryData, int numPtcls,
-  long int totalPtcls, int nThistory, std::string outNcFileName);
+/*
+void writeOutputNcFile( o::HostWrite<o::Real>& ptclHistoryData, int numPtcls, 
+  long int totalPtcls, int nThistory, std::string outNcFileName);*/
 
 void writeOutBdryFaceCoordsNcFile(const std::string& outFileName, 
     o::Write<o::Real>& xd, o::Write<o::Real>& yd, o::Write<o::Real>& zd, const int nf); 

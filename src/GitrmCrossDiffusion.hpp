@@ -158,9 +158,9 @@ inline void gitrm_cross_diffusion(PS* ptcls, const GitrmMesh& gm,
           if(debug >1)
             printf("gitrRndNums-diff %d tstep %d %g\n", ptcl, iTimeStep, r3);
         } else if (useCudaRnd) {
-          auto localState = cuStates[ptcl];
+          auto localState = cuStates[ptcl_global];
           r3 = curand_uniform(&localState);
-          cuStates[ptcl] = localState;
+          cuStates[ptcl_global] = localState;
           if(debug >1)
             printf("cudaRndNums-diff %d tstep %d %g\n", ptcl, iTimeStep, r3);
         } else{
@@ -209,6 +209,7 @@ inline void gitrm_cross_diffusion(PS* ptcls, const GitrmMesh& gm,
       }
     }
   };
+    
   p::parallel_for(ptcls, update_diffusion, "diffusion_kernel");
 }
 #endif

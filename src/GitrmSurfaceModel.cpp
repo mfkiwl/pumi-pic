@@ -180,13 +180,13 @@ void GitrmSurfaceModel::prepareSurfaceModelData() {
   auto enSputtRefCft = enSputtRefCoeff;
   o::parallel_for(nEnSputtRefCoeff, OMEGA_H_LAMBDA(const o::LO& i) {
     enLogSputtRefCoef_w[i] = log10(enSputtRefCft[i]);
-  });
+  },"kernel_nEnSputtRefCoeff");
   enLogSputtRefCoef = o::Reals(enLogSputtRefCoef_w);
   auto enSputtRefDIn = enSputtRefDistIn;
   o::Write<o::Real> enLogSputtRefDistIn_w(nEnSputtRefDistIn, 0, "enLogSputtRefDistIn");
   o::parallel_for(nEnSputtRefDistIn, OMEGA_H_LAMBDA(const o::LO& i) {
     enLogSputtRefDistIn_w[i] = log10(enSputtRefDIn[i]);
-  });
+  },"kernel_nEnSputtRefDistIn");
   enLogSputtRefDistIn = o::Reals(enLogSputtRefDistIn_w);
   o::HostWrite<o::Real>enLogSputtRefDistIn_h(enLogSputtRefDistIn_w);
   
@@ -194,7 +194,7 @@ void GitrmSurfaceModel::prepareSurfaceModelData() {
   auto nEnSputtRefDOut = nEnSputtRefDistOut;
   o::parallel_for(nEnSputtRefDOut, OMEGA_H_LAMBDA(const o::LO& i) {
     energyDistGrid01_w[i] = i * 1.0 / nEnSputtRefDOut;
-  });
+  },"kernel_nEnSputtRefDOut");
   energyDistGrid01 = o::Reals(energyDistGrid01_w);
   o::HostWrite<o::Real>energyDistGrid01_h(energyDistGrid01_w);
 
@@ -202,7 +202,7 @@ void GitrmSurfaceModel::prepareSurfaceModelData() {
   o::Write<o::Real> energyDistGrid01Ref_w(nEnSputtRefDORef, 0, "energyDistGrid01Ref");
   o::parallel_for(nEnSputtRefDORef, OMEGA_H_LAMBDA(const o::LO& i) {
     energyDistGrid01Ref_w[i] = i * 1.0 / nEnSputtRefDORef;
-  });
+  },"kernel_nEnSputtRefDORef");
   energyDistGrid01Ref = o::Reals(energyDistGrid01Ref_w);
   o::HostWrite<o::Real>energyDistGrid01Ref_h(energyDistGrid01Ref_w);
 
@@ -210,7 +210,7 @@ void GitrmSurfaceModel::prepareSurfaceModelData() {
   o::Write<o::Real> angleDistGrid01_w(nAngSputtRefDOut, 0, "angleDistGrid01");
   o::parallel_for(nAngSputtRefDOut, OMEGA_H_LAMBDA(const o::LO& i) {
     angleDistGrid01_w[i] = i * 1.0 / nAngSputtRefDOut;
-  });
+  },"kernel_nAngSputtRefDOut");
   angleDistGrid01 = o::Reals(angleDistGrid01_w);
   o::HostWrite<o::Real>angleDistGrid01_h(angleDistGrid01_w);
 

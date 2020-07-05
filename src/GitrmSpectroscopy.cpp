@@ -12,7 +12,7 @@ void makeSpectroscopyGrid(const double net0, const double range, const int netN,
    o::Write<o::Real>& gridBins) {
   o::parallel_for(netN, OMEGA_H_LAMBDA(const int& i) {
     gridBins[i] = net0 + 1.0/(netN-1) *i*range;   //netN-1 in gitr ?
-  });
+  },"kernel_spectroscopy");
 }
 
 //pass input/config object that has the input values
