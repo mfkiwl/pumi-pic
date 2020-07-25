@@ -16,7 +16,7 @@ inline void gitrm_cross_diffusion(PS* ptcls, const GitrmMesh& gm,
     printf("CROSS DIFFUSION\n");
   
   //Setting up of 2D magnetic field data 
-  const auto& BField_2d = gm.Bfield_2d;
+  const auto& BField_2d = gm.getBfield2d();
   const auto bX0 = gm.bGridX0;
   const auto bZ0 = gm.bGridZ0;
   const auto bDx = gm.bGridDx;
@@ -65,7 +65,7 @@ inline void gitrm_cross_diffusion(PS* ptcls, const GitrmMesh& gm,
       auto bField_deriv   = o::zero_vector<3>(); 
       o::Real phi_random;
       if (use2dInputFields || useConstantBField){
-          p::interp2dVector(BField_2d, bX0, bZ0, bDx, bDz, bGridNx, bGridNz, posit_next, bField, cylSymm);
+        p::interp2dVector(BField_2d, bX0, bZ0, bDx, bDz, bGridNx, bGridNz, posit_next, bField, cylSymm);
       }
       else if (use3dField){
           auto bcc = o::zero_vector<4>();

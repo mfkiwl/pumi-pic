@@ -17,7 +17,7 @@ o::Reals getConstEField() {
   ef[0] = CONSTANT_EFIELD0;
   ef[1] = CONSTANT_EFIELD1;
   ef[2] = CONSTANT_EFIELD2;
-  return o::Reals(ef.write());
+  return o::Reals(o::Write<o::Real>(ef));
 }
 
 bool checkIfRankZero() {
@@ -125,6 +125,8 @@ void GitrmParticles::defineParticles(const o::LOs& ptclsInElem, int elId) {
   PS::kkLidView ptcls_per_elem("ptcls_per_elem", ne);
   PS::kkGidView element_gids("element_gids", ne);
   Omega_h::GOs mesh_element_gids = picparts.globalIds(picparts.dim());
+  std::cout << myRank << " : To define ptcls: ne " << ne << " num-mesh_element_gids "
+    << mesh_element_gids.size() << " " << picparts->nelems() << "\n";
   Omega_h::parallel_for(ne, OMEGA_H_LAMBDA(const o::LO& i) {
     element_gids(i) = mesh_element_gids[i];
   });
@@ -218,7 +220,7 @@ void GitrmParticles::initPtclsFromFile(const std::string& fName,
   auto stat = readParticleSourceNcFile(fName, readInData_h, numPtclsRead,each_chunk, each_chunk_pos, true);
   printf("Rank %d partices read %d \n", myRank, numPtclsRead);
   //OMEGA_H_CHECK( stat && (numPtclsRead >= totalPtcls));
-  o::Reals readInData_r(readInData_h.write());
+  auto readInData_r = o::Reals(o::Write<o::Real>(readInData_h));
   o::LOs elemIdOfPtcls;
   o::LOs ptclDataInds;
   o::LOs numPtclsInElems;
@@ -959,8 +961,8 @@ void GitrmParticles::writePtclStepHistoryFile(std::string ncfile, bool debug) co
     auto dof = dofHistory;
     int numPtcls = totalPtcls;
     auto nTh = nThistory;
-    auto histData_d = histData_h.write();
-    auto lastFilled_d = lastFilled_h.write();
+    auto histData_d = o::Write<o::Real>(histData_h);
+    auto lastFilled_d = o::Write<o::LO>(lastFilled_h);
     //fill empty elements with last filled values
     //if(debug && !myRank)
       printf("numPtcls %d lastFilled_h.size %d histData_d.size %d np@rank0 %d\n",
@@ -1007,8 +1009,8 @@ void GitrmParticles::writePtclStepHistoryFile(std::string ncfile, bool debug) co
   auto dof = dofHistory;
   int numPtcls = each_chunk;
   auto nTh = nThistory;
-  auto histData_d = histData_in.write();
-  auto lastFilled_d = lastFilled_in.write();
+  auto histData_d = o::Write<o::Real>(histData_in);
+  auto lastFilled_d = o::Write<o::Real>(lastFilled_in);
 
     auto lambda = OMEGA_H_LAMBDA(const o::LO& ptcl) {
       auto ts = lastFilled_d[ptcl];
@@ -1199,7 +1201,7 @@ void GitrmParticles::writeDetectedParticles(std::string fname, std::string heade
   printf("rank %d Detected size %d this %d \n", rank, dataTot.size(),
     dataTot_in.size());
   int total = 0;
-  auto dataTot_d = dataTot.write();
+  auto dataTot_d = o::Write<o::LO>(dataTot);
   Kokkos::fence();
   Kokkos::parallel_reduce(dataTot_d.size(), OMEGA_H_LAMBDA(const int i, o::LO& lsum) {
     lsum += dataTot_d[i];

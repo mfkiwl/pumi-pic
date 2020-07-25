@@ -15,6 +15,7 @@
 #include <particle_structs.hpp>
 #include <pumipic_mesh.hpp>
 #include "GitrmMesh.hpp"
+#include "GitrmBoundary.hpp"
 
 using pumipic::fp_t;
 using pumipic::Vector3d;
@@ -127,6 +128,8 @@ public:
   void initPtclEndPoints();
   void writeOutPtclEndPoints(const std::string& file="positions_gitrm.m") const;
 
+  o::Write<o::Real> storedBdryFaces;
+
   int numInitPtcls = 0;  // ptcls->nPtcls()
   int numPtclsRead = 0;
   int dofHistory = 1;
@@ -177,7 +180,6 @@ namespace gitrm {
 const o::Real maxCharge = 73; // 74-1
 const o::Real ELECTRON_CHARGE = 1.60217662e-19;
 const o::Real PROTON_MASS = 1.6737236e-27;
-const o::Real BACKGROUND_AMU = 4.0; //for pisces
 const o::Real PTCL_AMU=184.0; //W,tungsten
 const o::LO PARTICLE_Z = 74;
 const o::LO ptclHistAllocationStep = 10000;
@@ -211,18 +213,24 @@ inline void printCudaMemInfo() {
   double div = 1024*1024*1024;
   std::cout << "free: " << mf/div << " GB. total: " << ma/div << std::endl;
 }
+
+//OMEGA_H_DEVICE
+//o::Matrix<3,3> get_bdry_face_data(const o::Reals& storedBdryFaces, const o::LO bfid) {
+//  o::Matrix<3, 3> face;
+//}
+
 } //ns
 /** @brief Calculate distance of particles to domain boundary.
  * Not yet clear if a pre-determined depth can be used
 */
 inline void gitrm_findDistanceToBdry(GitrmParticles& gp,
-  const GitrmMesh& gm, int debug=0) {
+   GitrmMesh& gm, int debug=0) {
   if(debug)
     printf("gitrm_findDistanceToBdry \n");
   int tstep = iTimePlusOne;
   auto* ptcls = gp.ptcls;
   o::Mesh& mesh = gm.mesh;
-  o::LOs modelIdsToSkip = o::LOs(gm.surfaceAndMaterialModelIds);
+  o::LOs modelIdsToSkip = o::LOs(gm.getSurfaceAndMaterialModelIds());
   auto numModelIds = modelIdsToSkip.size();
   auto faceClassIds = mesh.get_array<o::ClassId>(2, "class_id");
   const auto coords = mesh.coords();
@@ -232,32 +240,46 @@ inline void gitrm_findDistanceToBdry(GitrmParticles& gp,
   const auto down_r2fs = mesh.ask_down(3, 2).ab2b;
 
   const int useReadInCsr = USE_READIN_CSR_BDRYFACES;
-  const auto& bdryCsrReadInDataPtrs = *(gm.bdryCsrReadInDataPtrs);
-  const auto& bdryCsrReadInData = *(gm.bdryCsrReadInData);
-  const auto& bdryFaceOrderedIds = gm.bdryFaceOrderedIds;
-
+  const auto bdryCsrReadInDataPtrs = gm.getBdryCsrReadInPtrs();
+  const auto bdryCsrReadInData = gm.getBdryCsrReadInFids();
+  const int useStoredBdryDataOnPic = USE_STORED_BDRYDATA_PIC_CORE;
+  
+  auto* b = gm.getBdryPtr(); //gm.gbdry;
+  const auto bdryFaceVertCoordsPic = b->getBdryFaceVertCoordsPic();
+  const auto bdryFaceVertsPic = b->getBdryFaceVertsPic();
+  const auto bdryFaceIdsPic = b->getBdryFaceIdsPic();
+  const auto bdryFaceIdPtrsPic = b->getBdryFaceIdPtrsPic();
+  //TODO unify the get method
+  //const auto  bdryFaceIds = gm.getBdryFidsCalculated();
+  //const auto  bdryFaceIdPtrs = gm.getBdryCsrCalculatedPtrs();
+  
+  const auto& bdryFaceOrderedIds = gm.getBdryFaceOrderedIds();
   const auto nel = mesh.nelems();
   const auto& f2rPtr = mesh.ask_up(o::FACE, o::REGION).a2ab;
   const auto& f2rElem = mesh.ask_up(o::FACE, o::REGION).ab2b;
   const auto& face_verts = mesh.ask_verts_of(2);
-  const auto& bdryFaces = gm.bdryFacesSelectedCsr;
-  const auto& bdryFacePtrs = gm.bdryFacePtrsSelected;
+
   const auto psCapacity = ptcls->capacity();
   o::Write<o::Real> closestPoints(psCapacity*3, 0, "closest_points");
   o::Write<o::LO> closestBdryFaceIds(psCapacity, -1, "closest_fids");
   auto pos_d = ptcls->get<PTCL_POS>();
   auto pid_ps = ptcls->get<PTCL_ID>();
+
   auto lambda = PS_LAMBDA(const int &elem, const int &pid, const int &mask) {
     if (mask > 0) {
       o::LO beg = 0;
       o::LO nFaces = 0;
-      if(useReadInCsr) { //fix crash
+      //TODO merge
+      if(useReadInCsr && useStoredBdryDataOnPic) {
+        beg = bdryFaceIdPtrsPic[elem];
+        nFaces = bdryFaceIdPtrsPic[elem+1] - beg;
+      } else if(useReadInCsr) {
         beg = bdryCsrReadInDataPtrs[elem];
         nFaces = bdryCsrReadInDataPtrs[elem+1] - beg;
-      } else {
-        beg = bdryFacePtrs[elem];
-        nFaces = bdryFacePtrs[elem+1] - beg;
-      }
+      } //else { //TODO calculated bdry data disabled  
+       // beg = bdryFaceIdPtrsPic[elem];// bdryFacePtrs[elem];
+       // nFaces = bdryFaceIdPtrsPic[elem+1] - beg; //bdryFacePtrs[elem+1] - beg;
+     // }
 
       if(nFaces >0) {
         auto ptcl = pid_ps(pid);
@@ -270,13 +292,25 @@ inline void gitrm_findDistanceToBdry(GitrmParticles& gp,
         o::Matrix<3,3> face;
         for(o::LO ii = 0; ii < nFaces; ++ii) {
           auto ind = beg + ii;
-          if(useReadInCsr)
+          if(useStoredBdryDataOnPic)
+            bfid = bdryFaceIdsPic[ind];
+          else if(useReadInCsr)
             bfid = bdryCsrReadInData[ind];
-          else
-            bfid = bdryFaces[ind];
-          face = p::get_face_coords_of_tet(face_verts, coords, bfid);
+          //else
+          //  bfid = bdryFaceIdsPic[ind];// TODO bdryFaces[ind];
+          //using from this PICpart
+          if(useStoredBdryDataOnPic) {
+            //bfid is the index of the storedBdryFaces in this case
+            face = p::get_face_coords_of_tet(bdryFaceVertsPic,
+              bdryFaceVertCoordsPic, bfid);
+          } else {
+            face = p::get_face_coords_of_tet(face_verts, coords, bfid);
+          }
+
           if(debug > 2) {
-            auto bfeId = p::elem_id_of_bdry_face_of_tet(bfid, f2rPtr, f2rElem);
+            o::LO bfeId = -1;
+            if(!useStoredBdryDataOnPic)
+              bfeId = p::elem_id_of_bdry_face_of_tet(bfid, f2rPtr, f2rElem);
             printf(" ptcl %d elem %d d2bdry %.15e bfid %d bdry-el %d pos: %.15e %.15e %.15e bdry-face: "
               "%g %g %g : %g %g %g : %g %g %g \n", ptcl, elem, dist, bfid, bfeId,
               ref[0], ref[1], ref[2], face[0][0], face[0][1], face[0][2], face[1][0],
@@ -294,8 +328,12 @@ inline void gitrm_findDistanceToBdry(GitrmParticles& gp,
           }
         } //for nFaces
         if(debug>1) {
-          auto fel = p::elem_id_of_bdry_face_of_tet(fid, f2rPtr, f2rElem);
-          auto f = p::get_face_coords_of_tet(face_verts, coords, fid);
+          o::LO fel = -1;
+          o::Matrix<3,3> f;
+          if(!useStoredBdryDataOnPic) {
+            fel = p::elem_id_of_bdry_face_of_tet(fid, f2rPtr, f2rElem);
+            f = p::get_face_coords_of_tet(face_verts, coords, fid);
+          }
           auto bdryOrd = bdryFaceOrderedIds[fid];
           printf("dist: ptcl %d tstep %d el %d MINdist %.15e nFaces %d fid %d "
             "face_el %d bdry-ordered-id %d reg %d pos %.15e %.15e %.15e "

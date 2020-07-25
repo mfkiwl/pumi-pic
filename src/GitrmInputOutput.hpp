@@ -52,7 +52,10 @@ struct Field3StructInput {
   Field3StructInput(std::vector<std::string> compNames_in,
     std::vector<std::string> gridNames_in,
     std::vector<std::string> nGridNames_in, int nGridRead_in=-1,
-    std::vector<std::string> nVarNames_in = {}) {
+    std::vector<std::string> nVarNames_in = {}) :
+    data(o::HostWrite<o::Real>{}), grid1(o::HostWrite<o::Real>{}),
+    grid2(o::HostWrite<o::Real>{}), grid3(o::HostWrite<o::Real>{}),
+    nGridVec(std::vector<int>{}), nVarVec(std::vector<int>{}) {
     compNames = compNames_in;
     gridNames = gridNames_in;
     nGridNames = nGridNames_in;

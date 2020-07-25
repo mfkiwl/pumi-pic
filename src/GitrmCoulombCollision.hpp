@@ -154,12 +154,12 @@ inline void gitrm_coulomb_collision(PS* ptcls, int *iteration, const GitrmMesh& 
 
   o::Reals constFlowVelocity(3); 
   if(useConstantFlowVelocity) {
-    constFlowVelocity = o::Reals(o::HostWrite<o::Real>({CONSTANT_FLOW_VELOCITY0,
-    CONSTANT_FLOW_VELOCITY1, CONSTANT_FLOW_VELOCITY2}).write());
+    constFlowVelocity = o::Reals(o::Write<o::Real>(o::HostWrite<o::Real>(
+      {CONSTANT_FLOW_VELOCITY0, CONSTANT_FLOW_VELOCITY1, CONSTANT_FLOW_VELOCITY2})));
   }
 
   //Setting up of 2D magnetic field data 
-  const auto& BField_2d = gm.Bfield_2d;
+  const auto& BField_2d = gm.getBfield2d();
   const auto bX0 = gm.bGridX0;
   const auto bZ0 = gm.bGridZ0;
   const auto bDx = gm.bGridDx;
@@ -168,7 +168,7 @@ inline void gitrm_coulomb_collision(PS* ptcls, int *iteration, const GitrmMesh& 
   const auto bGridNz = gm.bGridNz;
 
   //Setting up of 2D ion temperature data
-  const auto& temIon_d = gm.temIon_d;
+  const auto& temIon_d = gm.getTemIon();
   auto x0Temp = gm.tempIonX0;
   auto z0Temp = gm.tempIonZ0;
   auto nxTemp = gm.tempIonNx;
@@ -177,7 +177,7 @@ inline void gitrm_coulomb_collision(PS* ptcls, int *iteration, const GitrmMesh& 
   auto dzTemp = gm.tempIonDz;
 
   //Setting up of 2D ion density data
-  const auto& densIon_d =gm.densIon_d;
+  const auto& densIon_d =gm.getDensIon();
   auto x0Dens = gm.densIonX0;
   auto z0Dens = gm.densIonZ0;
   auto nxDens = gm.densIonNx;
@@ -186,7 +186,7 @@ inline void gitrm_coulomb_collision(PS* ptcls, int *iteration, const GitrmMesh& 
   auto dzDens = gm.densIonDz;
 
   ////Setting up of 2D electron temperature data
-  const auto& temEl_d  = gm.temEl_d;
+  const auto& temEl_d  = gm.getTemEl();
   auto x0Temp_el=gm.tempElX0;
   auto z0Temp_el=gm.tempElZ0;
   auto nxTemp_el=gm.tempElNx;

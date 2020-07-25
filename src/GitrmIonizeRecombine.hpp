@@ -96,8 +96,8 @@ inline void gitrm_ionize(PS* ptcls, const GitrmIonizeRecombine& gir,
     printf("Ionization \n");
   auto& mesh = gm.mesh;
   auto use2DRatesData = USE_2DREADIN_IONI_REC_RATES;
-  auto& densIon_d = gm.densIon_d;
-  auto& temIon_d = gm.temIon_d;
+  auto densIon_d = gm.getDensIon();
+  auto temIon_d = gm.getTemIon();
   auto x0Dens = gm.densIonX0;
   auto z0Dens = gm.densIonZ0;
   auto nxDens = gm.densIonNx;
@@ -251,20 +251,20 @@ inline void gitrm_recombine(PS* ptcls, const GitrmIonizeRecombine& gir,
     printf("Recombination \n");
 
   auto& mesh = gm.mesh;
-  auto& densIon_d = gm.densIon_d;
-  auto& temIon_d = gm.temIon_d;
-  auto x0Dens = gm.densIonX0;
-  auto z0Dens = gm.densIonZ0;
-  auto nxDens = gm.densIonNx;
-  auto nzDens = gm.densIonNz;
-  auto dxDens = gm.densIonDx;
-  auto dzDens = gm.densIonDz;
-  auto x0Temp = gm.tempIonX0;
-  auto z0Temp = gm.tempIonZ0;
-  auto nxTemp = gm.tempIonNx;
-  auto nzTemp = gm.tempIonNz;
-  auto dxTemp = gm.tempIonDx;
-  auto dzTemp = gm.tempIonDz;
+  auto densIon_d = gm.getDensIon();
+  auto temIon_d = gm.getTemIon();
+  const auto x0Dens = gm.densIonX0;
+  const auto z0Dens = gm.densIonZ0;
+  const auto nxDens = gm.densIonNx;
+  const auto nzDens = gm.densIonNz;
+  const auto dxDens = gm.densIonDx;
+  const auto dzDens = gm.densIonDz;
+  const auto x0Temp = gm.tempIonX0;
+  const auto z0Temp = gm.tempIonZ0;
+  const auto nxTemp = gm.tempIonNx;
+  const auto nzTemp = gm.tempIonNz;
+  const auto dxTemp = gm.tempIonDx;
+  const auto dzTemp = gm.tempIonDz;
 
   const bool useCudaRnd = gp.useCudaRnd;
   auto* cuStates =  gp.cudaRndStates;

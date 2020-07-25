@@ -4,14 +4,15 @@
 
 GitrmSurfaceModel::GitrmSurfaceModel(GitrmMesh& gm, std::string ncFile):
   gm(gm), mesh(gm.mesh),  ncFile(ncFile) { 
-  surfaceAndMaterialModelIds = gm.surfaceAndMaterialModelIds;
+  surfaceAndMaterialModelIds = gm.getSurfaceAndMaterialModelIds();
   initSurfaceModelData(ncFile, true);
 
   numSurfMaterialFaces = gm.nSurfMaterialFaces;
-  surfaceAndMaterialOrderedIds = gm.surfaceAndMaterialOrderedIds;
+  surfaceAndMaterialOrderedIds = gm.getSurfaceAndMaterialOrderedIds();
   nDetectSurfaces = gm.nDetectSurfaces;
-  detectorSurfaceOrderedIds = gm.detectorSurfaceOrderedIds;
-  bdryFaceMaterialZs = gm.bdryFaceMaterialZs;
+  detectorSurfaceOrderedIds = gm.getDetectorSurfaceOrderedIds();
+  bdryFaceMaterialZs = gm.getBdryFaceMaterialZs();
+  bdryFaceOrderedIds = gm.getBdryFaceOrderedIds();
 }
 
 //TODO
@@ -47,7 +48,7 @@ void GitrmSurfaceModel::setFaceId2SurfaceIdMap() {
       ++bid;
     }
   }
-  mesh.add_tag<o::LO>(o::FACE, "SurfaceIndex", 1, o::LOs(surfInds_h.write()));
+  mesh.add_tag<o::LO>(o::FACE, "SurfaceIndex", 1, o::LOs(o::Write<o::LO>(surfInds_h)));
 }
 
 void GitrmSurfaceModel::initSurfaceModelData(std::string ncFile, bool debug) {
@@ -253,7 +254,7 @@ void GitrmSurfaceModel::prepareSurfaceModelData() {
    angleDistGrid01_h, nAngSputtRefDistOut,
    angPhiSputtRefDistOut_h[nAngSputtRefDistOut - 1],
    angPhiDist_CDF_Y, angPhiDist_CDF_Y_regrid_h);
-  angPhiDist_CDF_Y_regrid = o::Reals(angPhiDist_CDF_Y_regrid_h.write());
+  angPhiDist_CDF_Y_regrid = o::Reals(o::Write<o::Real>(angPhiDist_CDF_Y_regrid_h));
 
   o::HostRead<o::Real> angThetaSputtRefDistOut_h(o::deep_copy(angThetaSputtRefDistOut));
   o::HostWrite<o::Real>angThetaDist_CDF_Y_regrid_h(angThetaDist_CDF_Y.size(), 
@@ -261,7 +262,7 @@ void GitrmSurfaceModel::prepareSurfaceModelData() {
   regrid2dCDF(nEnSputtRefDistIn, nAngSputtRefDistIn, nAngSputtRefDistOut,
    angleDistGrid01_h, nAngSputtRefDistOut, angThetaSputtRefDistOut_h[nAngSputtRefDistOut - 1],
    angThetaDist_CDF_Y, angThetaDist_CDF_Y_regrid_h);
-  angThetaDist_CDF_Y_regrid = o::Reals(angThetaDist_CDF_Y_regrid_h.write());
+  angThetaDist_CDF_Y_regrid = o::Reals(o::Write<o::Real>(angThetaDist_CDF_Y_regrid_h));
 
   o::HostRead<o::Real> enSputtRefDistOut_h(o::deep_copy(enSputtRefDistOut));
   o::HostWrite<o::Real>enDist_CDF_Y_regrid_h(enDist_CDF_Y.size(), "enDist_CDF_Y_regrid");
@@ -380,7 +381,7 @@ void GitrmSurfaceModel::getSurfaceModelData(const std::string fileName,
   //grid not read along with data
   Field3StructInput fs({dataName},{},shapes);
   readInputDataNcFileFS3(fileName, fs, false);
-  data = o::Reals(fs.data.write());
+  data = o::Reals(o::Write<o::Real>(fs.data));
   //only first
   if(size) {
     *size = fs.getIntValueOf(shapeNames[shapeInds[0]]);//fs.getNumGrids(j); 

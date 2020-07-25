@@ -38,6 +38,7 @@ public:
   int nDetectSurfaces = 0;
   o::LOs detectorSurfaceOrderedIds;
   o::LOs bdryFaceMaterialZs;
+  o::LOs bdryFaceOrderedIds;
 
   //from NC file
   std::string fileString{};
@@ -186,7 +187,7 @@ inline void surfaceErosion(PS* ptcls, o::Write<o::Real>& erosionData) {
 
 //Note, elem_ids indexed by pids of ps, not ptcl. Don't rebuild after search_mesh 
 inline void gitrm_surfaceReflection(PS* ptcls, GitrmSurfaceModel& sm,
-    GitrmParticles& gp, const GitrmMesh& gm, int debug=0 ) {
+    GitrmParticles& gp, int debug=0 ) {
   if(debug)
     printf("Surface model \n");
 
@@ -211,7 +212,7 @@ inline void gitrm_surfaceReflection(PS* ptcls, GitrmSurfaceModel& sm,
   else
     OMEGA_H_CHECK(!gp.testGitrOptSurfaceModel);
 
-  auto bdrys = gm.bdryFaceOrderedIds;
+  auto bdrys = sm.bdryFaceOrderedIds;
   o::Real pi = o::PI;
   o::Real shiftRefl = gitrm::DELTA_SHIFT_BDRY_REFL;
   auto amu = gitrm::PTCL_AMU;
@@ -229,11 +230,9 @@ inline void gitrm_surfaceReflection(PS* ptcls, GitrmSurfaceModel& sm,
   const auto nAngSputtRefDistOut = sm.nAngSputtRefDistOut; //nA_sputtRefDistOut
   const auto nEnSputtRefDistIn = sm.nEnSputtRefDistIn; // nE_sputtRefDistIn
   const auto nAngSputtRefDistIn = sm.nAngSputtRefDistIn; // nA_sputtRefDistIn
-  const auto& enSputtRefDistIn = sm.enSputtRefDistIn; // E_sputtRefDistIn
   const auto& angSputtRefDistIn = sm.angSputtRefDistIn; // A_sputtRefDistIn 
-  const auto& enSputtRefDistOut = sm.enSputtRefDistOut;// E_sputtRefDistOut
-  const auto& enSputtRefDistOutRef = sm.enSputtRefDistOutRef; //E_sputtRefDistOutRef
-  const auto& angPhiSputtRefDistOut = sm.angPhiSputtRefDistOut; // A_sputtRefDistOut
+  //const auto& enSputtRefDistIn = sm.enSputtRefDistIn; // E_sputtRefDistIn
+
   const auto& energyDistGrid01 = sm.energyDistGrid01; //energyDistGrid01
   const auto& energyDistGrid01Ref = sm.energyDistGrid01Ref; // energyDistGrid01Ref 
   const auto& angleDistGrid01 = sm.angleDistGrid01; // angleDistGrid01

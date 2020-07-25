@@ -145,17 +145,17 @@ int main(int argc, char** argv) {
     exit(1);
   }
   bool chargedTracking = true; //false for neutral tracking
-  bool piscesRun = true; // add as argument later
+  std::string geomName = "pisces";
 
   bool debug = false; //search
-  int debug2 =0 ;  //routines
+  int debug2 = 1;  //routines
   
   bool surfacemodel = true;
   bool spectroscopy = true;
   bool thermal_force = false; //false in pisces conf
   
-  if(piscesRun)
-  	OMEGA_H_CHECK(!thermal_force);
+  if(geomName == "pisces")
+    OMEGA_H_CHECK(!thermal_force);
 
   bool coulomb_collision = true;
   bool diffusion = true; //not for diffusion>1
@@ -185,19 +185,21 @@ int main(int argc, char** argv) {
   }
   auto full_mesh = readMesh(argv[1], lib);
   MPI_Barrier(MPI_COMM_WORLD);
+  char* owners = argv[2];
 
   o::CommPtr world = lib.world();
   //Create Picparts with the full mesh
-  p::Input::Method bm = p::Input::Method::FULL;
-  p::Input::Method safem = p::Input::Method::BFS;
-  p::Input pp_input(full_mesh, argv[2], bm, safem, world);
-  pp_input.bridge_dim=full_mesh.dim()-1;
-  pp_input.safeBFSLayers=3;
+  p::Input::Method bm = p::Input::Method::MINIMUM;
+  p::Input::Method safem = p::Input::Method::MINIMUM;
+  p::Input pp_input(full_mesh, owners, bm, safem, world);
+  //pp_input.bridge_dim = full_mesh.dim()-1;
+ // pp_input.safeBFSLayers = 3;
   p::Mesh picparts(pp_input);
 
   o::Mesh* mesh = picparts.mesh();
   mesh->ask_elem_verts(); //caching adjacency info
-
+  Omega_h::vtk::write_parallel("meshvtkInit", picparts.mesh(), picparts.dim());
+  
   if (comm_rank == 0)
     printf("Mesh loaded with verts %d edges %d faces %d elements %d\n",
       mesh->nverts(), mesh->nedges(), mesh->nfaces(), mesh->nelems());
@@ -222,7 +224,6 @@ int main(int argc, char** argv) {
   int histInterval = 0;
   double dTime = 5e-9; //pisces:5e-9 for 100,000 iterations
   int numIterations = 1; //higher beads needs >10K
-  unsigned long int seq=0; //CUDA RND sequence
   if(argc > 8)
     totalNumPtcls = atol(argv[8]);
   if(argc > 9)
@@ -239,6 +240,10 @@ int main(int argc, char** argv) {
       printf(" gitr comparison DataFile %s\n", gitrDataFileName.c_str());
   }
 
+  //TODO get mesh from picparts inside gm
+  GitrmMesh gm(&picparts, &full_mesh, *mesh, owners);
+  gm.initMeshFields(bFile, profFile, thermGradientFile, geomName, debug2);
+
   unsigned long int seed = 0; // zero value for seed not considered !
   GitrmParticles gp(picparts, totalNumPtcls, numIterations, dTime, useCudaRnd,
     seed, useGitrRndNums);
@@ -247,15 +252,7 @@ int main(int argc, char** argv) {
   if(!comm_rank)
     printf("Initializing Particles\n");
   gp.initPtclsFromFile(ptclSource, 100, true);
-
-  // TODO use picparts
-  GitrmMesh gm(*mesh);
-
-  if(CREATE_GITR_MESH)
-    gm.createSurfaceGitrMesh();
-
-  if(piscesRun) {
-    gm.markDetectorSurfaces(true);
+  if(geomName == "pisces") {
     int dataSize = 14;
     gp.initPtclDetectionData(dataSize);
   }
@@ -269,36 +266,9 @@ int main(int argc, char** argv) {
       printf("useGitrRndNums is ON\n");
   }
   auto* ptcls = gp.ptcls;
-  gm.initBField(bFile);
-  auto initFields = gm.addTagsAndLoadProfileData(profFile, profFile, thermGradientFile);
+
   OMEGA_H_CHECK(!ionizeRecombFile.empty());
   GitrmIonizeRecombine gir(ionizeRecombFile, chargedTracking);
-  printf("initBoundaryFaces\n");
-  auto initBdry = gm.initBoundaryFaces(initFields);
-
-  printf("Preprocessing: dist-to-boundary faces\n");
-  int nD2BdryTetSubDiv = D2BDRY_GRIDS_PER_TET;
-  int readInCsrBdryData = USE_READIN_CSR_BDRYFACES;
-  if(readInCsrBdryData) {
-    gm.readDist2BdryFacesData("bdryFaces_in.nc");
-  } else {
-    gm.preprocessSelectBdryFacesFromAll();
-  }
-  bool writeTextBdryFaces = WRITE_TEXT_D2BDRY_FACES;
-  if(writeTextBdryFaces)
-    gm.writeBdryFacesDataText(nD2BdryTetSubDiv);
-  bool writeBdryFaceCoords = WRITE_BDRY_FACE_COORDS_NC;
-  if(writeBdryFaceCoords)
-    gm.writeBdryFaceCoordsNcFile(2); //selected
-  bool writeMeshFaceCoords = WRITE_MESH_FACE_COORDS_NC;
-  if(writeMeshFaceCoords)
-    gm.writeBdryFaceCoordsNcFile(1); //all
-  int writeBdryFacesFile = WRITE_OUT_BDRY_FACES_FILE;
-  if(writeBdryFacesFile && !readInCsrBdryData) {
-    std::string bdryOutName = "bdryFaces_" +
-      std::to_string(nD2BdryTetSubDiv) + "div.nc";
-    gm.writeDist2BdryFacesData(bdryOutName, nD2BdryTetSubDiv);
-  }
 
   GitrmSurfaceModel sm(gm, surfModelFile);
   GitrmSpectroscopy sp;
@@ -326,7 +296,7 @@ int main(int argc, char** argv) {
     gitrm_findDistanceToBdry(gp, gm, debug2);
     Kokkos::Profiling::popRegion();
     Kokkos::Profiling::pushRegion("calculateE");
-    gitrm_calculateE(gp, *mesh, gm, debug2);
+    gitrm_calculateE(&gp, &gm, debug2);
     Kokkos::Profiling::popRegion();
     Kokkos::Profiling::pushRegion("borisMove");
     gitrm_borisMove(ptcls, gm, dTime, debug2);
@@ -364,7 +334,7 @@ int main(int argc, char** argv) {
     Kokkos::Profiling::popRegion();
     if(surfacemodel) {
       Kokkos::Profiling::pushRegion("surface_refl");
-      gitrm_surfaceReflection(ptcls, sm, gp, gm, debug2);
+      gitrm_surfaceReflection(ptcls, sm, gp, debug2);
       Kokkos::Profiling::popRegion();
       //reflected ptcl is searched beginning at orig, not from wall hit point.
       search(picparts, gp, elem_ids, debug);
@@ -396,7 +366,7 @@ int main(int argc, char** argv) {
 
   gp.writeOutPtclEndPoints();
 
-  if(piscesRun) {
+  if(geomName == "pisces") {
     std::string fname("piscesCounts.txt");
     gp.writeDetectedParticles(fname, "piscesDetected");
     gm.writeResultAsMeshTag(gp.collectedPtcls);

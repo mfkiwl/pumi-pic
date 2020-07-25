@@ -1,9 +1,6 @@
 #ifndef GITRM_PUSH_HPP
 #define GITRM_PUSH_HPP
 
-#include "GitrmMesh.hpp"
-#include "GitrmParticles.hpp"
-
 #include <iostream>
 #include <cmath>
 #include <utility>
@@ -13,40 +10,50 @@
 #include "Omega_h_scalar.hpp" //divide
 #include "Omega_h_fail.hpp"
 
+#include "GitrmMesh.hpp"
+#include "GitrmParticles.hpp"
+#include "GitrmBoundary.hpp"
 
 // Angle, DebyeLength etc were calculated at center of LONG tet, using BField.
-inline void gitrm_calculateE(GitrmParticles& gp, o::Mesh &mesh,
-    const GitrmMesh &gm, int debug=0) {
+inline void gitrm_calculateE(GitrmParticles* gp, GitrmMesh* gm, int debug=0) {
+  //for printing
   ++iTimePlusOne;
   const auto iTimeStep = iTimePlusOne - 1; //consistent with calls in other routines
   if(debug)
     printf("CalculateE \n");
-  int rank = gitrm::getCommRank();
-  const auto& f2rPtr = mesh.ask_up(o::FACE, o::REGION).a2ab;
-  const auto& f2rElem = mesh.ask_up(o::FACE, o::REGION).ab2b;
-  const auto coords = mesh.coords();
-  const auto face_verts = mesh.ask_verts_of(2);
-  //const auto larmorRadius_d = gm.larmorRadius_d;
-  //const auto childLangmuirDist_d = gm.childLangmuirDist_d;
-  const double biasPot = BIAS_POTENTIAL;
-  const auto biasedSurface = BIASED_SURFACE;
-  const auto angles = mesh.get_array<o::Real>(o::FACE, "angleBdryBfield");
-  const auto potentials = mesh.get_array<o::Real>(o::FACE, "potential");
-  const auto debyeLengths = mesh.get_array<o::Real>(o::FACE, "DebyeLength");
-  const auto larmorRadii = mesh.get_array<o::Real>(o::FACE, "LarmorRadius");
-  const auto childLangmuirDists = mesh.get_array<o::Real>(o::FACE, "ChildLangmuirDist");
-  const auto elDensity = mesh.get_array<o::Real>(o::FACE, "ElDensity");
-  const auto elTemp = mesh.get_array<o::Real>(o::FACE, "ElTemp");
-  auto* ptcls = gp.ptcls;
+  int rank = gm->picparts->comm()->rank();
+
+  o::Mesh* mesh = gm->picparts->mesh();
+  const auto& f2rPtr = mesh->ask_up(o::FACE, o::REGION).a2ab;
+  const auto& f2rElem = mesh->ask_up(o::FACE, o::REGION).ab2b;
+  const auto coords = mesh->coords();
+  const auto face_verts = mesh->ask_verts_of(2);
+
+  auto* bdry = gm->getBdryPtr();
+  const auto biasedSurface = bdry->isBiasedSurface();
+  const auto biasPot = bdry->getBiasPotential();
+  const auto angles = bdry->getBxSurfNormAngle();
+  const auto potentials = bdry->getPotential();
+  const auto debyeLengths = bdry->getDebyeLength();
+  const auto larmorRadii = bdry->getLarmorRadius();
+  const auto childLangmuirDists = bdry->getChildLangmuirDist();
+  const auto elDensity = bdry->getElDensity();
+  const auto elTemp = bdry->getElTemp();
+
+  const auto bdryFaceVertCoordsCore = bdry->getBdryFaceVertCoordsPic();
+  const auto bdryFaceVertsCore = bdry->getBdryFaceVertsPic();
+  const auto bdryFaceIdsCore = bdry->getBdryFaceIdsPic();
+  const auto bdryFaceIdPtrsCore = bdry->getBdryFaceIdPtrsPic();
+ 
+  //NOTE arrays is based on pid, which is reset upon each rebuild
+  const auto& closestPoints =  gp->closestPoints;
+  const auto& faceIds = gp->closestBdryFaceIds;
+
+  auto* ptcls = gp->ptcls;
   auto pos_ps = ptcls->get<PTCL_POS>();
   auto efield_ps  = ptcls->get<PTCL_EFIELD>();
   auto pid_ps = ptcls->get<PTCL_ID>();
-
   auto charge_ps = ptcls->get<PTCL_CHARGE>();
-
-  //NOTE arrays is based on pid, which is reset upon each rebuild
-  const auto& closestPoints =  gp.closestPoints;
-  const auto& faceIds = gp.closestBdryFaceIds;
 
   auto run = PS_LAMBDA(const int& elem, const int& pid, const int& mask) {
     if(mask >0) {
@@ -62,8 +69,8 @@ inline void gitrm_calculateE(GitrmParticles& gp, o::Mesh &mesh,
         // If  face is long, BField is not accurate. Calculate at closest point ?
         auto angle = angles[faceId];
         auto pot = potentials[faceId];
-        //TODO remove this after testing
-        pot = biasPot;
+        //use direct potential to test
+        //pot = biasPot;
         auto debyeLength = debyeLengths[faceId];
         auto larmorRadius = larmorRadii[faceId];
         auto childLangmuirDist = childLangmuirDists[faceId];
@@ -137,7 +144,7 @@ inline void gitrm_borisMove(PS* ptcls, const GitrmMesh &gm, const o::Real dTime,
   const auto bDz = gm.bGridDz;
   const auto bGridNx = gm.bGridNx;
   const auto bGridNz = gm.bGridNz;
-  const auto& BField_2d = gm.Bfield_2d;
+  const auto BField_2d = gm.getBfield2d();
   const auto eFieldConst_d = gitrm::getConstEField();
   //TODO crash using these variables
   //const o::Real eQ = gitrm::ELECTRON_CHARGE;//1.60217662e-19;
