@@ -159,7 +159,7 @@ int main(int argc, char** argv) {
 
   bool coulomb_collision = true;
   bool diffusion = true; //not for diffusion>1
-  bool useCudaRnd = true; //replace kokkos rnd
+  bool useCudaRnd = false; //replace kokkos rnd
   
 //GitrmInput inp("gitrInput.cfg", true);
 //  inp.testInputConfig();
@@ -189,11 +189,11 @@ int main(int argc, char** argv) {
 
   o::CommPtr world = lib.world();
   //Create Picparts with the full mesh
-  p::Input::Method bm = p::Input::Method::MINIMUM;
+  p::Input::Method bm = p::Input::Method::BFS;
   p::Input::Method safem = p::Input::Method::MINIMUM;
   p::Input pp_input(full_mesh, owners, bm, safem, world);
-  //pp_input.bridge_dim = full_mesh.dim()-1;
- // pp_input.safeBFSLayers = 3;
+  pp_input.bridge_dim = full_mesh.dim()-1;
+  pp_input.safeBFSLayers = 1;
   p::Mesh picparts(pp_input);
 
   o::Mesh* mesh = picparts.mesh();
@@ -271,7 +271,7 @@ int main(int argc, char** argv) {
   GitrmIonizeRecombine gir(ionizeRecombFile, chargedTracking);
 
   GitrmSurfaceModel sm(gm, surfModelFile);
-  GitrmSpectroscopy sp;
+  GitrmSpectroscopy sp(comm_rank);
 
   if(false)
     profileAndInterpolateTest(gm, true); //move to unit_test
@@ -303,7 +303,6 @@ int main(int argc, char** argv) {
     Kokkos::Profiling::popRegion();
     MPI_Barrier(MPI_COMM_WORLD);
     const auto psCapacity = ptcls->capacity();
-    assert(psCapacity > 0);
     o::Write<o::LO> elem_ids(psCapacity,-1);
     search(picparts, gp, elem_ids, debug);
     auto elem_ids_r = o::LOs(elem_ids);
@@ -351,8 +350,8 @@ int main(int argc, char** argv) {
 
     if(comm_rank == 0 && iter%1000 ==0)
       fprintf(stderr, "rank %d  nPtcls %d \n", comm_rank, ptcls->nPtcls());
-    ps_np = ptcls->nPtcls();
-    MPI_Allreduce(&ps_np, &np, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+    //ps_np = ptcls->nPtcls();
+    //MPI_Allreduce(&ps_np, &np, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
     if(np == 0) {
       fprintf(stderr, "No particles remain... exiting push loop\n");
       break;

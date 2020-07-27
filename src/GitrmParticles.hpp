@@ -39,7 +39,8 @@ typedef p::ParticleStructure<Particle> PS;
 class GitrmParticles {
 public:
   GitrmParticles(p::Mesh& picparts, long int totalPtcls, int nIter, double dT, 
-    bool useCudaRnd=false, unsigned long int seed=0, unsigned long int seq=0, bool useSeed=false, bool gitrRnd=false);
+    bool useCudaRnd=false, unsigned long int seed=0, unsigned long int seq=0,
+    bool gitrRnd=false);
   ~GitrmParticles();
   GitrmParticles(GitrmParticles const&) = delete;
   void operator=(GitrmParticles const&) = delete;
@@ -50,6 +51,7 @@ public:
   o::Real timeStep = 0;
   long int totalPtcls = 0;
   int numIterations = 0;
+  int ptclSplitRead = 0;
   /** Random number setting
    */
   Kokkos::Random_XorShift64_Pool<> rand_pool;
@@ -60,8 +62,8 @@ public:
   curandState *cudaRndStates;
   o::Write<curandState*> cudaRndStates_d;
 
-  void assignParticles(const o::Reals& data, const o::LOs& elemIdOfPtclsAll,
-   o::LOs& numPtclsInElems, o::LOs& elemIdOfPtcls, o::LOs& ptclDataInds);
+  void assignParticles(const o::LOs& elemIdOfPtclsAll, o::LOs& numPtclsInElems,
+   o::LOs& elemIdOfPtcls, o::LOs& ptclDataInds);
 
   void defineParticles(const o::LOs& ptclsInElem, int elId=-1);
 
@@ -83,20 +85,22 @@ public:
   void initPtclSurfaceModelData();
 
   void setPidsOfPtclsLoadedFromFile(const o::LOs& ptclIdPtrsOfElem,
-    const o::LOs& ptclIdsInElem,  const o::LOs& elemIdOfPtcls, const o::LOs& ptclDataInds);
+    const o::LOs& ptclIdsInElem, const o::LOs& elemIdOfPtcls, const o::LOs& ptclDataInds);
 
   void setPtclInitData(const o::Reals& data);
 
   void convertInitPtclElemIdsToCSR(const o::LOs& numPtclsInElems,
-    o::LOs& ptclIdPtrsOfElem, o::LOs& ptclIdsOfElem, o::LOs& elemIds);
+    const o::LOs& ptclIdPtrsOfElem, const o::LOs& elemIds, o::LOs& ptclIdsOfElem);
 
   int readGITRPtclStepDataNcFile(const std::string& ncFileName, int& maxNPtcls,
     bool debug=false);
   void checkCompatibilityWithGITRflags(int timestep);
 
   bool searchPtclInAllElems(const o::Reals& data, const o::LO pind, o::LO& parentElem);
+
   o::LO searchAllPtclsInAllElems(const o::Reals& data, o::Write<o::LO>& elemIdOfPtcls,
     o::Write<o::LO>& numPtclsInElems);
+
   o::LO searchPtclsByAdjSearchFromParent(const o::Reals& data, const o::LO parentElem,
     o::Write<o::LO>& numPtclsInElemsAll, o::Write<o::LO>& elemIdOfPtclsAll);
   void findElemIdsOfPtclCoordsByAdjSearch(const o::Reals& data, o::LOs& elemIdOfPtcls,
@@ -145,7 +149,7 @@ public:
   void initPtclDetectionData(int numGrid=14);
   o::Write<o::LO> collectedPtcls;
 
-  int getCommRank() const { return myRank;}
+  int getCommRank() const { return rank;}
   void setMyCommRank();
 
   // test GITR step data
@@ -171,9 +175,13 @@ public:
   bool ranCoulombCollision = false;
   bool ranDiffusion = false;
   bool ranSurfaceReflection = false;
+  bool isFullCopyMesh() { return isFullMesh;}
+
 private:
-  int myRank = -1;
-  int mysize =-1;
+  int rank = -1;
+  int commSize =-1;
+  bool isFullMesh = false;
+  bool initPtclsOutsideCore = false;
 };
 
 namespace gitrm {
@@ -184,7 +192,8 @@ const o::Real PTCL_AMU=184.0; //W,tungsten
 const o::LO PARTICLE_Z = 74;
 const o::LO ptclHistAllocationStep = 10000;
 o::Reals getConstEField();
-bool checkIfRankZero();
+o::Reals getConstBField();
+
 template<typename T>
 void reallocate_data(o::Write<T>& data, o::LO size, T init=0) {
   auto n = data.size();
@@ -214,12 +223,8 @@ inline void printCudaMemInfo() {
   std::cout << "free: " << mf/div << " GB. total: " << ma/div << std::endl;
 }
 
-//OMEGA_H_DEVICE
-//o::Matrix<3,3> get_bdry_face_data(const o::Reals& storedBdryFaces, const o::LO bfid) {
-//  o::Matrix<3, 3> face;
-//}
-
 } //ns
+
 /** @brief Calculate distance of particles to domain boundary.
  * Not yet clear if a pre-determined depth can be used
 */
@@ -244,7 +249,7 @@ inline void gitrm_findDistanceToBdry(GitrmParticles& gp,
   const auto bdryCsrReadInData = gm.getBdryCsrReadInFids();
   const int useStoredBdryDataOnPic = USE_STORED_BDRYDATA_PIC_CORE;
   
-  auto* b = gm.getBdryPtr(); //gm.gbdry;
+  auto* b = gm.getBdryPtr();
   const auto bdryFaceVertCoordsPic = b->getBdryFaceVertCoordsPic();
   const auto bdryFaceVertsPic = b->getBdryFaceVertsPic();
   const auto bdryFaceIdsPic = b->getBdryFaceIdsPic();
@@ -265,6 +270,10 @@ inline void gitrm_findDistanceToBdry(GitrmParticles& gp,
   auto pos_d = ptcls->get<PTCL_POS>();
   auto pid_ps = ptcls->get<PTCL_ID>();
 
+  //TODO Testing. Extract relevant part and put in unit tests
+  const auto globalIds = gm.picparts->globalIds(3);
+#define DIST2BDRY_TEST 1
+
   auto lambda = PS_LAMBDA(const int &elem, const int &pid, const int &mask) {
     if (mask > 0) {
       o::LO beg = 0;
@@ -273,6 +282,30 @@ inline void gitrm_findDistanceToBdry(GitrmParticles& gp,
       if(useReadInCsr && useStoredBdryDataOnPic) {
         beg = bdryFaceIdPtrsPic[elem];
         nFaces = bdryFaceIdPtrsPic[elem+1] - beg;
+
+#if DIST2BDRY_TEST > 0
+       //TODO test extracted dist2bdry data
+        auto gel = globalIds[elem]; 
+        auto ptr = bdryCsrReadInDataPtrs[gel];
+        auto nbf =  bdryCsrReadInDataPtrs[gel+1] - ptr;
+        OMEGA_H_CHECK(nFaces == nbf);
+        if(false)
+          printf(" e %d  gel %ld ptr %d %d nbf %d %d \n", elem, gel, beg, ptr, nFaces, nbf);
+          //fids are different even for full mesh, since extracting only used face ids
+        for(int i=0; i<nFaces; ++i) {
+          auto id = bdryFaceIdsPic[beg+i];
+          auto fid = bdryCsrReadInData[ptr+i];
+          auto f = p::get_face_coords_of_tet(bdryFaceVertsPic, bdryFaceVertCoordsPic, id);
+          auto f2 = p::get_face_coords_of_tet(face_verts, coords, fid);
+          for(int j=0; j<3;++j)
+            for(int k=0; k<3; ++k) {
+              if(false && i<1)
+                printf(" %d: %f %f\n", i, f[j][k], f2[j][k]);
+              OMEGA_H_CHECK(p::almost_equal(f[j][k], f2[j][k]));
+            }
+        }
+#endif //DIST2BDRY_TEST
+
       } else if(useReadInCsr) {
         beg = bdryCsrReadInDataPtrs[elem];
         nFaces = bdryCsrReadInDataPtrs[elem+1] - beg;
