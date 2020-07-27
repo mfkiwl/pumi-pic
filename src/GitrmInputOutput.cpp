@@ -78,22 +78,21 @@ int verifyNetcdfFile(const std::string& ncFileName, int nc_err) {
 
 bool readParticleSourceNcFile(std::string ncFileName, o::HostWrite<o::Real>& data,
    int& numPtcls, size_t each_chunk, size_t each_chunk_pos, bool replaceNaN) {
-  
-    
+    bool debug = false; 
     int myrank, numranks, ncid, err, np_id, num_vrs;
-    char str_char[100];
+    char str_char[256];
     size_t np_length;
-    bool status=true;
+    bool status = true;
     MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
     MPI_Comm_size(MPI_COMM_WORLD, &numranks);
     //printf("While reading num ranks is %d \n", numranks);
 
-    size_t myrank_s=size_t(myrank);
+    size_t myrank_s = size_t(myrank);
     //std::cout<<"The passed string is"<<ncFileName<<std::endl;
     std::strcpy (str_char, ncFileName.c_str());
 
-    char const *vrs[]={"x","y","z","vx","vy","vz"};
-    num_vrs=sizeof(vrs)/sizeof(vrs[0]);
+    char const *vrs[] = {"x","y","z","vx","vy","vz"};
+    num_vrs = sizeof(vrs)/sizeof(vrs[0]);
     //printf("Number of variables in netCDF file %d \n",num_vrs);
     int* vrs_ind;
     vrs_ind=(int *)calloc(num_vrs, sizeof(int));
@@ -181,7 +180,7 @@ bool readParticleSourceNcFile(std::string ncFileName, o::HostWrite<o::Real>& dat
 
 }
 
-/*
+
 bool readParticleSourceNcFile(std::string ncFileName, o::HostWrite<o::Real>& data,
   int& numPtcls, bool replaceNaN) {
     constexpr int dof = 6;
@@ -213,7 +212,7 @@ bool readParticleSourceNcFile(std::string ncFileName, o::HostWrite<o::Real>& dat
     std::cout << e.what() << std::endl;
     status = false;
     }
-    printf("The starting data is %p %e %p \n", data, data[0], &data[0]);
+    printf("The starting data is %e %p \n", data[0], &data[0]);
     if(replaceNaN) {
     long int nans = 0;
     for(auto i=0; i<data.size(); ++i)
@@ -229,7 +228,6 @@ bool readParticleSourceNcFile(std::string ncFileName, o::HostWrite<o::Real>& dat
     Omega_h_fail("ERROR: reading file %s\n", ncFileName.c_str());
   return status;
 }
-*/
 
 
 //Reads from 0 to 3 grids having gridNames; .
@@ -256,7 +254,7 @@ int readInputDataNcFileFS3(const std::string& ncFileName,
     if(dimCount < nameCount)
       std::cout << " WARNING: mismatch between NC file #dims and #reading\n";
     for(int i=0; i< fs.nGridNames.size(); ++i) {
-      netCDF::NcDim ncGridName(ncf.getDim(fs.nGridNames[i]));
+      netCDF::NcDim ncGridName(ncf.getDim(fs.nGridNames[i].c_str()));
       auto unlimit = ncGridName.isUnlimited();
       if(unlimit)
         std::cout << "\nWarning: value of " << fs.nGridNames[i]<< " set to 0 \n";
@@ -279,28 +277,32 @@ int readInputDataNcFileFS3(const std::string& ncFileName,
 
     for(int i=0; i<fs.nGridRead && i<fs.gridNames.size(); ++i) {
       netCDF::NcVar ncvar(ncf.getVar(fs.gridNames[i].c_str()));
+      if(debug)
+        std::cout << "  reading:: " << fs.gridNames[i]  << "\n";
       if(i==0) {
-        fs.grid1 = o::HostWrite<o::Real>(fs.nGridVec[0]);
+        fs.grid1 = o::HostWrite<o::Real>(fs.nGridVec[0], "nGridVec0");
         ncvar.getVar(&(fs.grid1[0]));
         if(debug)
           printf("  read: size %d %s %g %g ...\n", fs.nGridVec[0], 
               fs.gridNames[i].c_str(), fs.grid1[0], fs.grid1[1]);
       }
       if(i==1) {
-        fs.grid2 = o::HostWrite<o::Real>(fs.nGridVec[1]);
+        fs.grid2 = o::HostWrite<o::Real>(fs.nGridVec[1], "nGridVec1");
         ncvar.getVar(&(fs.grid2[0]));
         if(debug)
           printf("  read: size %d %s %g %g ...\n", fs.nGridVec[1], 
               fs.gridNames[i].c_str(), fs.grid2[0], fs.grid2[1]);
       }
       if(i==2) {
-        fs.grid3 = o::HostWrite<o::Real>(fs.nGridVec[2]);
+        fs.grid3 = o::HostWrite<o::Real>(fs.nGridVec[2], "nGridVec2");
         ncvar.getVar(&(fs.grid3[0]));
       }
     }
-    fs.data = o::HostWrite<o::Real>(ncSizePerComp*fs.nComp);
+    fs.data = o::HostWrite<o::Real>(ncSizePerComp*fs.nComp, "fs.data");
     for(int i=0; i<fs.nComp; ++i) {
-      o::HostWrite<o::Real>temp(ncSizePerComp);
+      if(debug)
+        std::cout << "comp " << i << " " << fs.compNames[i] << "\n";
+      o::HostWrite<o::Real>temp(ncSizePerComp, "temp-data");
       netCDF::NcVar ncvar(ncf.getVar(fs.compNames[i].c_str()));
       //ncvar.getVar(&(fs.data[i*ncSizePerComp]));
       ncvar.getVar(&temp[0]);
@@ -383,14 +385,12 @@ void writeOutBdryFaceCoordsNcFile(const std::string& fileName,
     Omega_h_fail("ERROR: failed writing file %s\n", fileName.c_str());
 }
 
-/*
 
 void writeOutputNcFile( o::HostWrite<o::Real>& ptclHistoryData, int numPtcls,
   long int totalPtcls, int nThistory, std::string outNcFileName) {
   
     int myrank, numranks, ncid, err, np_id, num_vrs, num_dim, each_chunk;
     char str_char[100];
-
 
     char const *vrs[]={"x","y","z","vx","vy","vz"};
     char const *dim[]={"nP", "nT"};
@@ -490,7 +490,6 @@ void writeOutputNcFile( o::HostWrite<o::Real>& ptclHistoryData, int numPtcls,
     free(dim_count);
     
 }
-*/
 
 void writeOutputNcFile( o::HostWrite<o::Real>& ptclHistoryData, int numPtcls,
   int dof, OutputNcFileFieldStruct& st, std::string outNcFileName) {

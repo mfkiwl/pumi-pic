@@ -16,10 +16,8 @@ int verifyNetcdfFile(const std::string& ncFileName, int nc_err=1);
 bool readParticleSourceNcFile(std::string ncFileName, o::HostWrite<o::Real>& data,
    int& numPtcls, size_t each_chunk, size_t each_chunk_pos, bool replaceNaN = false);
 
-/*
 bool readParticleSourceNcFile(std::string ncFileName, o::HostWrite<o::Real>& data,
   int& numPtcls, bool replaceNaN = false);
-*/
 
 int readInputDataNcFileFS3(const std::string& ncFileName,
   Field3StructInput& fs, bool debug=false);
@@ -30,9 +28,9 @@ int readInputDataNcFileFS3(const std::string& ncFileName,
 
 void writeOutputNcFile( o::HostWrite<o::Real>& ptclHistoryData, int numPtcls, 
   int dof, OutputNcFileFieldStruct& st, std::string outNcFileName); 
-/*
+
 void writeOutputNcFile( o::HostWrite<o::Real>& ptclHistoryData, int numPtcls, 
-  long int totalPtcls, int nThistory, std::string outNcFileName);*/
+  long int totalPtcls, int nThistory, std::string outNcFileName);
 
 void writeOutBdryFaceCoordsNcFile(const std::string& outFileName, 
     o::Write<o::Real>& xd, o::Write<o::Real>& yd, o::Write<o::Real>& zd, const int nf); 
@@ -52,10 +50,7 @@ struct Field3StructInput {
   Field3StructInput(std::vector<std::string> compNames_in,
     std::vector<std::string> gridNames_in,
     std::vector<std::string> nGridNames_in, int nGridRead_in=-1,
-    std::vector<std::string> nVarNames_in = {}) :
-    data(o::HostWrite<o::Real>{}), grid1(o::HostWrite<o::Real>{}),
-    grid2(o::HostWrite<o::Real>{}), grid3(o::HostWrite<o::Real>{}),
-    nGridVec(std::vector<int>{}), nVarVec(std::vector<int>{}) {
+    std::vector<std::string> nVarNames_in = {}) {
     compNames = compNames_in;
     gridNames = gridNames_in;
     nGridNames = nGridNames_in;
