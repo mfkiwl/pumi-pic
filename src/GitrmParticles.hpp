@@ -272,7 +272,7 @@ inline void gitrm_findDistanceToBdry(GitrmParticles& gp,
 
   //TODO Testing. Extract relevant part and put in unit tests
   const auto globalIds = gm.picparts->globalIds(3);
-#define DIST2BDRY_TEST 1
+#define DIST2BDRY_TEST 0
 
   auto lambda = PS_LAMBDA(const int &elem, const int &pid, const int &mask) {
     if (mask > 0) {
