@@ -38,6 +38,8 @@ namespace gitrm {
 const bool CREATE_GITR_MESH = false;
 const int USE_READIN_CSR_BDRYFACES = 1;
 const int USE_STORED_BDRYDATA_PIC_CORE = 1;
+const int PTCLS_SPLIT_READ = 0;
+const bool INIT_PTCLS_OUTSIDE_CORE = false;
 
 const int WRITE_OUT_BDRY_FACES_FILE = 0;
 const int D2BDRY_MIN_SELECT = 10; //that many instead of the least one
@@ -199,6 +201,9 @@ public:
 
   void loadScalarFieldOnBdryFacesFromFile(const std::string, const std::string &,
     Field3StructInput &, int debug=0);
+
+  void loadScalarFieldOnBdryFacesFromFile_(const std::string tagName,
+  const std::string &file, Field3StructInput& fs, int debug);
 
   void load1DFieldOnVtxFromFile(const std::string&, const std::string&,
      Field3StructInput&, o::Write<o::Real>&, o::Write<o::Real>&, int debug=0);
@@ -375,6 +380,24 @@ o::LOs makeLocalIdMap(const o::Read<T>& data, std::string name="", o::LO val=-1)
   o::parallel_for(n, fixLocal, "fixLocalIds");
   return localIds;
 }
+
+//temporary 
+inline o::Reals getConstEField() {
+  o::HostWrite<o::Real> ef(3);
+  ef[0] = CONSTANT_EFIELD0;
+  ef[1] = CONSTANT_EFIELD1;
+  ef[2] = CONSTANT_EFIELD2;
+  return o::Reals(o::Write<o::Real>(ef));
+}
+
+inline o::Reals getConstBField() {
+  o::HostWrite<o::Real> bf(3);
+  bf[0] = CONSTANT_BFIELD0;
+  bf[1] = CONSTANT_BFIELD1;
+  bf[2] = CONSTANT_BFIELD2;
+  return o::Reals(o::Write<o::Real>(bf));
+}
+
 }//ns
 
 #endif// define

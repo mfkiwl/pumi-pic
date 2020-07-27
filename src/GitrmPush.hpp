@@ -145,7 +145,7 @@ inline void gitrm_borisMove(PS* ptcls, const GitrmMesh &gm, const o::Real dTime,
   const auto bGridNx = gm.bGridNx;
   const auto bGridNz = gm.bGridNz;
   const auto BField_2d = gm.getBfield2d();
-  const auto eFieldConst_d = gitrm::getConstEField();
+  const auto eFieldConst_d = utils::getConstEField();
   //TODO crash using these variables
   //const o::Real eQ = gitrm::ELECTRON_CHARGE;//1.60217662e-19;
   //const o::Real pMass = gitrm::PROTON_MASS;//1.6737236e-27;

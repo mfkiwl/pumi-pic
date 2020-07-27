@@ -75,7 +75,7 @@ void GitrmMesh::initMeshFields(const std::string& bFile, const std::string& prof
     markDetectorSurfaces(true);
   }
   initBField(bFile);
-  printf("Preprocessing: dist-to-boundary faces\n");
+  printf("%d: Preprocessing: dist-to-boundary faces\n", rank);
   int nD2BdryTetSubDiv = D2BDRY_GRIDS_PER_TET;
   int readInCsrBdryData = USE_READIN_CSR_BDRYFACES;
   if(readInCsrBdryData) {
@@ -85,7 +85,7 @@ void GitrmMesh::initMeshFields(const std::string& bFile, const std::string& prof
   }
   auto initFields = addTagsAndLoadProfileData(profFile, profFile, thermGradientFile);
 
-  printf("initBoundaryFaces\n");
+  printf("%d: initBoundaryFaces\n", rank);
   initBdry = calculateBdryFaceFields(initFields);
 
   bool writeTextBdryFaces = WRITE_TEXT_D2BDRY_FACES;
@@ -212,9 +212,8 @@ void GitrmMesh::initBField(const std::string &bFile) {
   if(USE_CONSTANT_BFIELD) {
     if(!rank)
       printf("Setting constant BField\n");
-    auto bField_h = o::HostWrite<o::Real>({CONSTANT_BFIELD0,
-     CONSTANT_BFIELD1, CONSTANT_BFIELD2});
-    Bfield_2d = std::make_shared<o::Reals>(o::Write<o::Real>(bField_h));
+    auto bField = utils::getConstBField();
+    Bfield_2d = std::make_shared<o::Reals>(bField);
     bGridNx = 1;
     bGridNz = 1;
     bGridX0 = 0;
@@ -236,8 +235,8 @@ void GitrmMesh::initBField(const std::string &bFile) {
     bGridDz = fb.getGridDelta(1);
   }
 }
-/*
-void GitrmMesh::loadScalarFieldOnBdryFacesFromFile(const std::string tagName,
+
+void GitrmMesh::loadScalarFieldOnBdryFacesFromFile_(const std::string tagName,
   const std::string &file, Field3StructInput& fs, int debug) {
   int rank = this->rank;
   const auto coords = mesh.coords();
@@ -285,7 +284,6 @@ void GitrmMesh::loadScalarFieldOnBdryFacesFromFile(const std::string tagName,
   o::Reals tag(tag_d);
   mesh.set_tag(o::FACE, tagName, tag);
 }
-*/
 
 
 //Loads only from 2D input field
