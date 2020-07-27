@@ -13,6 +13,7 @@ GitrmSurfaceModel::GitrmSurfaceModel(GitrmMesh& gm, std::string ncFile):
   detectorSurfaceOrderedIds = gm.getDetectorSurfaceOrderedIds();
   bdryFaceMaterialZs = gm.getBdryFaceMaterialZs();
   bdryFaceOrderedIds = gm.getBdryFaceOrderedIds();
+  rank = mesh.comm()->rank();
 }
 
 //TODO
@@ -409,7 +410,7 @@ void GitrmSurfaceModel::writeSurfaceDataFile(std::string fileName) const {
     reflDist_h.size(), MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
   MPI_Reduce(sputtDist_in.data(), sputtDist_h.data(),
     sputtDist_h.size(), MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
-  if(!gitrm::checkIfRankZero()) {
+  if(rank) {
     return;
   }
   // mesh synchronized at the end of run ?

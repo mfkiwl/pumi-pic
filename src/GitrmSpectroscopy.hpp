@@ -5,7 +5,7 @@
 
 class GitrmSpectroscopy {
 public:
-  GitrmSpectroscopy();
+  GitrmSpectroscopy(int rank);
 
   void initSpectroscopy();
   void writeSpectroscopyFile(const std::string& file="spec.nc");
@@ -20,7 +20,8 @@ public:
   int nZ = 0;
   int nBins = 0;
   int nSpec = 0;
-  
+  int rank = -1;
+
   o::Write<o::Real> netBins;
   o::Real gridX0 = 0;
   o::Real dX = 0;

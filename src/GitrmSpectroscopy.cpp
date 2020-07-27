@@ -4,8 +4,9 @@
 #include "GitrmSpectroscopy.hpp"
 
 //TODO pass i/p obj, or use static obj
-GitrmSpectroscopy::GitrmSpectroscopy() {
+GitrmSpectroscopy::GitrmSpectroscopy(int rnk) {
   initSpectroscopy();
+  rank = rnk;
 }
 
 void makeSpectroscopyGrid(const double net0, const double range, const int netN, 
@@ -52,7 +53,7 @@ void GitrmSpectroscopy::writeSpectroscopyFile(const std::string& file) {
   //FIXME this is only for full buffer partitioning.
   MPI_Reduce(netBins_in.data(), netBins_h.data(),
     netBins_h.size(), MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
-  if(!gitrm::checkIfRankZero()) {
+  if(rank) {
     return;
   }
 

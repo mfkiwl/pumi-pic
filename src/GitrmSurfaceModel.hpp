@@ -131,6 +131,9 @@ public:
 
   o::Real interp1dUnstructured(const o::Real samplePoint, const int nx, 
     const o::Real max_x, const o::Real* data, int& lowInd);
+
+private:
+  int rank = -1;
 };
 
 
