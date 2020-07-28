@@ -273,13 +273,11 @@ bool GitrmParticles::searchPtclInAllElems(const o::Reals& data, const o::LO pind
     return false;
   }
 
-  bool allSafe = initPtclsOutsideCore;
+  //bool allSafe = initPtclsOutsideCore;
   auto owners = picparts.entOwners(mesh.dim());
-  auto safes = picparts.safeTag();
   o::Write<o::LO> elemDet(1, -1, "elemDet_searchPtclInAllElems");
   auto lamb = OMEGA_H_LAMBDA(const o::LO& elem) {
-    bool safe = (safes[elem]) ? true : false;
-    bool select = ((allSafe && safe) || rank == owners[elem]) ? true: false;
+    bool select = (rank == owners[elem]) ? true: false;
     if(select) {
       auto pos = o::zero_vector<3>();
       auto bcc = o::zero_vector<4>();
@@ -304,15 +302,12 @@ o::LO GitrmParticles::searchAllPtclsInAllElems(const o::Reals& data,
    o::Write<o::LO>& elemIdOfPtcls, o::Write<o::LO>& numPtclsInElems) {
   MESHDATA(mesh);
   int rank = this->rank;
-  bool allSafe = initPtclsOutsideCore;
   auto owners = picparts.entOwners(mesh.dim());
-  auto safes = picparts.safeTag();
   auto nPtclsRead = numPtclsRead;
   auto nPtcls = elemIdOfPtcls.size();
 
   auto lamb = OMEGA_H_LAMBDA(const o::LO& elem) {
-    bool safe = (safes[elem]) ? true : false;
-    bool select = ((allSafe && safe) || rank == owners[elem]) ? true: false;
+    bool select = (rank == owners[elem]) ? true: false;
     if(select) {
       auto tetv2v = o::gather_verts<4>(mesh2verts, elem);
       auto tet = p::gatherVectors4x3(coords, tetv2v);
@@ -338,9 +333,7 @@ o::LO GitrmParticles::searchPtclsByAdjSearchFromParent(const o::Reals& data,
    o::Write<o::LO>& elemIdOfPtclsAll) {
   int rank = this->rank;
   MESHDATA(mesh);
-  bool allSafe = initPtclsOutsideCore;
   auto owners = picparts.entOwners(mesh.dim());
-  auto safes = picparts.safeTag();
   auto nPtclsRead = numPtclsRead;
   int maxSearch = 1000;
 
@@ -359,8 +352,7 @@ o::LO GitrmParticles::searchPtclsByAdjSearchFromParent(const o::Reals& data,
       }
       p::find_barycentric_tet(tet, pos, bcc);
 
-      bool safe = (safes[elem]) ? true : false;
-      bool select = ((allSafe && safe) || rank == owners[elem]) ? true: false;
+      bool select = (rank == owners[elem]) ? true: false;
       if(select && p::all_positive(bcc, 0)) {
         Kokkos::atomic_exchange(&(elemIdOfPtclsAll[ip]), elem);
         if(false)
@@ -474,20 +466,22 @@ void GitrmParticles::convertInitPtclElemIdsToCSR(const o::LOs& numPtclsInElems,
   int rank = this->rank;
   auto lambda = OMEGA_H_LAMBDA(const o::LO& id) {
     auto el = elemIdOfPtcls[id];
-    auto old = Kokkos::atomic_fetch_add(&(ptclsFilledInElem[el]), 1);
-    auto nLimit = numPtclsInElems[el];
-    OMEGA_H_CHECK(old < nLimit);
-    //elemId is sequential from 0 .. nel
-    auto beg = ptclIdPtrsOfElem[el];
-    auto pos = beg + old;
-    auto idLimit = ptclIdPtrsOfElem[el+1];
-    OMEGA_H_CHECK(pos < idLimit);
-    auto prev = Kokkos::atomic_exchange(&(ptclIdsInElem_w[pos]), id);
-    if(debug && !rank)
-      printf("%d: id:el %d %d old %d beg %d pos %d previd %d maxPtcls %d \n",
-        rank, id, el, old, beg, pos, prev, ptclIdsInElem_w[id] );
+    if(el >= 0) {
+      auto old = Kokkos::atomic_fetch_add(&(ptclsFilledInElem[el]), 1);
+      auto nLimit = numPtclsInElems[el];
+      OMEGA_H_CHECK(old < nLimit);
+      //elemId is sequential from 0 .. nel
+      auto beg = ptclIdPtrsOfElem[el];
+      auto pos = beg + old;
+      auto idLimit = ptclIdPtrsOfElem[el+1];
+      OMEGA_H_CHECK(pos < idLimit);
+      auto prev = Kokkos::atomic_exchange(&(ptclIdsInElem_w[pos]), id);
+      if(debug && !rank)
+        printf("%d: id:el %d %d old %d beg %d pos %d previd %d maxPtcls %d \n",
+          rank, id, el, old, beg, pos, prev, ptclIdsInElem_w[id] );
+    }
   };
-  o::parallel_for(numInitPtcls, lambda, "Convert to CSR write");
+  o::parallel_for(elemIdOfPtcls.size(), lambda, "Convert to CSR write");
   ptclIdsInElem = o::LOs(ptclIdsInElem_w);
 }
 

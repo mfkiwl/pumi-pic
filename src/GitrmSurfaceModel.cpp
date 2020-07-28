@@ -61,7 +61,7 @@ void GitrmSurfaceModel::initSurfaceModelData(std::string ncFile, bool debug) {
   //numDetectorSurfaceFaces = gm.numDetectorSurfaceFaces;
   printf("numDetectorSurfaceFaces %d from_mesh %d\n", numDetectorSurfaceFaces,
       gm.numDetectorSurfaceFaces);
-  OMEGA_H_CHECK(numDetectorSurfaceFaces > 0);
+  //OMEGA_H_CHECK(numDetectorSurfaceFaces > 0);
   nDistEsurfaceModel =
      nEnSputtRefDistIn * nAngSputtRefDistIn * nEnSputtRefDistOut;
   nDistEsurfaceModelRef =

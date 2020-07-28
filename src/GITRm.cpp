@@ -184,16 +184,16 @@ int main(int argc, char** argv) {
     printTimerResolution();
   }
   auto full_mesh = readMesh(argv[1], lib);
-  MPI_Barrier(MPI_COMM_WORLD);
+  //MPI_Barrier(MPI_COMM_WORLD);
   char* owners = argv[2];
 
   o::CommPtr world = lib.world();
   //Create Picparts with the full mesh
   p::Input::Method bm = p::Input::Method::BFS;
-  p::Input::Method safem = p::Input::Method::MINIMUM;
+  p::Input::Method safem = p::Input::Method::BFS;
   p::Input pp_input(full_mesh, owners, bm, safem, world);
   pp_input.bridge_dim = full_mesh.dim()-1;
-  pp_input.safeBFSLayers = 1;
+  //pp_input.safeBFSLayers = 3;
   p::Mesh picparts(pp_input);
 
   o::Mesh* mesh = picparts.mesh();
@@ -348,14 +348,8 @@ int main(int argc, char** argv) {
     Kokkos::Profiling::popRegion();
     gp.resetPtclWallCollisionData();
 
-    if(comm_rank == 0 && iter%1000 ==0)
+    //if(comm_rank == 0 && iter%1000 ==0)
       fprintf(stderr, "rank %d  nPtcls %d \n", comm_rank, ptcls->nPtcls());
-    //ps_np = ptcls->nPtcls();
-    //MPI_Allreduce(&ps_np, &np, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
-    if(np == 0) {
-      fprintf(stderr, "No particles remain... exiting push loop\n");
-      break;
-    }
   }
   auto end_sim = std::chrono::system_clock::now();
   std::chrono::duration<double> dur_init = end_init - start_sim;

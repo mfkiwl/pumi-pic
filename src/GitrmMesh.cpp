@@ -492,7 +492,7 @@ void GitrmMesh::preProcessBdryFacesBfs() {
   auto bdryFacePtrsBFS = std::make_shared<o::LOs>(bdryFacePtrs);
   if(!rank)
     std::cout << "CSR size "<< csrSize << "\n";
-  OMEGA_H_CHECK(csrSize > 0);
+  //OMEGA_H_CHECK(csrSize > 0);
   o::Write<o::LO> bdryFacesCsrW(csrSize, 0, "bdryFacesCsrW");
   preprocessStoreBdryFacesBfs(numBdryFaceIdsInElems, bdryFacesCsrW, csrSize);
   bdryFacesCsrBFS = std::make_shared<o::LOs>(bdryFacesCsrW);
