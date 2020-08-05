@@ -37,9 +37,8 @@ namespace gitrm {
 
 const bool CREATE_GITR_MESH = false;
 const int USE_READIN_CSR_BDRYFACES = 1;
-const int USE_STORED_BDRYDATA_PIC_CORE = 1;
+const int USE_STORED_BDRYDATA_PIC_SAFE = 1;
 const int PTCLS_SPLIT_READ = 0;
-const bool INIT_PTCLS_OUTSIDE_CORE = false;
 
 const int WRITE_OUT_BDRY_FACES_FILE = 0;
 const int D2BDRY_MIN_SELECT = 10; //that many instead of the least one
@@ -117,13 +116,20 @@ public:
   p::Mesh* getPicparts() const { return picparts; }
   o::Mesh& getMesh() const { return mesh; }
   o::Mesh* getFullMesh() const { return fullMesh; }
-  o::LOs getOwnersAll() const { return *ownersAll; }
+  o::LOs getOwnersAll() const { return ownersAll; }
 
   /** Distance to bdry search
   */
   void storeOwners(char* owners);
-  void initMeshFields(const std::string& bFile, const std::string& profFile,
+
+  /** Initialize simulation geometry (pisce, iter etc) and load mesh fields.
+   *  This is to be called from where the fields and geometry info available.
+   */
+  void initGeometryAndFields(const std::string& bFile, const std::string& profFile,
     const std::string& thermGradientFile, const std::string& geomName, int deb=0);
+
+  void initPiscesGeometry();
+
   void preProcessBdryFacesBfs();
   void preprocessStoreBdryFacesBfs(o::Write<o::LO>& numBdryFaceIdsInElems,
     o::Write<o::LO>& bdryFacesCsrW, int csrSize);
@@ -139,16 +145,16 @@ public:
   void preprocessSelectBdryFacesFromAll(bool onlyMaterialSheath=true);
   void preprocessSelectBdryFacesOnPicpart( bool onlyMaterialSheath=true);
 
-  o::LOs getBdryCsrCalculatedPtrs() { return *bdryFacePtrsSelected;}
-  o::LOs getBdryFidsCalculated() { return *bdryFacesSelectedCsr;}
+  o::LOs getBdryCsrCalculatedPtrs() { return bdryFacePtrsSelected;}
+  o::LOs getBdryFidsCalculated() { return bdryFacesSelectedCsr;}
 
   void writeBdryFacesDataText(int, std::string fileName="bdryFacesData.txt");
   void writeBdryFaceCoordsNcFile(int mode, std::string fileName="meshFaces.nc");
 
   int readDist2BdryFacesData(const std::string &);
 
-  o::LOs getBdryCsrReadInPtrs() { return *bdryCsrReadInDataPtrs;}
-  o::LOs getBdryCsrReadInFids() { return *bdryCsrReadInData;}
+  o::LOs getBdryCsrReadInPtrs() { return bdryCsrReadInDataPtrs;}
+  o::LOs getBdryCsrReadInFids() { return bdryCsrReadInData;}
   
   /** create ordered ids starting 0 for given geometric bdry ids. 
    */
@@ -235,16 +241,16 @@ public:
   o::Reals getGradTeVtx() const{ return *gradTe_vtx_d;}
 
   o::HostWrite<o::LO> getDetectorSurfaceModelIds() const {
-    return *detectorSurfaceModelIds;
+    return detectorSurfaceModelIds;
   }
   o::HostWrite<o::LO> getBdryMaterialModelIds() const {
-    return *bdryMaterialModelIds;
+    return bdryMaterialModelIds;
   }
   o::HostWrite<o::LO> getBdryMaterialModelIdsZ() const {
-    return *bdryMaterialModelIdsZ;
+    return bdryMaterialModelIdsZ;
   }
   o::HostWrite<o::LO> getSurfaceAndMaterialModelIds() const {
-    return *surfaceAndMaterialModelIds;
+    return surfaceAndMaterialModelIds;
   }
   // Used in boundary init and if 2D field is used for particles
   o::Real bGridX0 = 0;
@@ -305,15 +311,15 @@ public:
 
 private:
 
-  std::shared_ptr<o::LOs> ownersAll;
+  o::LOs ownersAll;
   o::LO numNearBdryElems = 0;
   o::LO numAddedBdryFaces = 0;
   std::shared_ptr<o::LOs> bdryFacesCsrBFS;
   std::shared_ptr<o::LOs> bdryFacePtrsBFS;
-  std::shared_ptr<o::LOs> bdryFacePtrsSelected;
-  std::shared_ptr<o::LOs> bdryFacesSelectedCsr;
-  std::shared_ptr<o::LOs> bdryCsrReadInDataPtrs;
-  std::shared_ptr<o::LOs> bdryCsrReadInData;
+  o::LOs bdryFacePtrsSelected;
+  o::LOs bdryFacesSelectedCsr;
+  o::LOs bdryCsrReadInDataPtrs;
+  o::LOs bdryCsrReadInData;
   std::shared_ptr<o::LOs> bdryFaceOrderedIds;
 
   std::shared_ptr<o::LOs> surfaceAndMaterialOrderedIds;
@@ -340,10 +346,10 @@ private:
   std::shared_ptr<o::Reals> gradTe_vtx_d;
 
   //get model Ids by opening mesh/model in Simmodeler
-  std::shared_ptr<o::HostWrite<o::LO> >detectorSurfaceModelIds;
-  std::shared_ptr<o::HostWrite<o::LO> >bdryMaterialModelIds;
-  std::shared_ptr<o::HostWrite<o::LO> >bdryMaterialModelIdsZ;
-  std::shared_ptr<o::HostWrite<o::LO> >surfaceAndMaterialModelIds;
+  o::HostWrite<o::LO> detectorSurfaceModelIds;
+  o::HostWrite<o::LO> bdryMaterialModelIds;
+  o::HostWrite<o::LO> bdryMaterialModelIdsZ;
+  o::HostWrite<o::LO> surfaceAndMaterialModelIds;
   int rank = -1;
   bool exists = false;
 };
@@ -352,12 +358,11 @@ private:
 namespace utils {
 //map from global(over full-mesh) to local. Output has size of global.
 //For large mesh, arrays of size of full mesh entities may be problem
+//Pass value of invalid entries of the return array if != -1
 template<typename T>
-o::LOs makeLocalIdMap(const o::Read<T>& data, std::string name="", o::LO val=-1) {
-  // -1 is special ?
-  o::LO neg = -1;
-  if(val == neg)
-    val = 1;
+o::LOs makeLocalIdMap(const o::Read<T>& data, T val, int& nums,
+   std::string name="", T invalid=-1) {
+  OMEGA_H_CHECK(val != invalid);
   auto n = data.size();
   auto flags = o::LOs(data); //TODO fix LO vs T 
   o::Write<o::LO> localIdFlags(n, 0, "localIds");
@@ -373,9 +378,10 @@ o::LOs makeLocalIdMap(const o::Read<T>& data, std::string name="", o::LO val=-1)
     name = "localCoreIds";
   auto scan_r = o::offset_scan(flags, name);
   o::Write<o::LO> localIds(o::deep_copy(scan_r));
+  nums = o::HostWrite<o::LO>(localIds)[n]; // T?
   auto fixLocal = OMEGA_H_LAMBDA(const T& e) {
     if(data[e] != val)
-      localIds[e] = neg;
+      localIds[e] = invalid;
   };
   o::parallel_for(n, fixLocal, "fixLocalIds");
   return localIds;

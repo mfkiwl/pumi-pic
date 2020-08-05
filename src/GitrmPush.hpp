@@ -40,11 +40,6 @@ inline void gitrm_calculateE(GitrmParticles* gp, GitrmMesh* gm, int debug=0) {
   const auto elDensity = bdry->getElDensity();
   const auto elTemp = bdry->getElTemp();
 
-  const auto bdryFaceVertCoordsCore = bdry->getBdryFaceVertCoordsPic();
-  const auto bdryFaceVertsCore = bdry->getBdryFaceVertsPic();
-  const auto bdryFaceIdsCore = bdry->getBdryFaceIdsPic();
-  const auto bdryFaceIdPtrsCore = bdry->getBdryFaceIdPtrsPic();
- 
   //NOTE arrays is based on pid, which is reset upon each rebuild
   const auto& closestPoints =  gp->closestPoints;
   const auto& faceIds = gp->closestBdryFaceIds;
@@ -113,9 +108,10 @@ inline void gitrm_calculateE(GitrmParticles* gp, GitrmMesh* gm, int debug=0) {
         auto telMesh = elTemp[faceId];
         if(debug>1)
           printf(" calcE_this:gitr ptcl %d timestep %d charge %d  dist2bdry %.15e"
-             " CLD %.15e efield %.15e  %.15e  %.15e  CLD %.15e  Nel %.15e Tel %.15e \n",
-            ptcl, iTimeStep, charge_ps(pid), d2bdry, childLangmuirDist, efield_ps(pid, 0),
-            efield_ps(pid, 1), efield_ps(pid, 2), childLangmuirDist, nelMesh, telMesh);
+             " efield %.15e  %.15e  %.15e  CLD %.15e  Nel %.15e Tel %.15e biased %d\n",
+            ptcl, iTimeStep, charge_ps(pid), d2bdry, efield_ps(pid, 0),
+            efield_ps(pid, 1), efield_ps(pid, 2), childLangmuirDist, nelMesh,
+            telMesh, biasedSurface);
       } //faceId
     } //mask
   };

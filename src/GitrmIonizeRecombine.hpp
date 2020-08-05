@@ -148,7 +148,7 @@ inline void gitrm_ionize(PS* ptcls, const GitrmIonizeRecombine& gir,
   auto tempWrite = o::deep_copy(mesh.get_array<o::Real>(o::VERT, "IonTempVtx"));
 
   auto pid_ps = ptcls->get<PTCL_ID>();
-  auto pid_ps_global = ptcls->get<PTCL_ID_GLOBAL>(); //NELY ADDED
+  auto pid_ps_global = ptcls->get<PTCL_ID_GLOBAL>();
   auto new_pos = ptcls->get<PTCL_NEXT_POS>();
   auto charge_ps = ptcls->get<PTCL_CHARGE>();
   auto first_ionizeZ_ps = ptcls->get<PTCL_FIRST_IONIZEZ>();
@@ -206,10 +206,8 @@ inline void gitrm_ionize(PS* ptcls, const GitrmIonizeRecombine& gir,
       o::Real P1 = 1.0 - exp(-dt/rateIon);
       double randn = 0;
       if(useGitrRnd) {
-
-      randn = testGitrPtclStepData[ptcl_global*testGNT*testGDof + iTimeStep*testGDof + testGIind];
-    
-      if(debug>1)
+        randn = testGitrPtclStepData[ptcl_global*testGNT*testGDof + iTimeStep*testGDof + testGIind];
+        if(debug>1)
           printf("gitrRnd:ioni ptcl %d t %d rand %g\n", ptcl, iTimeStep, randn);
       } else if (useCudaRnd) {
         //NOTE : states for all particles to be initialized in all ranks

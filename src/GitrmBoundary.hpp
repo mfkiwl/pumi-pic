@@ -63,15 +63,21 @@ public:
   o::Reals getElTemp() const;
   o::Reals getIonTemp() const;
 
-  o::Reals getBdryFaceVertCoordsPic() const { return *bdryFaceVertCoordsPic; }
-  o::LOs getBdryFaceVertsPic() const {return *bdryFaceVertsPic; }
-  o::LOs getBdryFaceIdsPic() const {return *bdryFaceIdsPic; }
-  o::LOs getBdryFaceIdPtrsPic() const {return *bdryFaceIdPtrsPic; }
+  o::Reals getBdryFaceVertCoordsPic() const;
+  o::LOs getBdryFaceVertsPic() const;
+  o::LOs getBdryFaceIdsPic() const;
+  o::LOs getBdryFaceIdPtrsPic() const;
 
   o::Real getBiasPotential() const { return biasPotential;}
+
   bool isBiasedSurface() const { return isBiasedSurf;}
   bool usingStoredBdryData() const { return useStoredBdryData; }
   bool isAddingTag(FaceFieldFillTarget);
+
+  bool isUsingOrigBdryData() const { return useOrigBdryData; }
+
+  o::GOs getOrigGlobalIds() const;
+  void testDistanceToBdry(int debug=0);
 
 private:
   GitrmMesh* gm;
@@ -81,10 +87,10 @@ private:
   FaceFieldFillTarget target;
 
   //on picpart 
-  std::shared_ptr<o::Reals> bdryFaceVertCoordsPic;
-  std::shared_ptr<o::LOs> bdryFaceVertsPic;
-  std::shared_ptr<o::LOs> bdryFaceIdsPic;
-  std::shared_ptr<o::LOs> bdryFaceIdPtrsPic;
+  o::Reals bdryFaceVertCoordsPic;
+  o::LOs bdryFaceVertsPic;
+  o::LOs bdryFaceIdsPic;
+  o::LOs bdryFaceIdPtrsPic;
 
   o::Reals angleBdryBfield;
   o::Reals potential;
@@ -100,13 +106,25 @@ private:
   o::Reals ionTemp;
 
   bool stored = false;
-  bool useStoredBdryData = false; 
+
+  /** Original bdry data means that loaded from the file. This is set in the case
+   * where the picpart has all the elements of the original fullMesh, since
+   * in which case the re-numbering is not done in picpart. 
+   */
+  bool useOrigBdryData = false;
+
+  /** storedBdryData is copied to fit the re-numbered core elements */
+  bool useStoredBdryData = false;
+
   o::Real biasPotential = 0;
   bool isBiasedSurf = false;
   int rank = -1;
-  bool isbiasedSurface= false;
   //bool calcEfieldUsingD2Bdry = false;
+  /** If bdry field data added as tags on all faces of all elements */
   bool useBdryTagFields = false;
+  
+  /** original global ids for picpart nelems, over fullMesh elems. Rest are -1 */
+  o::GOs origGlobalIds;
 };
 
 /** To pass data used on the bdry

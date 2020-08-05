@@ -148,7 +148,8 @@ int main(int argc, char** argv) {
   std::string geomName = "pisces";
 
   bool debug = false; //search
-  int debug2 = 1;  //routines
+  int debug2 = 0;  //routines
+  bool useCudaRnd = false; //replace kokkos rnd
   
   bool surfacemodel = true;
   bool spectroscopy = true;
@@ -159,10 +160,9 @@ int main(int argc, char** argv) {
 
   bool coulomb_collision = true;
   bool diffusion = true; //not for diffusion>1
-  bool useCudaRnd = false; //replace kokkos rnd
   
-//GitrmInput inp("gitrInput.cfg", true);
-//  inp.testInputConfig();
+  //GitrmInput inp("gitrInput.cfg", true);
+  // inp.testInputConfig();
  
   auto deviceCount = 0;
   cudaGetDeviceCount(&deviceCount);
@@ -188,12 +188,16 @@ int main(int argc, char** argv) {
   char* owners = argv[2];
 
   o::CommPtr world = lib.world();
+
+  //add orig global id tag for dist2bdry storage
+  o::Write<o::GO> origGids(full_mesh.nelems(), 0, 1, "origGids");
+  full_mesh.add_tag(o::REGION, "origGids", 1, o::GOs(origGids));
   //Create Picparts with the full mesh
   p::Input::Method bm = p::Input::Method::BFS;
   p::Input::Method safem = p::Input::Method::BFS;
   p::Input pp_input(full_mesh, owners, bm, safem, world);
   pp_input.bridge_dim = full_mesh.dim()-1;
-  //pp_input.safeBFSLayers = 3;
+  pp_input.safeBFSLayers = 3;
   p::Mesh picparts(pp_input);
 
   o::Mesh* mesh = picparts.mesh();
@@ -242,7 +246,11 @@ int main(int argc, char** argv) {
 
   //TODO get mesh from picparts inside gm
   GitrmMesh gm(&picparts, &full_mesh, *mesh, owners);
-  gm.initMeshFields(bFile, profFile, thermGradientFile, geomName, debug2);
+  gm.initGeometryAndFields(bFile, profFile, thermGradientFile, geomName, debug2);
+  
+  //TODO move to unit tests
+  gm.getBdryPtr()->testDistanceToBdry();
+
 
   unsigned long int seed = 0; // zero value for seed not considered !
   GitrmParticles gp(picparts, totalNumPtcls, numIterations, dTime, useCudaRnd,
@@ -289,23 +297,29 @@ int main(int argc, char** argv) {
       fprintf(stderr, "No particles remain... exiting push loop\n");
       break;
     }
-    if(comm_rank == 0)
+    if(comm_rank == 0) {
       fprintf(stderr, "=================iter %d===============\n", iter);
-    
+      if(debug2)
+        printf("=================iter %d===============\n", iter);
+    }
     Kokkos::Profiling::pushRegion("dist2bdry");
     gitrm_findDistanceToBdry(gp, gm, debug2);
     Kokkos::Profiling::popRegion();
+
     Kokkos::Profiling::pushRegion("calculateE");
     gitrm_calculateE(&gp, &gm, debug2);
     Kokkos::Profiling::popRegion();
+
     Kokkos::Profiling::pushRegion("borisMove");
     gitrm_borisMove(ptcls, gm, dTime, debug2);
     Kokkos::Profiling::popRegion();
+
     MPI_Barrier(MPI_COMM_WORLD);
     const auto psCapacity = ptcls->capacity();
-    o::Write<o::LO> elem_ids(psCapacity,-1);
+    o::Write<o::LO> elem_ids(psCapacity, -1, "elem_ids");
     search(picparts, gp, elem_ids, debug);
     auto elem_ids_r = o::LOs(elem_ids);
+
     Kokkos::Profiling::pushRegion("spectroscopy");
     if(spectroscopy)
       gitrm_spectroscopy(ptcls, sp, elem_ids_r, debug2);
@@ -314,23 +328,28 @@ int main(int argc, char** argv) {
     Kokkos::Profiling::pushRegion("ionize");
     gitrm_ionize(ptcls, gir, gp, gm, elem_ids_r, debug2);
     Kokkos::Profiling::popRegion();
+
     Kokkos::Profiling::pushRegion("recombine");
     gitrm_recombine(ptcls, gir, gp, gm, elem_ids_r, debug2);  
     Kokkos::Profiling::popRegion();
+
     if(diffusion) {
       Kokkos::Profiling::pushRegion("diffusion");
       gitrm_cross_diffusion(ptcls, gm, gp,dTime, elem_ids_r, debug2);
       Kokkos::Profiling::popRegion();
       search(picparts, gp, elem_ids, debug);
     }
+
     Kokkos::Profiling::pushRegion("coulomb_collision");
     if(coulomb_collision)
       gitrm_coulomb_collision(ptcls, &iter, gm, gp, dTime, elem_ids_r, debug2);
     Kokkos::Profiling::popRegion();
+
     Kokkos::Profiling::pushRegion("thermal_force");
     if(thermal_force)
       gitrm_thermal_force(ptcls, &iter, gm, gp, dTime, elem_ids_r, debug2);
     Kokkos::Profiling::popRegion();
+
     if(surfacemodel) {
       Kokkos::Profiling::pushRegion("surface_refl");
       gitrm_surfaceReflection(ptcls, sm, gp, debug2);
@@ -341,11 +360,12 @@ int main(int argc, char** argv) {
 
     elem_ids_r = o::LOs(elem_ids);
     gp.updateParticleDetection(elem_ids_r, iter, iter==numIterations-1, false);
-
     gp.updatePtclHistoryData(iter, numIterations, elem_ids_r);
+
     Kokkos::Profiling::pushRegion("rebuild");
     rebuild(picparts, ptcls, elem_ids, debug);
     Kokkos::Profiling::popRegion();
+
     gp.resetPtclWallCollisionData();
 
     //if(comm_rank == 0 && iter%1000 ==0)
@@ -357,20 +377,20 @@ int main(int argc, char** argv) {
   std::chrono::duration<double> dur_steps = end_sim - end_init;
   std::cout << "Total Main Loop duration " << dur_steps.count()/60 << " min.\n";
 
-  gp.writeOutPtclEndPoints();
+  //gp.writeOutPtclEndPoints();
 
   if(geomName == "pisces") {
     std::string fname("piscesCounts.txt");
     gp.writeDetectedParticles(fname, "piscesDetected");
-    gm.writeResultAsMeshTag(gp.collectedPtcls);
+    //gm.writeResultAsMeshTag(gp.collectedPtcls);
   }
-  if(histInterval >0)
-    gp.writePtclStepHistoryFile("gitrm-history_par.nc");
+  //if(histInterval >0)
+  //  gp.writePtclStepHistoryFile("gitrm-history_par.nc");
 
-  if(surfacemodel)
-    sm.writeSurfaceDataFile("gitrm-surface.nc");
-  if(spectroscopy)
-    sp.writeSpectroscopyFile("gitrm-spec.nc");
+  //if(surfacemodel)
+  //  sm.writeSurfaceDataFile("gitrm-surface.nc");
+  //if(spectroscopy)
+  //  sp.writeSpectroscopyFile("gitrm-spec.nc");
 
   Omega_h::vtk::write_parallel("meshvtk", mesh, mesh->dim());
   cudaMemGetInfo(&free, &total);
