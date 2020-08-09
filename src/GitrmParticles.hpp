@@ -157,7 +157,7 @@ public:
   void setMyCommRank();
 
   // test GITR step data
-  int useGitrRndNums;
+  int useGitrRndNums = 0;
   o::Reals testGitrPtclStepData;
   int testGitrDataIoniRandInd = -1;
   int testGitrDataRecRandInd = -1;
@@ -244,7 +244,9 @@ inline void gitrm_findDistanceToBdry(GitrmParticles& gp,
   const auto f2rElem = mesh.ask_up(o::FACE, o::REGION).ab2b;
   const auto face_verts = mesh.ask_verts_of(2);
   const auto coords = mesh.coords();
-
+  auto* fullMesh = gm.getFullMesh();
+  const auto full_face_verts = fullMesh->ask_verts_of(2);
+  const auto full_coords = fullMesh->coords();
 
   const int useReadInCsr = USE_READIN_CSR_BDRYFACES;
   //TODO only works for full mesh. Verify that in these get calls.
@@ -272,25 +274,25 @@ inline void gitrm_findDistanceToBdry(GitrmParticles& gp,
   auto pos_d = ptcls->get<PTCL_POS>();
   auto pid_ps = ptcls->get<PTCL_ID>();
 
+//  if(debug>1)
+    MPI_Barrier(MPI_COMM_WORLD);
+ bool printPos = false;
+
   if(tstep==0)
-    std::cout << rank << " : useReadInCsr " << useReadInCsr << " useStoredBdryDataOnPic "
-              << useStoredBdryDataOnPic << "\n";
+    std::cout << rank << " : useReadInCsr " << useReadInCsr
+              << " useStoredBdryDataOnPic " << useStoredBdryDataOnPic << "\n";
   auto lambda = PS_LAMBDA(const int& elem, const int& pid, const int& mask) {
     if (mask > 0) {
       auto ptcl = pid_ps(pid);
       o::LO beg = 0;
       o::LO nFaces = 0;
       o::LO end = 0;
-      o::LO gbeg = 0;
-      o::LO gid = origGlobalIds[elem]; //GO
 
       //TODO merge
       if(useReadInCsr && useStoredBdryDataOnPic) {
         beg = bdryFaceIdPtrsPic[elem];
         end = bdryFaceIdPtrsPic[elem+1];
         nFaces = end - beg;
-
-        gbeg = bdryCsrReadInDataPtrs[gid];
 
       } else if(useReadInCsr) {
         beg = bdryCsrReadInDataPtrs[elem];
@@ -302,92 +304,103 @@ inline void gitrm_findDistanceToBdry(GitrmParticles& gp,
      // }
 
       if(!nFaces)
-        printf("WARNING %d: tstep %d elem %d gid %ld ptcl %d nFaces %d beg %d end %d\n",
-         rank, tstep, elem, origGlobalIds[elem], ptcl, nFaces, beg, end);
+        printf("WARNING %d: ptcl %d tstep %d elem %d gid %ld nFaces %d beg %d end %d\n",
+         rank, ptcl, tstep, elem, origGlobalIds[elem], nFaces, beg, end);
       OMEGA_H_CHECK(nFaces);
 
-      if(nFaces >0) {
-        double dist = 0;
-        double min = 1.0e+30;
-        auto point = o::zero_vector<3>();
-        auto pt = o::zero_vector<3>();
-        o::LO bfid = -1;
-        o::LO gbfid = -1;
-        o::LO gfid = -1;
-        o::LO fid = -1;
-        auto ref = p::makeVector3(pid, pos_d);
-        o::Matrix<3,3> face;
-        for(o::LO ii = 0; ii < nFaces; ++ii) {
-          o::LO ind = beg + ii;
-          if(useStoredBdryDataOnPic)
-            bfid = bdryFaceIdsPic[ind];
-          else if(useReadInCsr)
-            bfid = bdryCsrReadInData[ind];
+      double dist = 0;
+      double min = 1.0e+30;
+      o::LO bfid = -1;
+      o::LO fid = -1;
+      auto ref = p::makeVector3(pid, pos_d);
+      auto point = o::zero_vector<3>();
+      auto pt = o::zero_vector<3>();
+      o::Matrix<3,3> face;
+      for(o::LO ii = 0; ii < nFaces; ++ii) {
+        o::LO ind = beg + ii;
+        if(useStoredBdryDataOnPic)
+          bfid = bdryFaceIdsPic[ind];
+        else if(useReadInCsr)
+          bfid = bdryCsrReadInData[ind];
 
-          gbfid = bdryCsrReadInData[gbeg+ii];
-          //else
-          //  bfid = bdryFaceIdsPic[ind];// TODO bdryFaces[ind];
-          //using from this PICpart
-          if(useStoredBdryDataOnPic) {
-            //bfid is the index of the storedBdryFaces in this case
-            face = p::get_face_coords_of_tet(bdryFaceVertsPic,
-              bdryFaceVertCoordsPic, bfid);
-          } else { //only picpart
-            face = p::get_face_coords_of_tet(face_verts, coords, bfid);
-          }
-
-          if(debug > 2) {
-            o::LO bfeId = -1;
-            if(!useStoredBdryDataOnPic)
-              bfeId = p::elem_id_of_bdry_face_of_tet(bfid, f2rPtr, f2rElem);
-            printf(" ptcl %d elem %d d2bdry %.15e bfid %d bdry-el %d pos: %.15e %.15e %.15e bdry-face: "
-              "%g %g %g : %g %g %g : %g %g %g \n", ptcl, elem, dist, bfid, bfeId,
-              ref[0], ref[1], ref[2], face[0][0], face[0][1], face[0][2], face[1][0],
-              face[1][1], face[1][2], face[2][0], face[2][1], face[2][2]);
-          }
-          int region = -1;
-          auto pt = p::closest_point_on_triangle(face, ref, &region);
-          dist = o::norm(pt - ref);
-          if(dist < min) {
-            min = dist;
-            fid = bfid;
-            gfid = gbfid;
-            for(int i=0; i<3; ++i)
-              point[i] = pt[i];
-          }
-        } //for nFaces
-
-        if(debug>1) {
-          o::LO fel = -1;
-          o::Matrix<3,3> f;
-          o::Matrix<3,3> f1;
-          o::LO gelem=-1;
-          if(useStoredBdryDataOnPic) {
-            printf("%d:dist ptcl %d tstep %d el %d \n",  rank, ptcl, tstep, elem);
-            f = p::get_face_coords_of_tet(bdryFaceVertsPic, bdryFaceVertCoordsPic, fid);
-            gelem = origGlobalIds[elem];
-          } else {
-            fel = p::elem_id_of_bdry_face_of_tet(gfid, f2rPtr, f2rElem);
-            f = p::get_face_coords_of_tet(face_verts, coords, gfid);
-          }
-          o::LO bdryOrd = bdryFaceOrderedIds[fid];
-          printf("%d:dist: ptcl %d tstep %d el %d gelem %d MINdist %.15e nFaces %d fid %d "
-            "face_el %d bdry-ordered-id %d pos %.15e %.15e %.15e "
-            "nearest_pt %.15e %.15e %.15e face %g %g %g : %g %g %g : %g %g %g\n",
-            rank, ptcl, tstep, elem, gelem, min, nFaces, fid, fel, bdryOrd, ref[0],
-            ref[1], ref[2], point[0], point[1], point[2],
-            f[0][0],f[0][1],f[0][2],f[1][0],f[1][1],f1[1][2],f[2][0],f[2][1], f[2][2]);
-            //f[0][0], f1[0][0], f[0][1],f1[0][1],
-            //f[0][2], f1[0][2], f[1][0], f1[1][0], f[1][1],f1[1][1], f[1][2], f1[1][2],f[2][0],
-            //f1[2][0], f[2][1],f1[2][1], f[2][2], f1[2][2]);
+        //else
+        //  bfid = bdryFaceIdsPic[ind];// TODO bdryFaces[ind];
+        //using from this PICpart
+        if(useStoredBdryDataOnPic) {
+          //bfid is the index of the storedBdryFaces in this case
+          face = p::get_face_coords_of_tet(bdryFaceVertsPic,
+            bdryFaceVertCoordsPic, bfid);
+        } else { //only picpart
+          face = p::get_face_coords_of_tet(face_verts, coords, bfid);
         }
 
+        int region = -1;
+        pt = p::closest_point_on_triangle(face, ref, &region);
+        dist = o::norm(pt - ref);
+
+        if(debug > 1) {
+          o::LO gid = origGlobalIds[elem]; //GO
+          auto gbeg = bdryCsrReadInDataPtrs[gid];
+          auto gbfid = bdryCsrReadInData[gbeg+ii];
+          auto gf = p::get_face_coords_of_tet(full_face_verts, full_coords, gbfid);
+          auto gpt = p::closest_point_on_triangle(gf, ref, &region);
+          auto gdist = o::norm(gpt - ref);
+          auto eq = p::almost_equal(gdist, dist);
+          if(!eq)
+            printf("%d: ptcl %d elem %d gelem %d nf %d i %d beg %d gebg %d"
+             " bfid %d gbfid %d d2bdry %g gd2bdry %g\n",
+             rank, ptcl, elem, gid, nFaces, ii, beg, gbeg, bfid, gbfid, dist, gdist);
+
+          auto f = face;
+
+          if(debug > 2)
+            printf("%d: p %d e%d gel %d ii %d f %g %g %g %g %g %g %g %g %g "
+             "gf %g %g %g %g %g %g %g %g %g\n", rank, ptcl, elem,
+              gid, ii, f[0][0],f[0][1],f[0][2],
+              f[1][0],f[1][1],f[1][2], f[2][0],f[2][1],f[2][2], gf[0][0],gf[0][1],gf[0][2],
+              gf[1][0],gf[1][1],gf[1][2], gf[2][0],gf[2][1],gf[2][2]);
+
+          for(int i=0; i<3; ++i)
+            for(int j=0; j<3; ++j) {
+              auto fv = f[i][j];
+              auto gfv = gf[i][j];
+              auto eqf = p::almost_equal(fv, gfv);
+              if(!eqf)
+                printf("%d: closest-bdry ptcl %d elem %d f %g gf %g\n", rank, ptcl, elem,fv,gfv);
+              OMEGA_H_CHECK(eqf);
+            }
+          OMEGA_H_CHECK(eq);
+        }
+
+        if(dist < min) {
+          min = dist;
+          fid = bfid;
+          for(int i=0; i<3; ++i)
+            point[i] = pt[i];
+        }
         OMEGA_H_CHECK(fid >= 0);
-        closestBdryFaceIds[pid] = fid;
-        for(o::LO j=0; j<3; ++j)
-          closestPoints[pid*3+j] = point[j];
-      } //if nFaces
-    }
+      } //for nFaces
+
+      closestBdryFaceIds[pid] = fid;
+      for(o::LO j=0; j<3; ++j)
+        closestPoints[pid*3+j] = point[j];
+
+      if(debug >1) {
+        o::Matrix<3,3> f;
+        if(useStoredBdryDataOnPic)
+          f = p::get_face_coords_of_tet(bdryFaceVertsPic,
+            bdryFaceVertCoordsPic, fid);
+        else  //only picpart
+          f = p::get_face_coords_of_tet(face_verts, coords, fid);
+        printf("%d: dist2bdry: ptcl %d tstep %d el %d MINdist %.15e nf %d bfid %d "
+          "pos %.15e %.15e %.15e face %g %g %g : %g %g %g : %g %g %g\n",
+          rank, ptcl, tstep, elem, min, nFaces, fid, ref[0], ref[1], ref[2],
+          f[0][0], f[0][1], f[0][2], f[1][0],f[1][1], f[1][2],f[2][0],f[2][1],f[2][2]);
+      } //debug
+
+      if(printPos)
+        printf("%d: ptcl %d tstep %d pos %.15e %.15e %.15e \n", rank, ptcl, tstep,ref[0], ref[1], ref[2]);
+    } //mask
   };
 
   p::parallel_for(ptcls, lambda, "dist2bdry_kernel");

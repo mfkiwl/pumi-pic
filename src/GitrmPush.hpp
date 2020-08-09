@@ -70,6 +70,9 @@ inline void gitrm_calculateE(GitrmParticles* gp, GitrmMesh* gm, int debug=0) {
         auto larmorRadius = larmorRadii[faceId];
         auto childLangmuirDist = childLangmuirDists[faceId];
         auto pos = p::makeVector3(pid, pos_ps);
+        if(debug >1)
+          printf("%d CALC-E: ptcl %d tstep %d fid %d angle %g pot %g DL %g LR %g CLD %g\n",
+            rank, ptcl, iTimeStep, faceId, angle, pot, debyeLength, larmorRadius, childLangmuirDist);
 
         o::Vector<3> closest;
         for(o::LO i=0; i<3; ++i)
@@ -99,19 +102,19 @@ inline void gitrm_calculateE(GitrmParticles* gp, GitrmMesh* gm, int debug=0) {
         for(int i=0; i<3; ++i)
           efield_ps(pid, i) = exd[i];
 
-        if(debug>1)
+        if(debug>1) {
           printf(" calcE: ptcl %d emag %.15e distVec %g %g %.15e dirUnitVec %g %g %g \n",
             ptcl, emag, distVector[0], distVector[1], distVector[2], dirUnitVector[0],
             dirUnitVector[1], dirUnitVector[2]);
 
-        auto nelMesh = elDensity[faceId];
-        auto telMesh = elTemp[faceId];
-        if(debug>1)
+          auto nelMesh = elDensity[faceId];
+          auto telMesh = elTemp[faceId];
           printf(" calcE_this:gitr ptcl %d timestep %d charge %d  dist2bdry %.15e"
              " efield %.15e  %.15e  %.15e  CLD %.15e  Nel %.15e Tel %.15e biased %d\n",
             ptcl, iTimeStep, charge_ps(pid), d2bdry, efield_ps(pid, 0),
             efield_ps(pid, 1), efield_ps(pid, 2), childLangmuirDist, nelMesh,
             telMesh, biasedSurface);
+         }
       } //faceId
     } //mask
   };
@@ -200,7 +203,7 @@ inline void gitrm_borisMove(PS* ptcls, const GitrmMesh &gm, const o::Real dTime,
       vel_ps(pid, 0) = vel[0];
       vel_ps(pid, 1) = vel[1];
       vel_ps(pid, 2) = vel[2];
-      if(debug>1) {
+      if(debug>2) {
         printf(" Boris0 ptcl %d timestep %d eField %.15e %.15e %.15e bField %.15e %.15e %.15e "
           " qPrime %.15e coeff %.15e qpE %.15e %.15e %.15e vmxB %.15e %.15e %.15e "
           " qp_vmxB %.15e %.15e %.15e  v_prime %.15e %.15e %.15e vpxB %.15e %.15e %.15e "

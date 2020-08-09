@@ -303,7 +303,7 @@ inline void gitrm_surfaceReflection(PS* ptcls, GitrmSurfaceModel& sm,
       auto ptcl = pid_ps(pid);
       auto ptcl_global=pid_ps_global(pid);
       auto fid = xfaces[pid];
-      if(debug>1 && side_is_exposed[fid])
+      if(!side_is_exposed[fid])
         printf(" surf0 timestep %d ptcl %d fid %d\n", iTimeStep, ptcl, fid);
       OMEGA_H_CHECK(side_is_exposed[fid]);
       auto weight = ps_weight(pid);

@@ -148,7 +148,7 @@ int main(int argc, char** argv) {
   std::string geomName = "pisces";
 
   bool debug = false; //search
-  int debug2 = 0;  //routines
+  int debug2 = 1;  //routines
   bool useCudaRnd = false; //replace kokkos rnd
   
   bool surfacemodel = true;
@@ -199,9 +199,8 @@ int main(int argc, char** argv) {
   pp_input.bridge_dim = full_mesh.dim()-1;
   pp_input.safeBFSLayers = 3;
   p::Mesh picparts(pp_input);
-
   o::Mesh* mesh = picparts.mesh();
-  mesh->ask_elem_verts(); //caching adjacency info
+
   Omega_h::vtk::write_parallel("meshvtkInit", picparts.mesh(), picparts.dim());
   
   if (comm_rank == 0)
@@ -249,12 +248,12 @@ int main(int argc, char** argv) {
   gm.initGeometryAndFields(bFile, profFile, thermGradientFile, geomName, debug2);
   
   //TODO move to unit tests
-  gm.getBdryPtr()->testDistanceToBdry();
+  //gm.getBdryPtr()->testDistanceToBdry(2);
 
 
   unsigned long int seed = 0; // zero value for seed not considered !
   GitrmParticles gp(picparts, totalNumPtcls, numIterations, dTime, useCudaRnd,
-    seed, useGitrRndNums);
+    seed, 0, useGitrRndNums);
   if(histInterval > 0)
     gp.initPtclHistoryData(histInterval);
   if(!comm_rank)

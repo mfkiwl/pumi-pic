@@ -92,8 +92,10 @@ inline void gitrm_ionize(PS* ptcls, const GitrmIonizeRecombine& gir,
   GitrmParticles& gp, const GitrmMesh& gm, const o::LOs& elm_ids, int debug = 0) {
   if(!gir.chargedPtclTracking)
     return;
-  if(debug)
+  if(debug) {
+    MPI_Barrier(MPI_COMM_WORLD);
     printf("Ionization \n");
+  }
   auto& mesh = gm.mesh;
   auto use2DRatesData = USE_2DREADIN_IONI_REC_RATES;
   auto densIon_d = gm.getDensIon();
@@ -192,9 +194,9 @@ inline void gitrm_ionize(PS* ptcls, const GitrmIonizeRecombine& gir,
           dzTemp, nxTemp, nzTemp, pos, cylSymm, 1,0,false);
         
         if(debug>1)
-          printf(" Ionization point: ptcl %d timestep %d position %g %g %g dens2D %g "
-            "temp2D %g  tlocal %g nlocal %g  nxTemp %d nzTemp %d\n", 
-            ptcl,iTimeStep, pos[0], pos[1], pos[2], dens, temp, tlocal, 
+          printf(" Ionization point: ptcl %d timestep %d position %g"
+            " %g %g dens2D %g temp2D %g  tlocal %g nlocal %g  nxTemp %d nzTemp %d\n", 
+            ptcl, iTimeStep, pos[0], pos[1], pos[2], dens, temp, tlocal, 
             nlocal, nxTemp, nzTemp);
         
         nlocal = dens;
@@ -208,14 +210,16 @@ inline void gitrm_ionize(PS* ptcls, const GitrmIonizeRecombine& gir,
       if(useGitrRnd) {
         randn = testGitrPtclStepData[ptcl_global*testGNT*testGDof + iTimeStep*testGDof + testGIind];
         if(debug>1)
-          printf("gitrRnd:ioni ptcl %d t %d rand %g\n", ptcl, iTimeStep, randn);
+          printf("gitrRnd:ioni ptcl %d  ptcl_global %ld t %d rand %g\n",
+           ptcl, ptcl_global, iTimeStep, randn);
       } else if (useCudaRnd) {
         //NOTE : states for all particles to be initialized in all ranks
         auto localState = cuStates[ptcl_global];
         randn = curand_uniform(&localState);
         cuStates[ptcl_global] = localState;
         if(debug>1)
-          printf("cudaRndNums-ioni %ld tstep %d %g\n", ptcl_global, iTimeStep, randn);
+          printf("cudaRndNums-ioni ptcl %d ptcl_global %ld tstep %d rand %g\n",
+           ptcl, ptcl_global, iTimeStep, randn);
       } else {
         //TODO use state index ? 
         auto rnd = rpool.get_state(); //rpool.get_state(pid)  ?
@@ -245,9 +249,10 @@ inline void gitrm_ionize(PS* ptcls, const GitrmIonizeRecombine& gir,
 
 inline void gitrm_recombine(PS* ptcls, const GitrmIonizeRecombine& gir, 
    GitrmParticles& gp, const GitrmMesh& gm, const o::LOs& elm_ids, int debug = 0) {
-  if(debug)
+  if(debug) {
+    MPI_Barrier(MPI_COMM_WORLD);
     printf("Recombination \n");
-
+  }
   auto& mesh = gm.mesh;
   auto densIon_d = gm.getDensIon();
   auto temIon_d = gm.getTemIon();
@@ -363,13 +368,14 @@ inline void gitrm_recombine(PS* ptcls, const GitrmIonizeRecombine& gir,
             iTimeStep*testGDof + testGrecInd];
           randn = randGitr;
           if(debug>1)
-            printf("gitrRnd:recomb ptcl %d t %d rand %g\n", ptcl, iTimeStep, randn);
+            printf("gitrRnd:recomb ptcl %d ptcl_global %ld t %d rand %g\n",
+             ptcl, ptcl_global, iTimeStep, randn);
         } else if (useCudaRnd) {
           auto localState = cuStates[ptcl_global];
           randn = curand_uniform(&localState);
           cuStates[ptcl_global] = localState;
           if(debug>1)
-            printf("cudaRndNums-recomb %d tstep %d %g\n", ptcl, iTimeStep, randn);
+            printf("cudaRndNums-recomb ptcl %d tstep %d rand %g\n", ptcl, iTimeStep, randn);
         } else { 
           auto rnd = rpool.get_state();
           randn = rnd.drand();
