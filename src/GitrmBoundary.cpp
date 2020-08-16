@@ -271,8 +271,6 @@ bool GitrmBoundary::calculateBdryFaceFields(GitrmMeshFaceFields& ff, int debug) 
       const auto tel = te[fid];
       const auto nel = ne[fid];
       const auto dens = density[fid];  //3.0E+19?
-//      if(debug > 1)
-if(fid > 400 && fid<500) printf("%d: fid %d tion %g tel %g nel %g dens %g\n", rank, fid, tion, tel, nel, dens);
 
       o::Real dlen = 0;
       if(o::are_close(nel, 0.0)){
@@ -300,8 +298,8 @@ if(fid > 400 && fid<500) printf("%d: fid %d tion %g tel %g nel %g dens %g\n", ra
       }
       potential_d[fid] = pot;
 
-    //  if(debug > 1)// || o::are_close(angle_d[fid],0))
-    if(fid>400 && fid <500) printf("%d: fid %d DL %g LR %g flux %g impact %g CLD %g pot %g\n",
+      if(debug > 1)// || o::are_close(angle_d[fid],0))
+        printf("%d: fid %d DL %g LR %g flux %g impact %g CLD %g pot %g\n",
         rank, fid, debyeLength_d[fid], larmorRadius_d[fid], flux_d[fid], impacts_d[fid], 
         childLangmuirDist_d[fid], pot);
     }

@@ -15,9 +15,8 @@
 #include <particle_structs.hpp>
 #include <pumipic_mesh.hpp>
 
-//TODO move gitrm_findDistanceToBdry out and use mesh incomplete class to access bdry
-#include "GitrmMesh.hpp" // gitrm_findDistanceToBdry
-#include "GitrmBoundary.hpp" //gitrm_findDistanceToBdry
+#include "GitrmMesh.hpp"
+#include "GitrmBoundary.hpp"
 
 #define DIST2BDRY_TEST 0
 
@@ -38,11 +37,17 @@ enum {PTCL_POS, PTCL_NEXT_POS, PTCL_ID,PTCL_ID_GLOBAL, PTCL_VEL, PTCL_EFIELD, PT
  PTCL_WEIGHT, PTCL_FIRST_IONIZEZ, PTCL_PREV_IONIZE, PTCL_FIRST_IONIZET,
  PTCL_PREV_RECOMBINE, PTCL_HIT_NUM, PTCL_VMAG_NEW};
 
+enum { //move it to mesh class
+  INVALID = 0,
+  PISCES_ID,
+  ITER_ID
+};
+
 typedef p::ParticleStructure<Particle> PS;
 
 class GitrmParticles {
 public:
-  GitrmParticles(p::Mesh& picparts, long int totalPtcls, int nIter, double dT, 
+  GitrmParticles(GitrmMesh* gm, p::Mesh& picparts, long int totalPtcls, int nIter, double dT, 
     bool useCudaRnd=false, unsigned long int seed=0, unsigned long int seq=0,
     bool gitrRnd=false);
   ~GitrmParticles();
@@ -52,6 +57,8 @@ public:
   PS* ptcls;
   p::Mesh& picparts;
   o::Mesh& mesh;
+  GitrmMesh* gm;
+
   o::Real timeStep = 0;
   long int totalPtcls = 0;
   int numIterations = 0;
@@ -180,12 +187,17 @@ public:
   bool ranDiffusion = false;
   bool ranSurfaceReflection = false;
   bool isFullCopyMesh() { return isFullMesh;}
+  void printNumPtclsInElems(const std::string& f="numsOfPtclsInElems.txt");
 
 private:
   o::LOs elemOwners;
   int rank = -1;
   int commSize =-1;
   bool isFullMesh = false;
+  bool requireFindingAllPtcls = true;
+  int geometryId = 0;
+  o::LOs numOfPtclsInElems;
+
 };
 
 //timestep +1

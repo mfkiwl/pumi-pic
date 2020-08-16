@@ -12,15 +12,6 @@
 namespace o = Omega_h;
 namespace p = pumipic;
 
-namespace gitrm {
-o::Write<o::LO> makeCsrPtrs(o::Write<o::LO>& nums_d, int tot, int& sum) {
-  auto check = (tot == nums_d.size());
-  OMEGA_H_CHECK(check);
-  sum = o::get_sum(o::LOs(nums_d));
-  return o::deep_copy(o::offset_scan(o::LOs(nums_d)));
-}
-}
-
 GitrmMesh::GitrmMesh(p::Mesh* picparts, o::Mesh* fullMesh, o::Mesh& ppMesh, char* owners):
    picparts(picparts), fullMesh(fullMesh), mesh(ppMesh) {
   storeOwners(owners);
@@ -30,7 +21,7 @@ GitrmMesh::GitrmMesh(p::Mesh* picparts, o::Mesh* fullMesh, o::Mesh& ppMesh, char
   rank = picparts->comm()->rank();
 
   GitrmBoundary::FaceFieldFillTarget target;
-  if(USE_STORED_BDRYDATA_PIC_SAFE) //only on bdry
+  if(STORE_BDRYDATA_PIC_SAFE) //only on bdry
     target = GitrmBoundary::FaceFieldFillTarget::BDRY;
   else //entire picpart
     target = GitrmBoundary::FaceFieldFillTarget::PICPART;
@@ -56,11 +47,13 @@ void GitrmMesh::storeOwners(char* fname) {
 }
 
 void GitrmMesh::initPiscesGeometry() {
+  if(!rank)
+    std::cout << rank << " Initializing Pisces geometry\n";
   //mesh ht 50cm, rad 10cm. Top lid of small sylinder not included
   auto dsIds = o::HostWrite<o::LO>{268, 593, 579, 565, 551, 537, 523, 509,
    495,481, 467,453, 439, 154};
   detectorSurfaceModelIds = o::HostWrite<o::LO> (dsIds);
-    
+
   //source materials model ids
   auto matIds = o::HostWrite<o::LO>{138};
   bdryMaterialModelIds = o::HostWrite<o::LO>(matIds);
@@ -70,15 +63,29 @@ void GitrmMesh::initPiscesGeometry() {
   auto smIds = o::HostWrite<o::LO>{268, 593, 579, 565, 551, 537, 523,
    509, 495,481, 467,453, 439, 154, 150, 138};
   surfaceAndMaterialModelIds = o::HostWrite<o::LO>(smIds);
+
+  useConstBField = true;
+}
+
+void GitrmMesh::initIterGeometry() {
+  if(!rank)
+    std::cout << rank << " Initializing Iter geometry\n";
+  detectorSurfaceModelIds = o::HostWrite<o::LO>{354,581,295};
+  bdryMaterialModelIds = o::HostWrite<o::LO>{354};
+  bdryMaterialModelIdsZ = o::HostWrite<o::LO>{74}; //W Tungsten
+  surfaceAndMaterialModelIds = o::HostWrite<o::LO>{354,581,295};
 }
 
 void GitrmMesh::initGeometryAndFields(const std::string& bFile, const std::string& profFile,
-    const std::string& thermGradientFile, const std::string& geomName, int debug) {
+    const std::string& thermGradientFile, const std::string& geom, int debug) {
 
+  geomName = geom;
   if(geomName == "pisces")
     initPiscesGeometry();
+  else if(geomName == "Iter")
+    initIterGeometry();
   else
-    Omega_h_fail("No other geometry handled yet\n");
+    Omega_h_fail("Error: geometry unknown\n");
 
   setFaceId2BdryFaceIdMap();
   setFaceId2SurfaceAndMaterialIdMap();
@@ -86,10 +93,9 @@ void GitrmMesh::initGeometryAndFields(const std::string& bFile, const std::strin
   if(CREATE_GITR_MESH)
     createSurfaceGitrMesh();
 
-  if(geomName == "pisces") {
-    //not used in gitr surface mesh creation
-    markDetectorSurfaces(true);
-  }
+  //to be used in surface model
+  markDetectorSurfaces(true);
+  
   initBField(bFile);
 
   printf("%d: Preprocessing: dist-to-boundary faces\n", rank);
@@ -115,11 +121,13 @@ void GitrmMesh::initGeometryAndFields(const std::string& bFile, const std::strin
   bool writeMeshFaceCoords = WRITE_MESH_FACE_COORDS_NC;
   if(writeMeshFaceCoords)
     writeBdryFaceCoordsNcFile(1); //all
-  int writeBdryFacesFile = WRITE_OUT_BDRY_FACES_FILE;
+  int writeBdryFacesFile = !readInCsrBdryData;
   if(writeBdryFacesFile && !readInCsrBdryData) {
     std::string bdryOutName = "bdryFaces_" +
       std::to_string(nD2BdryTetSubDiv) + "div.nc";
-    writeDist2BdryFacesData(bdryOutName, nD2BdryTetSubDiv);
+    //TODO 
+    if(!rank)
+      writeDist2BdryFacesData(bdryOutName, nD2BdryTetSubDiv);
   }
 }
 
@@ -138,8 +146,18 @@ void GitrmMesh::setFaceId2BdryFaceIdMap() {
   nbdryFaces = o::get_sum(exposed);
   OMEGA_H_CHECK(nbdryFaces == (o::HostRead<o::LO>(bdryFaces_r))[nf-1]);
 }
+/*
+void GitrmMesh::setFaceId2BdryFaceIdMap() {
+  const auto side_is_exposed = mark_exposed_sides(&mesh);
+  o::Write<o::LO> exposed(mesh.nfaces(), 0, "exposed");
+  o::parallel_for(mesh.nfaces(), OMEGA_H_LAMBDA(const o::LO& i) {
+    if(side_is_exposed[i])
+      exposed[i] = 1;
+  });
+  setOrderedIds(o::LOs(exposed), bdryFaceOrderedIds, nbdryFaces);
+}
 
-
+*/
 //create ordered ids starting 0 for given geometric bdry ids.
 //copy associated values if fill is true.
 o::LOs GitrmMesh::setOrderedBdryIds(const o::LOs& gFaceIds, int& nSurfaces,
@@ -359,16 +377,19 @@ bool GitrmMesh::addTagsAndLoadProfileData(const std::string &profileFile,
   mesh.add_tag<o::Real>(o::VERT, "ElTempVtx", 1);
   mesh.add_tag<o::Real>(o::VERT, "gradTiVtx", 3);
   mesh.add_tag<o::Real>(o::VERT, "gradTeVtx", 3);
-  Field3StructInput fd({"ni"}, {"gridR", "gridZ"}, {"nR", "nZ"});
+
+  std::string gridRStr = (geomName == "Iter") ? "r" : "gridR";
+  std::string gridZStr = (geomName == "Iter") ? "z" : "gridZ";
+  Field3StructInput fd({"ni"}, {gridRStr, gridZStr}, {"nR", "nZ"});
 
  //Note: this should be done even if fields not stored on mesh bdry faces
  //since in which case, this is the call to store separate field
   auto ionDensTag = gbdry->calculateScalarFieldOnBdryFacesFromFile("IonDensity",
       profileDensityFile, fd);
-  if(!USE_STORED_BDRYDATA_PIC_SAFE) 
+  if(!STORE_BDRYDATA_PIC_SAFE) 
     mesh.add_tag<o::Real>(o::FACE, "IonDensity", 1, ionDensTag); //ni
 
-  Field3StructInput fdv({"ni"}, {"gridR", "gridZ"}, {"nR", "nZ"});
+  Field3StructInput fdv({"ni"}, {gridRStr, gridZStr}, {"nR", "nZ"});
   o::Write<o::Real> densIon;
   o::Write<o::Real> densIonVtx;
   load1DFieldOnVtxFromFile("IonDensityVtx", profileDensityFile, fdv,
@@ -382,13 +403,13 @@ bool GitrmMesh::addTagsAndLoadProfileData(const std::string &profileFile,
   densIonDx = fdv.getGridDelta(0);
   densIonDz = fdv.getGridDelta(1);
 
-  Field3StructInput fne({"ne"}, {"gridR", "gridZ"}, {"nR", "nZ"});
+  Field3StructInput fne({"ne"}, {gridRStr, gridZStr}, {"nR", "nZ"});
   auto elDensTag = gbdry->calculateScalarFieldOnBdryFacesFromFile("ElDensity",
     profileFile, fne);
-  if(!USE_STORED_BDRYDATA_PIC_SAFE)
+  if(!STORE_BDRYDATA_PIC_SAFE)
     mesh.add_tag(o::FACE, "ElDensity", 1, elDensTag);
 
-  Field3StructInput fnev({"ne"}, {"gridR", "gridZ"}, {"nR", "nZ"});
+  Field3StructInput fnev({"ne"}, {gridRStr, gridZStr}, {"nR", "nZ"});
   o::Write<o::Real> densEl;
   o::Write<o::Real> densElVtx;
   load1DFieldOnVtxFromFile("ElDensityVtx", profileFile, fnev, densEl, densElVtx);
@@ -401,13 +422,13 @@ bool GitrmMesh::addTagsAndLoadProfileData(const std::string &profileFile,
   densElDx = fne.getGridDelta(0);
   densElDz = fne.getGridDelta(1);
 
-  Field3StructInput fti({"ti"}, {"gridR", "gridZ"}, {"nR", "nZ"});
+  Field3StructInput fti({"ti"}, {gridRStr, gridZStr}, {"nR", "nZ"});
   auto ionTempTag = gbdry->calculateScalarFieldOnBdryFacesFromFile("IonTemp",
     profileFile, fti);
-  if(!USE_STORED_BDRYDATA_PIC_SAFE)
+  if(!STORE_BDRYDATA_PIC_SAFE)
     mesh.add_tag(o::FACE, "IonTemp", 1, ionTempTag);
 
-  Field3StructInput ftiv({"ti"}, {"gridR", "gridZ"}, {"nR", "nZ"});
+  Field3StructInput ftiv({"ti"}, {gridRStr, gridZStr}, {"nR", "nZ"});
   o::Write<o::Real> temIon;
   o::Write<o::Real> tempIonVtx;
   load1DFieldOnVtxFromFile("IonTempVtx", profileFile, ftiv, temIon, tempIonVtx);
@@ -421,13 +442,13 @@ bool GitrmMesh::addTagsAndLoadProfileData(const std::string &profileFile,
   tempIonDz = ftiv.getGridDelta(1);
 
   // electron Temperature
-  Field3StructInput fte({"te"}, {"gridR", "gridZ"}, {"nR", "nZ"});
+  Field3StructInput fte({"te"}, {gridRStr, gridZStr}, {"nR", "nZ"});
   auto elTempTag = gbdry->calculateScalarFieldOnBdryFacesFromFile("ElTemp",
     profileFile, fte);
-  if(!USE_STORED_BDRYDATA_PIC_SAFE)
+  if(!STORE_BDRYDATA_PIC_SAFE)
     mesh.add_tag(o::FACE, "ElTemp", 1, elTempTag);
 
-  Field3StructInput ftev({"te"}, {"gridR", "gridZ"}, {"nR", "nZ"});
+  Field3StructInput ftev({"te"}, {gridRStr, gridZStr}, {"nR", "nZ"});
   o::Write<o::Real> temEl;
   o::Write<o::Real> tempElVtx;
   load1DFieldOnVtxFromFile("ElTempVtx", profileFile, ftev, temEl, tempElVtx);
@@ -440,9 +461,17 @@ bool GitrmMesh::addTagsAndLoadProfileData(const std::string &profileFile,
   tempElDx = fte.getGridDelta(0);
   tempElDz = fte.getGridDelta(1);
 
+  // TODO this is ugly ! 
+  std::string gridTiRStr = (geomName == "Iter") ? "gradTir" : "gradTiR";
+  std::string gridTiTStr = (geomName == "Iter") ? "gradTiy" : "gradTiT";
+  std::string gridTiZStr = (geomName == "Iter") ? "gradTiz" : "gradTiZ";
+  std::string gxiStr = (geomName == "Iter") ? "r" : "gridx_gradTi";
+  std::string gziStr = (geomName == "Iter") ? "z" : "gridz_gradTi";
+  std::string nriStr = (geomName == "Iter") ? "nR" : "nX_gradTi";
+  std::string nziStr = (geomName == "Iter") ? "nZ" : "nZ_gradTi";
   //gradTiR
-  Field3StructInput fgTi({"gradTiR", "gradTiT" , "gradTiZ"},
-    {"gridx_gradTi", "gridz_gradTi"}, {"nX_gradTi", "nZ_gradTi"});
+  Field3StructInput fgTi({gridTiRStr, gridTiTStr, gridTiZStr},
+    {gxiStr, gziStr}, {nriStr, nziStr});
   o::Write<o::Real> gradTi;
   load3DFieldOnVtxFromFile("gradTiVtx", profileGradientFile, fgTi,  gradTi);
   gradTi_d = std::make_shared<o::Reals>(gradTi);
@@ -453,9 +482,17 @@ bool GitrmMesh::addTagsAndLoadProfileData(const std::string &profileFile,
   gradTiNz = fgTi.getNumGrids(1);
   gradTiDx = fgTi.getGridDelta(0);
   gradTiDz = fgTi.getGridDelta(1);
+
+  std::string gridTeRStr = (geomName == "Iter") ? "gradTer" : "gradTeR";
+  std::string gridTeTStr = (geomName == "Iter") ? "gradTey" : "gradTeT";
+  std::string gridTeZStr = (geomName == "Iter") ? "gradTez" : "gradTeZ";
+  std::string gxeStr = (geomName == "Iter") ? "r" : "gridx_gradTe";
+  std::string gzeStr = (geomName == "Iter") ? "z" : "gridz_gradTe";
+  std::string nreStr = (geomName == "Iter") ? "nR" : "nX_gradTe";
+  std::string nzeStr = (geomName == "Iter") ? "nZ" : "nZ_gradTe";
    //gradTeR
-  Field3StructInput fgTe({"gradTeR", "gradTeT", "gradTeZ"},
-    {"gridx_gradTe", "gridz_gradTe"}, {"nX_gradTe", "nZ_gradTe"});
+  Field3StructInput fgTe({gridTeRStr, gridTeTStr, gridTeZStr},
+    {gxeStr, gzeStr}, {nreStr, nzeStr});
   o::Write<o::Real> gradTe;
   load3DFieldOnVtxFromFile("gradTeVtx", profileGradientFile, fgTe, gradTe);
   gradTe_d = std::make_shared<o::Reals>(gradTe);
@@ -471,7 +508,7 @@ bool GitrmMesh::addTagsAndLoadProfileData(const std::string &profileFile,
 //Prior to this, calculate required data by addTagsAndLoadProfileData(..)
 bool GitrmMesh::calculateBdryFaceFields(bool init, bool debug) {
   std::cout << __FUNCTION__ << "\n";
-  if(USE_STORED_BDRYDATA_PIC_SAFE) {
+  if(STORE_BDRYDATA_PIC_SAFE) {
     gbdry->storeBdryData();
   } else {
     GitrmMeshFaceFields ff;
@@ -498,7 +535,7 @@ void GitrmMesh::preProcessBdryFacesBfs() {
   o::Write<o::LO> dummy(1);
   preprocessStoreBdryFacesBfs(numBdryFaceIdsInElems, dummy, 0);
   int csrSize = 0;
-  auto bdryFacePtrs = gitrm::makeCsrPtrs(numBdryFaceIdsInElems, ne, csrSize);
+  auto bdryFacePtrs = utils::makeCsrPtrs(numBdryFaceIdsInElems, ne, csrSize);
   auto bdryFacePtrsBFS = std::make_shared<o::LOs>(bdryFacePtrs);
   if(!rank)
     std::cout << "CSR size "<< csrSize << "\n";
@@ -769,7 +806,7 @@ void GitrmMesh::preprocessSelectBdryFacesOnPicpart( bool onlyMaterialSheath) {
     o::Write<o::Real> grid(gridSize, 0, "grid");
     if(debug >2)
       printf("%d: loop %d loopsize %d arrsize %d gridSize %d\n", rank, iLoop, lsize, asize, gridSize);  
-    int nums = 0;
+    //int nums = 0;
     //auto localCoreIds = utils::makeLocalIdMap(owners, rank, nums, "localCoreIds"); 
     auto select = OMEGA_H_LAMBDA(const o::LO& e) {
       //if(rank == owners[e]) {
@@ -845,7 +882,7 @@ void GitrmMesh::preprocessSelectBdryFacesOnPicpart( bool onlyMaterialSheath) {
     /** merging csr array with previous csr **/
     int csrSize = 0;
     //bdryFaces_nums added up
-    ptrs_d = gitrm::makeCsrPtrs(bdryFaces_nums, picNelems, csrSize);
+    ptrs_d = utils::makeCsrPtrs(bdryFaces_nums, picNelems, csrSize);
     //bdryFacePtrsSelected = o::LOs(ptrs_d);
     if(debug > 1)
       printf("rank %d :loop %d Converting to CSR Bdry faces: size %d\n",
@@ -1002,7 +1039,7 @@ void GitrmMesh::preprocessSelectBdryFacesFromAll( bool onlyMaterialSheath) {
     // LOs& can't be passed as reference to fill-in  ?
     int csrSize = 0;
     //bdryFaces_nums added up
-    ptrs_d = gitrm::makeCsrPtrs(bdryFaces_nums, nelems, csrSize);
+    ptrs_d = utils::makeCsrPtrs(bdryFaces_nums, nelems, csrSize);
     //bdryFacePtrsSelected = o::LOs(ptrs_d); //set member and use in same funtion ?
     if(debug > 1)
       printf("rank %d :loop %d Converting to CSR Bdry faces: size %d\n", rank,iLoop, csrSize);
@@ -1105,7 +1142,7 @@ int GitrmMesh::markDetectorSurfaces(bool render) {
       }
     }
   },"kernel_mark_detctor_surface");
-  mesh.add_tag<o::LO>(o::FACE, "DetectorSurfaceIndex", 1, o::LOs(faceTagIds));
+  mesh.add_tag<o::LO>(o::FACE, "detectorSurfaceIndex", 1, o::LOs(faceTagIds));
   mesh.add_tag<o::LO>(o::REGION, "detectorSurfaceRegionInds", 1, o::LOs(elemTagIds));
   auto count_h = o::HostWrite<o::LO>(detFaceCount);
   auto ndf = count_h[0];

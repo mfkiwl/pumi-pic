@@ -109,6 +109,43 @@ void profileAndInterpolateTest(GitrmMesh& gm, bool debug=false, bool inter=false
     gm.test_interpolateFields(true);
 }
 
+void writeParallelVtkMesh(o::Mesh* mesh, o::Mesh* fullMesh, const std::string& ownFile,
+   bool renderPicpMesh=true, bool renderFullMesh=false) {
+  int rank;
+  int nranks;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  MPI_Comm_size(MPI_COMM_WORLD, &nranks);
+  std::string npstr = "_np-" + std::to_string(nranks) ;
+  std::string nstr = npstr + "_" + std::to_string(rank);
+  if(renderPicpMesh)
+    Omega_h::vtk::write_parallel("meshvtk" + nstr, mesh);
+
+  if(renderFullMesh) {
+    //only rank0 result is needed, others overwritten as _1
+    int rnum = (rank) ? 1: 0;
+    nstr = npstr + "_" + std::to_string(rnum);
+    o::HostWrite<o::GO> owners_h(fullMesh->nelems(),"owners");
+    std::ifstream ifs(ownFile);
+    int own;
+    int nel = 0;
+    while(ifs >> own)
+      owners_h[nel++] = own;
+    OMEGA_H_CHECK(fullMesh->nelems() == nel);
+    fullMesh->add_tag(o::REGION, "owners", 1, o::GOs(owners_h.write()));
+    Omega_h::vtk::write_parallel("meshvtkFull" + nstr, fullMesh);
+  }
+}
+
+void printPtclBalance(PS* ptcls, int rank, int size) {
+  auto np = ptcls->nPtcls();
+  const long int np_ = np;
+  long int npAll;
+  MPI_Allreduce(&np_, &npAll, 1, MPI_LONG, MPI_SUM, MPI_COMM_WORLD);
+
+  double nav = npAll/(double)size;
+  auto frac = np/(double)nav;
+  std::cout << rank << " nPtcls " << np << " nP/nAv " << frac << "\n";
+}
 
 o::Mesh readMesh(char* meshFile, o::Library& lib) {
   const auto rank = lib.world()->rank();
@@ -141,11 +178,18 @@ int main(int argc, char** argv) {
     if(comm_rank == 0)
       std::cout << "Usage: " << argv[0]
         << " <mesh> <owners_file> <ptcls_file> <prof_file> <rate_file><surf_file>"
-        << " <thermal_gradient_file> [<nPtcls><nIter> <histInterval> <gitrDataInFileName> ]\n";
+        << " <thermal_gradient_file> [ <nPtcls><nIter> "
+        << " <histInterval> <gitrDataInFileName> iter/pisces ]\n";
     exit(1);
   }
   bool chargedTracking = true; //false for neutral tracking
-  std::string geomName = "pisces";
+  std::string geomName = "pisces" ;// "Iter";
+  if(argc > 12 && std::string(argv[12]) == "iter")
+    geomName = "Iter";
+    
+  //TODO set USE_CONSTANT_BFIELD to false
+  
+  bool printNumPtclsInElems = true;
 
   bool debug = false; //search
   int debug2 = 1;  //routines
@@ -201,15 +245,13 @@ int main(int argc, char** argv) {
   p::Mesh picparts(pp_input);
   o::Mesh* mesh = picparts.mesh();
 
-  Omega_h::vtk::write_parallel("meshvtkInit", picparts.mesh(), picparts.dim());
-  
   if (comm_rank == 0)
     printf("Mesh loaded with verts %d edges %d faces %d elements %d\n",
       mesh->nverts(), mesh->nedges(), mesh->nfaces(), mesh->nelems());
   std::string ptclSource = argv[3];
   std::string profFile = argv[4];
   std::string ionizeRecombFile = argv[5];
-  std::string bFile="bFile"; //TODO
+  std::string bFile = "bField_iter2d.nc"; //TODO
   std::string surfModelFile = argv[6];
   std::string thermGradientFile = argv[7];
   if (!comm_rank) {
@@ -231,16 +273,16 @@ int main(int argc, char** argv) {
     totalNumPtcls = atol(argv[8]);
   if(argc > 9)
     numIterations = atoi(argv[9]);
-  if(argc > 10)
+  if(argc > 10 && std::string(argv[10]) != "-")
     histInterval = atoi(argv[10]);
 
   std::string gitrDataFileName;
   bool useGitrRndNums = 0;
-  if(argc > 11) {
+  if(argc > 11 && std::string(argv[11]) != "-") {
     gitrDataFileName = argv[11];
     useGitrRndNums = true;
     if(!comm_rank)
-      printf(" gitr comparison DataFile %s\n", gitrDataFileName.c_str());
+      printf(" gitr rand num DataFile %s\n", gitrDataFileName.c_str());
   }
 
   //TODO get mesh from picparts inside gm
@@ -252,17 +294,16 @@ int main(int argc, char** argv) {
 
 
   unsigned long int seed = 0; // zero value for seed not considered !
-  GitrmParticles gp(picparts, totalNumPtcls, numIterations, dTime, useCudaRnd,
+  GitrmParticles gp(&gm, picparts, totalNumPtcls, numIterations, dTime, useCudaRnd,
     seed, 0, useGitrRndNums);
   if(histInterval > 0)
     gp.initPtclHistoryData(histInterval);
   if(!comm_rank)
     printf("Initializing Particles\n");
   gp.initPtclsFromFile(ptclSource, 100, true);
-  if(geomName == "pisces") {
-    int dataSize = 14;
-    gp.initPtclDetectionData(dataSize);
-  }
+
+  if(printNumPtclsInElems)
+    gp.printNumPtclsInElems();
 
   int testNumPtcls = 1;
   if(gp.useGitrRndNums) {
@@ -367,8 +408,9 @@ int main(int argc, char** argv) {
 
     gp.resetPtclWallCollisionData();
 
-    //if(comm_rank == 0 && iter%1000 ==0)
+    if(comm_rank == 0 && iter%1000 ==0)
       fprintf(stderr, "rank %d  nPtcls %d \n", comm_rank, ptcls->nPtcls());
+    printPtclBalance(ptcls, comm_rank, comm_size);
   }
   auto end_sim = std::chrono::system_clock::now();
   std::chrono::duration<double> dur_init = end_init - start_sim;
@@ -377,21 +419,24 @@ int main(int argc, char** argv) {
   std::cout << "Total Main Loop duration " << dur_steps.count()/60 << " min.\n";
 
   //gp.writeOutPtclEndPoints();
-
+  std::string npStr = "_np-" + std::to_string(comm_size);
   if(geomName == "pisces") {
-    std::string fname("piscesCounts.txt");
+    std::string fname("piscesCounts" + npStr + ".txt");
     gp.writeDetectedParticles(fname, "piscesDetected");
     //gm.writeResultAsMeshTag(gp.collectedPtcls);
   }
   //if(histInterval >0)
-  //  gp.writePtclStepHistoryFile("gitrm-history_par.nc");
+  //  gp.writePtclStepHistoryFile("gitrm-history" + npStr + ".nc");
 
   //if(surfacemodel)
-  //  sm.writeSurfaceDataFile("gitrm-surface.nc");
+  //  sm.writeSurfaceDataFile("gitrm-surface" + npStr + ".nc");
   //if(spectroscopy)
-  //  sp.writeSpectroscopyFile("gitrm-spec.nc");
+  //  sp.writeSpectroscopyFile("gitrm-spec" + npStr + ".nc");
 
-  Omega_h::vtk::write_parallel("meshvtk", mesh, mesh->dim());
+  bool renderPicpMesh = false;
+  bool renderFullMesh = true;
+  writeParallelVtkMesh(mesh, &full_mesh, owners, renderPicpMesh, renderFullMesh);
+
   cudaMemGetInfo(&free, &total);
   double mtotal = 1.0/(1024*1024) * (double)total;
   double mfree = 1.0/(1024*1024) * (double)free;

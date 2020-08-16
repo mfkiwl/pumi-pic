@@ -123,20 +123,19 @@ inline void gitrm_calculateE(GitrmParticles* gp, GitrmMesh* gm, int debug=0) {
 
 inline void gitrm_borisMove(PS* ptcls, const GitrmMesh &gm, const o::Real dTime,
    int debug=0) {
-  if(debug)
+  if(debug) {
+    MPI_Barrier(MPI_COMM_WORLD);
     printf("Boris move \n");
+  }
+  auto geomName = gm.getGeometryName();
   o::Mesh &mesh = gm.mesh;
   const auto& coords = mesh.coords();
   const auto& mesh2verts = mesh.ask_elem_verts();
   auto amu = gitrm::PTCL_AMU;
   auto use3dField = USE3D_BFIELD;
-  auto use2dInputFields = USE2D_INPUTFIELDS;
-  auto useConstantBField = USE_CONSTANT_BFIELD;
 
   int iTimeStep = iTimePlusOne - 1;
-  if(PISCESRUN)
-    OMEGA_H_CHECK(useConstantBField);
-  const auto BField = o::Reals(); //o::Reals(mesh.get_array<o::Real>(o::VERT, "BField"));
+  const auto BField = o::Reals(); // get tag "BField"
   const auto bX0 = gm.bGridX0;
   const auto bZ0 = gm.bGridZ0;
   const auto bDx = gm.bGridDx;
@@ -172,7 +171,7 @@ inline void gitrm_borisMove(PS* ptcls, const GitrmMesh &gm, const o::Real dTime,
         auto bcc = o::zero_vector<4>();
         p::findBCCoordsInTet(coords, mesh2verts, pos, elem, bcc);
         p::interpolate3dFieldTet(mesh2verts, BField, elem, bcc, bField);
-      } else if(useConstantBField || use2dInputFields) {
+      } else {
         p::interp2dVector(BField_2d, bX0, bZ0, bDx, bDz, bGridNx, bGridNz, pos,
           bField, cylSymm);
       }
@@ -203,7 +202,7 @@ inline void gitrm_borisMove(PS* ptcls, const GitrmMesh &gm, const o::Real dTime,
       vel_ps(pid, 0) = vel[0];
       vel_ps(pid, 1) = vel[1];
       vel_ps(pid, 2) = vel[2];
-      if(debug>2) {
+      if(debug>2 || isnan(tgt[0]) || isnan(tgt[1]) || isnan(tgt[2])) {
         printf(" Boris0 ptcl %d timestep %d eField %.15e %.15e %.15e bField %.15e %.15e %.15e "
           " qPrime %.15e coeff %.15e qpE %.15e %.15e %.15e vmxB %.15e %.15e %.15e "
           " qp_vmxB %.15e %.15e %.15e  v_prime %.15e %.15e %.15e vpxB %.15e %.15e %.15e "
@@ -214,7 +213,7 @@ inline void gitrm_borisMove(PS* ptcls, const GitrmMesh &gm, const o::Real dTime,
           vpxB[0], vpxB[1], vpxB[2], cVpxB[0],cVpxB[1],cVpxB[2], vel_[0], vel_[1], vel_[2] );
       }
 
-      if(debug>1) {
+      if(debug>1 || isnan(tgt[0]) || isnan(tgt[1]) || isnan(tgt[2])) {
         printf(" Boris1 ptcl %d timestep %d e %d charge %d pos %.15e %.15e %.15e =>  %.15e %.15e %.15e  "
           "vel %.15e %.15e %.15e =>  %.15e %.15e %.15e eField %.15e %.15e %.15e\n", ptcl, iTimeStep,
           elem, charge, pos[0], pos[1], pos[2], tgt[0], tgt[1], tgt[2],

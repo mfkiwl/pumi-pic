@@ -8,13 +8,15 @@
 #include "GitrmMesh.hpp"
 #include "GitrmParticles.hpp"
 #include "GitrmInputOutput.hpp"
+#include <fstream>
 
 int iTimePlusOne = 0;
 
 
-GitrmParticles::GitrmParticles(p::Mesh& picparts, long int nPtcls, int nIter, double dT,
+GitrmParticles::GitrmParticles(GitrmMesh* gm, p::Mesh& picparts, long int nPtcls,
+   int nIter, double dT,
    bool cuRnd, unsigned long int seed, unsigned long int seq, bool gitrRnd):
-   picparts(picparts), mesh(*picparts.mesh()), ptcls(nullptr) {
+   gm(gm), picparts(picparts), mesh(*picparts.mesh()), ptcls(nullptr) {
   //move to where input is handled
   useCudaRnd = cuRnd;
   useGitrRndNums = gitrRnd;
@@ -34,6 +36,21 @@ GitrmParticles::GitrmParticles(p::Mesh& picparts, long int nPtcls, int nIter, do
   ptclSplitRead = PTCLS_SPLIT_READ;
   //if(!useGitrRndNums) //TODO testing
     initRandGenerator(seed);
+  requireFindingAllPtcls = REQUIRE_FINDING_ALL_PTCLS;
+
+  //TODO handle this neatly
+  auto geomName = gm->getGeometryName();
+ 
+  if(geomName == "pisces")
+    geometryId = PISCES_ID;
+  else if(geomName == "Iter")
+    geometryId = ITER_ID;
+  else
+    geometryId = INVALID;
+
+  //TODO set using mesh class data
+  int dataSize = (geometryId == PISCES_ID) ? 14 : mesh.nfaces();
+  initPtclDetectionData(dataSize);
 }
 
 GitrmParticles::~GitrmParticles() {
@@ -210,12 +227,13 @@ void GitrmParticles::assignParticles(const o::LOs& elemIdOfPtclsAll,
   
   const long int nPtcls_ = numInitPtcls;
   long int totalPtcls_ = 0;
+  int collectRank = 0;
   MPI_Barrier(MPI_COMM_WORLD);//picparts.comm()->get_impl());
-  MPI_Reduce(&nPtcls_, &totalPtcls_, 1, MPI_LONG, MPI_SUM, 0, MPI_COMM_WORLD);// picparts.comm()->get_impl());
+  MPI_Reduce(&nPtcls_, &totalPtcls_, 1, MPI_LONG, MPI_SUM, collectRank, MPI_COMM_WORLD);
 //  if(!rank)
     printf("%d: isFullMesh %d Particles %d total %ld reduced %ld\n",
        rank, isFullMesh, numInitPtcls, totalPtcls, totalPtcls_);
-  if(!rank)
+  if(rank == collectRank && requireFindingAllPtcls)
     OMEGA_H_CHECK(totalPtcls_ == totalPtcls);
 }
 
@@ -341,6 +359,7 @@ o::LO GitrmParticles::searchAllPtclsInAllElems(const o::Reals& data,
 o::LO GitrmParticles::searchPtclsByAdjSearchFromParent(const o::Reals& data,
    const o::LO parentElem, o::Write<o::LO>& numPtclsInElemsAll,
    o::Write<o::LO>& elemIdOfPtclsAll) {
+  int debug = 0;
   int rank = this->rank;
   MESHDATA(mesh);
   auto owners = elemOwners;
@@ -365,7 +384,7 @@ o::LO GitrmParticles::searchPtclsByAdjSearchFromParent(const o::Reals& data,
       bool select = (rank == owners[elem]);
       if(select && p::all_positive(bcc, 0)) {
         Kokkos::atomic_exchange(&(elemIdOfPtclsAll[ip]), elem);
-        if(false)
+        if(debug > 2)
           printf("%d: Final particle %d elid %d\n",rank, ip, elemIdOfPtclsAll[ip]);
         Kokkos::atomic_increment(&numPtclsInElemsAll[elem]);
         found = true;
@@ -386,8 +405,9 @@ o::LO GitrmParticles::searchPtclsByAdjSearchFromParent(const o::Reals& data,
           ++findex;
         }
       }
-      if(isearch > maxSearch){
-        printf("%d: Error finding particle %d in rank %d \n", rank, ip);
+      if(isearch > maxSearch) {
+        if(debug > 1)
+          printf("%d: Error finding particle %d in rank %d \n", rank, ip);
         break;
       }
       ++isearch;
@@ -462,8 +482,27 @@ void GitrmParticles::findElemIdsOfPtclCoordsByAdjSearch(const o::Reals& data,
     ptclDataInds);
   if(debug && !rank)
     printf("%d: done assigning particles \n", rank);
+
+  //TODO handle this 
+  numOfPtclsInElems = o::LOs(numPtclsInElems);
 }
 
+
+//TODO handle numPtclsInElems which was added as a member for this function call
+void GitrmParticles::printNumPtclsInElems(const std::string& fname) {
+  std::cout << "Printing Nums of ptcls in elements.\n";
+  auto nps_h = o::HostWrite<o::LO>(o::deep_copy(numOfPtclsInElems));
+
+  auto origGids = mesh.get_array<o::GO>(o::REGION, "origGids");
+  auto origGids_h = o::HostWrite<o::GO>(o::deep_copy(origGids));
+
+  auto file = fname + "_" + std::to_string(rank);
+  std::ofstream ofs(file);
+  for(int i=0; i<nps_h.size(); ++i) {
+    auto gid = origGids_h[i];
+    ofs << gid << " " << nps_h[i] << "\n";
+  }
+}
 
 // using ptcl sequential numbers 0..numPtcls
 void GitrmParticles::convertInitPtclElemIdsToCSR(const o::LOs& numPtclsInElems,
@@ -501,7 +540,6 @@ void GitrmParticles::setPidsOfPtclsLoadedFromFile(const o::LOs& ptclIdPtrsOfElem
   int debug = 0;
   //auto nInitPtcls = numInitPtcls;
   //TODO for full-buffer only
-  int commSize = this->commSize;
   int rank = this->rank;
   int pBegin = 0;// TODO rank*int(totalPtcls/commSize);
   if(debug && !rank)
@@ -563,7 +601,7 @@ void GitrmParticles::setPtclInitData(const o::Reals& data) {
       }
       for(int i=0; i<3; ++i)
         vel[i] = data[(3+i)*npRead+ip];
-    //  if(debug>2)
+      if(debug>2)
         printf("Rank %d ip %d pid %d pos %g %g %g vel %g %g %g \n",rank, ip, pid,
          pos[0], pos[1], pos[2], vel[0], vel[1], vel[2]);
       p::find_barycentric_tet(M, pos, bcc);
@@ -1262,10 +1300,29 @@ void GitrmParticles::writeOutPtclEndPoints(const std::string& file) const {
   }
 }
 
-//detector grids, for pisces
+//detector grids
 void GitrmParticles::initPtclDetectionData(int numGrid) {
-  //numGrid is 14 for pisces
   collectedPtcls = o::Write<o::LO>(numGrid, 0, "collectedPtcls");
+}
+
+
+OMEGA_H_DEVICE int calculateDetectorIndex(const int geomId, o::Vector<3>& xpt) {
+  if(geomId != PISCES_ID)
+    return -1;
+  //only for pisces case
+  double radMax = 0.05; //m 0.0446+0.005
+  double zMin = 0; //m height min
+  double zMax = 0.15; //m height max 0.14275
+  double htBead1 =  0.01275; //m ht of 1st bead
+  double dz = 0.01; //m ht of beads 2..14
+  auto x = xpt[0];
+  auto y = xpt[1];
+  auto z = xpt[2];
+  o::Real rad = sqrt(x*x + y*y);
+  int zInd = -1;
+  if(rad < radMax && z <= zMax && z >= zMin)
+    zInd = (z > htBead1) ? (1+(o::LO)((z-htBead1)/dz)) : 0;
+  return zInd;
 }
 
 //TODO dimensions set for pisces to be removed
@@ -1273,14 +1330,10 @@ void GitrmParticles::initPtclDetectionData(int numGrid) {
 void GitrmParticles::updateParticleDetection(const o::LOs& elem_ids, o::LO iter,
    bool last, bool debug) {
   int rank = this->rank;
-  // test TODO move test part to separate unit test
-  double radMax = 0.05; //m 0.0446+0.005
-  double zMin = 0; //m height min
-  double zMax = 0.15; //m height max 0.14275
-  double htBead1 =  0.01275; //m ht of 1st bead
-  double dz = 0.01; //m ht of beads 2..14
+  const int geomId = geometryId; // PISCES_ID,  ITER_ID
   auto& data_d = collectedPtcls;
-  auto pisces_ids = mesh.get_array<o::LO>(o::FACE, "DetectorSurfaceIndex");
+  auto detIds = mesh.get_array<o::LO>(o::FACE, "detectorSurfaceIndex");
+
   //auto pid_ps_global=ptcls->get<PTCL_ID_GLOBAL>();
   auto pid_ps = ptcls->get<PTCL_ID>();
   auto pos_next = ptcls->get<PTCL_NEXT_POS>();
@@ -1288,7 +1341,7 @@ void GitrmParticles::updateParticleDetection(const o::LOs& elem_ids, o::LO iter,
   auto& xfaces_d = wallCollisionFaceIds;
   //array of global id won't work for large no of ptcls
   auto& ptclEndPts = ptclEndPoints;
-  o::Write<o::LO> nPtclsInElems(mesh.nelems(), 0, "nPtclsInElems");
+  //o::Write<o::LO> nPtclsInElems(mesh.nelems(), 0, "nPtclsInElems");
   auto lamb = PS_LAMBDA(const int& e, const int& pid, const int& mask) {
     if(mask >0) {
       auto ptcl = pid_ps(pid);
@@ -1300,7 +1353,7 @@ void GitrmParticles::updateParticleDetection(const o::LOs& elem_ids, o::LO iter,
         //for(int i=0; i<3; ++i)
         //  ptclEndPts[3*ptcl+i] = pos[i];
           //ptclEndPts[3*ptcl_global+i] = pos[i];
-        if(debug && !rank)
+        if(debug)
           printf("rank %d p %d %g %g %g \n", rank, ptcl, pos[0], pos[1], pos[2]);
       }
       if(elm < 0 && fid>=0) {
@@ -1313,19 +1366,13 @@ void GitrmParticles::updateParticleDetection(const o::LOs& elem_ids, o::LO iter,
           if(debug && !rank)
             printf("rank %d p %d %g %g %g \n",rank, ptcl, xpt[0], xpt[1], xpt[2]);
         }
-        auto x = xpt[0];
-        auto y = xpt[1];
-        auto z = xpt[2];
-        o::Real rad = sqrt(x*x + y*y);
-        o::LO zInd = -1;
-        if(rad < radMax && z <= zMax && z >= zMin)
-          zInd = (z > htBead1) ? (1+(o::LO)((z-htBead1)/dz)) : 0;
+        o::LO zInd = (debug) ? calculateDetectorIndex(geomId, xpt) : -1;
 
-        auto detId = pisces_ids[fid];
+        auto detId = detIds[fid];
         if(detId >= 0) { //TODO
-          if(debug && rank)
-            printf("ptclID %d zInd %d detId %d pos %.5f %.5f %.5f iter %d\n",
-              pid_ps(pid), zInd, detId, x, y, z, iter);
+          if(debug)
+            printf("%d: ptclID %d zInd %d detId %d pos %.5f %.5f %.5f iter %d\n",
+              rank, pid_ps(pid), zInd, detId, xpt[0], xpt[1], xpt[2], iter);
           Kokkos::atomic_increment(&data_d[detId]);
         }
       }

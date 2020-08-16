@@ -147,7 +147,7 @@ inline void gitrm_coulomb_collision(PS* ptcls, int *iteration, const GitrmMesh& 
     printf("Coulomb Collision routine\n");
 
   auto useConstantFlowVelocity=USE_CONSTANT_FLOW_VELOCITY;
-  auto useConstantBField = USE_CONSTANT_BFIELD;
+  auto useConstantBField = gm.isUsingConstBField();
   auto use2dInputFields = USE2D_INPUTFIELDS;
   auto use3dField = USE3D_BFIELD;
   bool cylSymm = true;

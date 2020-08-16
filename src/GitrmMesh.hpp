@@ -33,20 +33,18 @@ namespace gitrm {
 //TODO put in config class
 
 
-
-
 const bool CREATE_GITR_MESH = false;
 const int USE_READIN_CSR_BDRYFACES = 1;
-const int USE_STORED_BDRYDATA_PIC_SAFE = 1;
+const int STORE_BDRYDATA_PIC_SAFE = 1;
+const bool REQUIRE_FINDING_ALL_PTCLS = false;
 const int PTCLS_SPLIT_READ = 0;
 
-const int WRITE_OUT_BDRY_FACES_FILE = 0;
 const int D2BDRY_MIN_SELECT = 10; //that many instead of the least one
 const int D2BDRY_MEM_FACTOR = 1; //per 8G memory
 const bool WRITE_TEXT_D2BDRY_FACES = false;
 const bool WRITE_BDRY_FACE_COORDS_NC = false;
 const bool WRITE_MESH_FACE_COORDS_NC = false;
-const o::LO D2BDRY_GRIDS_PER_TET = 15;// if csr bdry not re-used
+const o::LO D2BDRY_GRIDS_PER_TET = 15; // if csr bdry not re-used
 
 const int USE_2DREADIN_IONI_REC_RATES = 1;
 const int USE3D_BFIELD = 0;
@@ -56,7 +54,6 @@ const int USE2D_INPUTFIELDS = 1;
 const int USE_CONSTANT_FLOW_VELOCITY=1;
 const int USE_CONSTANT_BFIELD = 1; //used for pisces
 const int USE_CYL_SYMMETRY = 1;
-const int PISCESRUN  = 1;
 const o::LO BACKGROUND_Z = 1;
 const o::Real BACKGROUND_AMU = 4.0; //for pisces
 const o::Real BIAS_POTENTIAL = 250.0;
@@ -129,6 +126,7 @@ public:
     const std::string& thermGradientFile, const std::string& geomName, int deb=0);
 
   void initPiscesGeometry();
+  void initIterGeometry();
 
   void preProcessBdryFacesBfs();
   void preprocessStoreBdryFacesBfs(o::Write<o::LO>& numBdryFaceIdsInElems,
@@ -308,12 +306,17 @@ public:
   o::Real gradTeDz = 0;
 
   int numDetectorSurfaceFaces = 0;
+  std::string getGeometryName() const { return geomName; }
+  bool isUsingConstBField() const {return useConstBField; }
 
 private:
 
   o::LOs ownersAll;
   o::LO numNearBdryElems = 0;
   o::LO numAddedBdryFaces = 0;
+  std::string geomName{};
+  bool useConstBField = false;
+
   std::shared_ptr<o::LOs> bdryFacesCsrBFS;
   std::shared_ptr<o::LOs> bdryFacePtrsBFS;
   o::LOs bdryFacePtrsSelected;
@@ -356,6 +359,14 @@ private:
 
 
 namespace utils {
+
+inline o::Write<o::LO> makeCsrPtrs(o::Write<o::LO>& nums_d, int tot, int& sum) {
+  auto check = (tot == nums_d.size());
+  OMEGA_H_CHECK(check);
+  sum = o::get_sum(o::LOs(nums_d));
+  return o::deep_copy(o::offset_scan(o::LOs(nums_d)));
+}
+
 //map from global(over full-mesh) to local. Output has size of global.
 //For large mesh, arrays of size of full mesh entities may be problem
 //Pass value of invalid entries of the return array if != -1

@@ -116,7 +116,6 @@ bool readParticleSourceNcFile(std::string ncFileName, o::HostWrite<o::Real>& dat
       printf("%s\n", nc_strerror(err));
       exit(-1);
     }
-    
 
     numPtcls=int(each_chunk);
     //double * nc_values;
@@ -126,57 +125,47 @@ bool readParticleSourceNcFile(std::string ncFileName, o::HostWrite<o::Real>& dat
     data = o::HostWrite<o::Real>(o::Write<o::Real>(numPtcls*num_vrs, 0, "readData"));
 
     for (int i=0; i<num_vrs; i++){
-
       err=nc_inq_varid (ncid, vrs[i], vrs_ind+i);
       if (err!=0){
-
         printf("The error3 status should be 0 is %d \n" , err);
         printf("%s\n", nc_strerror(err));
         exit(-1);
-
       } 
-
       err = nc_var_par_access(ncid, *(vrs_ind+i), NC_INDEPENDENT);
       if (err!=0){
-
         printf("The error4 status should be 0 is %d \n" , err);
         printf("%s\n", nc_strerror(err));
         exit(-1);
-
       } 
-
       err=nc_get_vara_double(ncid, *(vrs_ind+i), start, count, &data[i*each_chunk]);
       if (err!=0){
-
         printf("The error5 status should be 0 is %d \n" , err);
         printf("%s\n", nc_strerror(err));
         exit(-1);
-
       }
     }
 
-      err=nc_close(ncid);
-        if (err!=0){
-          printf("The error5 status should be 0 is %d \n" , err);
-          printf("%s\n", nc_strerror(err));
-          exit(-1);
-        }
-
-      if(replaceNaN) {
-        
-        long int nans = 0;
-          for(auto i=0; i<data.size(); ++i)
-            if(std::isnan(data[i])) {
-              data[i] = 0;
-              ++nans;
-            }
-        if(nans)
-            printf("\n*******WARNING replaced %ld NaNs in ptclSrc *******\n\n", nans);
+    err=nc_close(ncid);
+      if (err!=0){
+        printf("The error5 status should be 0 is %d \n" , err);
+        printf("%s\n", nc_strerror(err));
+        exit(-1);
       }
 
-      free (vrs_ind);
-      return status;
+    if(replaceNaN) {
+      
+      long int nans = 0;
+        for(auto i=0; i<data.size(); ++i)
+          if(std::isnan(data[i])) {
+            data[i] = 0;
+            ++nans;
+          }
+      if(nans)
+          printf("\n*******WARNING replaced %ld NaNs in ptclSrc *******\n\n", nans);
+    }
 
+    free (vrs_ind);
+    return status;
 }
 
 
