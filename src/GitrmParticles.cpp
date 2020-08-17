@@ -5,6 +5,7 @@
 #include <random>
 #include <chrono>
 #include <Omega_h_int_scan.hpp>
+#include "Omega_h_shape.hpp"
 #include "GitrmMesh.hpp"
 #include "GitrmParticles.hpp"
 #include "GitrmInputOutput.hpp"
@@ -883,6 +884,9 @@ void GitrmParticles::findInitialBdryElemIdInADir(o::Real theta, o::Real phi, o::
   if(!rank)
     printf(" ELEM_final %d xpt: %.3f %.3f %.3f\n\n", elemId_fh[1], xpt_h[0], xpt_h[1], xpt_h[2]);
   OMEGA_H_CHECK((initEl>=0) && (elemId_fh[0]>=0));
+}
+
+void GitrmParticles::initPtclsOnGeometricIdSurfaces() {
 }
 
 // Read GITR particle step data of all time steps; eg: rand numbers.

@@ -32,7 +32,6 @@ namespace gitrm {
 
 //TODO put in config class
 
-
 const bool CREATE_GITR_MESH = false;
 const int USE_READIN_CSR_BDRYFACES = 1;
 const int STORE_BDRYDATA_PIC_SAFE = 1;
@@ -52,8 +51,9 @@ const int USE2D_INPUTFIELDS = 1;
 
 // in GITR only constant EField is used.
 const int USE_CONSTANT_FLOW_VELOCITY=1;
-const int USE_CONSTANT_BFIELD = 1; //used for pisces
+const int USE_CONSTANT_BFIELD = 0; //used for pisces
 const int USE_CYL_SYMMETRY = 1;
+
 const o::LO BACKGROUND_Z = 1;
 const o::Real BACKGROUND_AMU = 4.0; //for pisces
 const o::Real BIAS_POTENTIAL = 250.0;

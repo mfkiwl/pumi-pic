@@ -254,6 +254,7 @@ int main(int argc, char** argv) {
   std::string bFile = "bField_iter2d.nc"; //TODO
   std::string surfModelFile = argv[6];
   std::string thermGradientFile = argv[7];
+  std::string bFile = argv[8];
   if (!comm_rank) {
     if(!chargedTracking)
       printf("WARNING: neutral particle tracking is ON \n");
@@ -264,6 +265,7 @@ int main(int argc, char** argv) {
     printf(" Gradient profile File %s\n", thermGradientFile.c_str());
     printf(" SurfModel File %s\n", surfModelFile.c_str());
     printf(" Gradient profile File %s\n", thermGradientFile.c_str());
+    printf(" Bfile %s\n", bFile.c_str());
   }
   long int totalNumPtcls = 1;
   int histInterval = 0;
