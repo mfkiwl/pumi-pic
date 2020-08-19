@@ -77,6 +77,7 @@ public:
    o::LOs& elemIdOfPtcls, o::LOs& ptclDataInds);
 
   void defineParticles(const o::LOs& ptclsInElem, int elId=-1);
+  void initPtclsOnGeometricBoundarys(const GitrmMesh& gm);
 
   void findInitialBdryElemIdInADir(o::Real theta, o::Real phi, o::Real r,
     o::LO &initEl, o::Write<o::LO> &elemAndFace,
@@ -140,6 +141,9 @@ public:
   o::Write<o::Real> ptclHistoryData;
   o::Write<o::LO> lastFilledTimeSteps;
   o::Write<o::Real> ptclEndPoints;
+  o::Reals ptcl_created_data; //PARTICLE CREATED DATA
+  o::Write<o::Real> ptcl_created_data_w;
+  
   void initPtclEndPoints();
   void writeOutPtclEndPoints(const std::string& file="positions_gitrm.m") const;
 

@@ -5,6 +5,8 @@
 #include <random>
 #include <chrono>
 #include <Omega_h_int_scan.hpp>
+#include <Omega_h_scan.hpp>
+#include "Omega_h_shape.hpp"
 #include "GitrmMesh.hpp"
 #include "GitrmParticles.hpp"
 #include "GitrmInputOutput.hpp"
@@ -51,6 +53,7 @@ GitrmParticles::GitrmParticles(GitrmMesh* gm, p::Mesh& picparts, long int nPtcls
   //TODO set using mesh class data
   int dataSize = (geometryId == PISCES_ID) ? 14 : mesh.nfaces();
   initPtclDetectionData(dataSize);
+  initPtclsOnGeometricBoundarys(*gm);
 }
 
 GitrmParticles::~GitrmParticles() {
@@ -953,6 +956,831 @@ void GitrmParticles::checkCompatibilityWithGITRflags(int timestep) {
   else
     OMEGA_H_CHECK(!testGitrOptSurfaceModel);
 }
+
+
+namespace gitrm {
+
+template<typename T>
+o::Write<T> extractDataColumns (const o::Write<T>& data, const int nRows,
+ const o::LOs& cols, const std::string& name="") {
+  auto nCols = data.size()/nRows;
+  auto nc = cols.size();
+  //printf("nc %d \n", nc);
+  //o::Write<T> d(nRows*nCols, 0, name);
+  o::Write<T> d(nRows*nc, 0, name);
+  //std::cout << name << "\n";
+  o::parallel_for(nRows, OMEGA_H_LAMBDA(const int& i) {
+    for(int j=0; j<nc; ++j) {
+      auto col = cols[j];
+      d[i*nc+j] = data[i*nCols + col];
+      //printf(" %d %d %f \n",  i, j, d[i*nc+j]);
+    }
+  });
+  return d;
+} 
+
+template<typename T>
+o::Write<T> sumDataColumns (const o::Write<T>& data, const int nRows,
+ const o::LOs& cols, const std::string& name="") {
+  auto nCols = data.size()/nRows;
+  auto nc = cols.size();
+  //printf("nc %d \n", nc);
+  o::Write<T> d(nRows*nCols, 0, name);
+  o::Write<T> sum(nRows, 0, name);
+  //std::cout << name << "\n";
+  o::parallel_for(nRows, OMEGA_H_LAMBDA(const int& i) {
+    o::Real tot=0;
+    for(int j=0; j<nc; ++j) {
+      auto col = cols[j];
+      d[i*nc+j] = data[i*nCols + col];
+      tot=tot+d[i*nc+j];
+    }
+    sum[i]=tot;
+    //printf("Sum is %f \n",sum[i]);
+  });
+  return sum;
+} 
+
+template<typename T>
+ o::Write<T> interp1D (const o::Write<T>& xdata, const o::Write<T>& ydata, const o::Write<T>& xpoints) {
+ 
+ 
+  /* EXAMPLE
+  Kokkos::parallel_reduce(dataTot_d.size(), OMEGA_H_LAMBDA(const int i, o::LO& lsum) {
+    lsum += dataTot_d[i];
+  }, total);
+  */
+  double xsum =0.0;
+  double x2sum=0.0;
+  double ysum =0.0;
+  double xysum=0.0;
+
+  Kokkos::parallel_reduce(xdata.size(), OMEGA_H_LAMBDA(const int i, o::Real& lsum1) {
+    lsum1 += xdata[i];
+  }, xsum);
+
+  Kokkos::parallel_reduce(xdata.size(), OMEGA_H_LAMBDA(const int i, o::Real& lsum2) {
+    lsum2 += xdata[i]*xdata[i];
+  }, x2sum);
+
+
+  Kokkos::parallel_reduce(xdata.size(), OMEGA_H_LAMBDA(const int i, o::Real& lsum3) {
+    lsum3 += ydata[i];
+  }, ysum);
+
+  Kokkos::parallel_reduce(xdata.size(), OMEGA_H_LAMBDA(const int i, o::Real& lsum4) {
+    lsum4 += xdata[i]*ydata[i];
+  }, xysum);
+
+  
+  int n=xdata.size();
+  double b=(n*xysum-xsum*ysum)/(n*x2sum-xsum*xsum);
+  double a=(ysum/n)-(b/n)*xsum;
+  
+  
+
+  auto sz=xpoints.size();
+  o::Write<T> ypoints(sz, 0);
+  o::parallel_for(sz, OMEGA_H_LAMBDA(const int& i) {   
+    ypoints[i]=a+b*xpoints[i] ;
+    //printf("Ypoints %f\n", ypoints[i]);
+  });
+
+ return ypoints;
+ } 
+}
+
+
+void GitrmParticles::initPtclsOnGeometricBoundarys(const GitrmMesh& gm) {
+  std::cout << __FUNCTION__ << "\n";
+  //TODO get from config  
+
+  
+  // GETTING MAGNETIC FIELD 
+  const auto& BField_2d = gm.getBfield2d();
+  const auto bX0 = gm.bGridX0;
+  const auto bZ0 = gm.bGridZ0;
+  const auto bDx = gm.bGridDx;
+  const auto bDz = gm.bGridDz;
+  const auto bGridNx = gm.bGridNx;
+  const auto bGridNz = gm.bGridNz;
+
+  const int rank=this->rank;
+  const int comm_size=this->commSize;
+  auto owners=elemOwners;
+
+
+  //GET SOLPS DATA
+  o::HostWrite<o::Real> solps_h{1,2,3,4,5,6,7,8,9,10,11,12,13,14,15};
+  o::LO nCols = 5;
+  o::Write<o::Real> solps(solps_h.write());
+  auto nRows = solps.size() / nCols;
+
+  //rmrs = SOLPS[:,0] //1st column
+  //r = SOLPS[:,1] //2nd column
+  //z = SOLPS[:,2] //3rd column
+  o::HostWrite<o::LO> rmrsCols_h{0}; //TODO get these from input
+  auto rmrs = gitrm::extractDataColumns(solps, nRows, rmrsCols_h.write(), "rmrs_solps");
+  o::HostWrite<o::LO> rCols_h{1}; //TODO get these from input
+  auto rSolps = gitrm::extractDataColumns(solps, nRows, rCols_h.write(), "r_solps");
+  o::HostWrite<o::LO> zCols_h{2}; //TODO get these from input
+  auto zSolps = gitrm::extractDataColumns(solps, nRows, zCols_h.write(), "z_solps");
+
+
+  //get flux indices
+  //fluxInds = [28,30,32,33,35,36,37,38,40,41,42,43,44,45,46,47,48,49]
+  o::HostWrite<o::LO> fluxInds_h{2,3,4};
+  o::Write<o::LO> fluxInds(fluxInds_h.write());
+  //selected solps flux for columns in fluxInds
+  //fi  = SOLPS[:,fluxInds] //these columns
+  //sum along columns, giving array of same number of entries as rows as SOLPS
+  //[.....] column vector of 36 entries
+  //reshape to (36,1) .  [[x1], [x2], ...[xn]] 36 rows, 1 column
+  //spFlux = np.reshape(np.sum(fi,axis=1),(36,1)) // spFlux = 0*spyl zeros of same shape as spyl
+
+  auto nflux = fluxInds.size();
+  o::Write<o::Real> sFluxAll(nRows*nflux, 0, "sFlux");
+  o::Write<o::Real> sFlux(nRows, 0, "sFlux");
+  OMEGA_H_CHECK(nflux <= nCols);
+  o::parallel_for(nRows, OMEGA_H_LAMBDA(const int& i) {
+    o::Real tot = 0;
+    for(int j=0; j<nflux; ++j) {
+      auto fi = fluxInds[j];
+      sFluxAll[i*nflux + j] = solps[i*nCols+fi];
+      tot += abs(solps[i*nCols+fi]);
+    }
+    sFlux[i] = tot;
+    //printf("Sumflux is %f \n", sFlux[i]);
+  });
+
+  //get sputter field file data
+  //spyl = np.loadtxt(spylFile)
+  o::HostWrite<o::Real> sputYld_h{0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8};
+
+  o::Write<o::Real> sputYld(sputYld_h.write());
+  //spFlux = np.reshape(np.sum(fi,axis=1),(36,1))*spyl
+  //result in shape (len(spyl), 36)
+  //creating sputter flux of shape nRows x nSpYld
+  auto nSpYld = sputYld.size();
+  o::Write<o::Real> spFlux(nRows*nSpYld, 0, "spFlux");
+  o::parallel_for(nRows, OMEGA_H_LAMBDA(const int& i) {
+    for(int j=0; j<nSpYld; ++j) {
+      spFlux[i*nSpYld+j] = sFlux[i]*sputYld[j];
+      //printf("Sputter Flux:%f \n ",spFlux[i*nSpYld+j]);
+    }
+  });
+  //std::cout << "got spFlux \n"; 
+  auto nSpFlux = spFlux.size();
+
+  
+  //heTotal = np.sum(spFlux[:,2:4],axis=1)
+  //get helium columns
+
+  o::HostWrite<o::LO> helCols_h{2,3,4};//{2,3}; //TODO get these from input
+  auto helFlux = gitrm::sumDataColumns(spFlux, nRows, helCols_h.write(), "HelTotal");
+  
+  //beTotal = np.sum(spFlux[:,4:8],axis=1)
+  o::HostWrite<o::LO> beCols_h{4,5,6,7};//{4,5,6,7};
+  auto beFlux = gitrm::sumDataColumns(spFlux, nRows, beCols_h.write(), "BeTotal");
+  //neTotal = np.sum(spFlux[:,8:18],axis=1)
+  o::HostWrite<o::LO> neCols_h{5,6,7};
+  auto neFlux = gitrm::sumDataColumns(spFlux, nRows, neCols_h.write(), "NeTotal");
+
+
+  //total flux
+  o::HostWrite<o::LO> first2cols_h{0,1};
+  o::Write<o::Real> totalFlux(nRows, 0, "totalFlux");
+  auto spFlux2 = gitrm::sumDataColumns(spFlux, nRows, first2cols_h.write(), "spFlux2");
+  o::parallel_for(nRows, OMEGA_H_LAMBDA(const o::LO& i) {
+    totalFlux[i] = spFlux2[i] + helFlux[i] + neFlux[i];
+    //printf("total flux %f \n", totalFlux[i]);
+  });
+
+
+  //Interpolation is between zSolps and total flux to find the fitting equation
+  //The points at which the y point cordiantes are to be found are the z coordinate centroids
+  //Finding the  z-coords of the mesh faces of the geometric face
+  
+  o::HostWrite<o::LO> ptclInitModelIds{138}; //PISCES
+ 
+  MESHDATA(mesh); 
+  const auto f2r_ptr = mesh.ask_up(o::FACE, o::REGION).a2ab;
+  const auto f2r_elem = mesh.ask_up(o::FACE, o::REGION).ab2b;
+  
+  //FInding the total no of bdry faces in the suface used for particle generation
+  auto geomIds = o::LOs(ptclInitModelIds);
+  o::Write<o::LO> ptclBdries_all(mesh.nfaces(), 0, "ptclInitBdryFaces");
+  auto size=ptclBdries_all.size();
+  printf("Rank %d Ptcl_Bdries_All Size %d \n",rank, size);
+  gitrm::markBdryFacesOnGeomModelIds(mesh, geomIds, ptclBdries_all, 1, false);
+
+  
+  o::Write<o::LO> ptclBdries(mesh.nfaces(), 0, "ptclInitBdryFaces");
+  o::parallel_for(mesh.nfaces(), OMEGA_H_LAMBDA(const o::LO& fid) {
+    
+    if (ptclBdries_all[fid]==1){
+      auto elem = p::elem_id_of_bdry_face_of_tet(fid, f2r_ptr, f2r_elem);
+        if (rank==owners[elem])
+          ptclBdries[fid]=1;
+    }
+  });
+
+  auto scan_r_all=o::offset_scan(o::LOs(ptclBdries_all)); 
+  auto nsrc_all=o::get_sum(o::LOs(ptclBdries_all));
+  auto scan_r=o::offset_scan(o::LOs(ptclBdries)); 
+  auto nsrc=o::get_sum(o::LOs(ptclBdries));
+
+
+  printf("RANK %d NSRC_total %d NsRC_picpart %d \n", rank, nsrc_all, nsrc);
+
+
+  
+
+  o::Write<o::Real> areas_w(mesh.nfaces(), 0, "areasBFaces");
+  o::Write<o::Real> z_cent (mesh.nfaces(),0, "z_centroids");
+  //FInding areas and z_centroids of the mesh triangular elements. WIll include zerso in between.
+  o::parallel_for(mesh.nfaces(), OMEGA_H_LAMBDA(const o::LO& fid) {
+    
+    if (ptclBdries[fid]==1){
+      //printf("nSrc is %d \n", nsrc);
+      //printf("nSCAN is %d \n", scan_r.size());
+      //printf("last of o_scan is %d \n", scan_r[scan_r.size()-1]);
+      auto elem = p::elem_id_of_bdry_face_of_tet(fid, f2r_ptr, f2r_elem);
+      const auto fv2v = o::gather_verts<3>(face_verts, fid);
+      const auto face = p::gatherVectors3x3(coords, fv2v);
+      auto cross = 1/2.0 * o::cross(face[1] - face[0], face[2] - face[0]);
+      auto fcent = p::face_centroid_of_tet(fid, coords, face_verts);
+      areas_w[fid] = o::inner_product(o::normalize(cross), cross);
+      z_cent[fid]=fcent[2];
+    }
+  });
+
+
+  //Removing 0 entries i.e. taking the array of elements that belong to only the geometric id --mesh faces.
+   o::Write<o::Real> z_cent_trimmed(nsrc,0, "z_centroids_trimmed");
+   o::Write<o::Real> area_trimmed(nsrc,0, "area_trimmed");
+   o::Write<o::Real> surface_particle_rate(nsrc,0, "surface_particle_rate");
+   o::Write<o::Real> particle_surf_track(mesh.nfaces(),0, "particle_track_id1");
+
+   o::parallel_for(mesh.nfaces(), OMEGA_H_LAMBDA(const o::LO& fid) {
+    if (ptclBdries[fid]){
+      z_cent_trimmed[scan_r[fid]] = z_cent[fid];
+      area_trimmed[scan_r[fid]] = areas_w[fid];
+      particle_surf_track[fid]=fid; //TRACKING====================================1
+    }  
+   });
+
+  //printf("Going for 1d linear fit \n");
+  //o::Write<o::Real> zSolps{-23, -2, 41}; ///For verification of 1d fit
+  auto ypoints=gitrm::interp1D(zSolps, totalFlux, z_cent_trimmed);
+  
+  o::Write<o::Real> surface_rate_track(mesh.nfaces(),0, "particle_track_id2");
+  o::parallel_for(mesh.nfaces(), OMEGA_H_LAMBDA(const o::LO& fid) {
+    if (ptclBdries[fid]){
+      surface_particle_rate[scan_r[fid]] = area_trimmed[scan_r[fid]]*ypoints[scan_r[fid]];
+
+      if (surface_particle_rate[scan_r[fid]]>0)
+      surface_rate_track[fid]=fid; //TRACKING======================================2
+    }
+
+  });
+
+
+  //Finding the final surfaces 
+    o::Write<o::LO> final_surfaces(mesh.nfaces(),0, "final_surfaces");
+    o::parallel_for(mesh.nfaces(), OMEGA_H_LAMBDA(const o::LO& fid) {
+    if (surface_rate_track[fid] && particle_surf_track[fid] ){
+      final_surfaces[fid]=1; //Eroded surfaces??
+    }
+  });
+
+  auto size1xx=o::get_sum(o::LOs(final_surfaces));
+  auto final_surf_offset=o::offset_scan(o::LOs(final_surfaces));
+  o::Write<o::LO> final_surfaces_trimmed(size1xx, 0, "final_surfaces");
+  printf("No of final surfaces %d rank %d \n", size1xx, rank);
+  o::parallel_for(mesh.nfaces(), OMEGA_H_LAMBDA(const o::LO& fid) {
+    if (final_surfaces[fid]){
+      final_surfaces_trimmed[final_surf_offset[fid]]=fid; //Eroded surfaces              //IMPORTANT NO 1
+      //printf("Final surfaces %d \n",final_surfaces_trimmed[final_surf_offset[fid]]);
+    }
+  });
+
+
+  // Finding surface particle rates with values greater than 0
+  o::Write<o::LO> surface_particle_rate_trimmed_index(nsrc,0, "surface_particle_rate_trimmed_index");
+  o::parallel_for(nsrc, OMEGA_H_LAMBDA(const o::LO& fid) {
+    if (surface_particle_rate[fid]>0)
+    surface_particle_rate_trimmed_index[fid]=1;
+  });
+
+  // get the number and array cumsum of surface_particle_rate array_trimmed
+
+  auto surface_particle_rate_sum=o::get_sum(o::LOs(surface_particle_rate_trimmed_index));
+  auto surface_particle_rate_scan_r=o::offset_scan(o::LOs(surface_particle_rate_trimmed_index));
+ 
+  o::Write<o::Real> surface_particle_rate_trimmed(surface_particle_rate_sum,0, "surface_particle_rate_trimmed");
+  
+  
+  o::parallel_for(nsrc, OMEGA_H_LAMBDA(const o::LO& fid) {
+   if (surface_particle_rate_trimmed_index[fid]){
+    surface_particle_rate_trimmed[surface_particle_rate_scan_r[fid]] = surface_particle_rate[fid];//IMPORTANT NO 2
+   }  
+  });
+
+  //This array above just caluclated is the trimmed (>0) particle_rate array
+  //Problem is cannot do offset_scan for cumsum as it's a float
+  //So going for inclusive scan but it will contain one more lemnt than the parent element.
+  //the initial element of the array is iitilaizedto 0 so no need to change
+  o::Write<o::Real> out(surface_particle_rate_trimmed.size() + 1, 0, "surface_particle_rate_trimmed_offset");
+  printf("Surface paarticle rate greter 0 == rank %d %d \n",rank, surface_particle_rate_trimmed.size());
+  o::inclusive_scan(surface_particle_rate_trimmed.begin(), surface_particle_rate_trimmed.end(), out.begin()+1);
+
+  o::Write<o::Real> particleCDF(surface_particle_rate_trimmed.size(), 0, "surface_particle_rate_trimmed_offset");
+  o::parallel_for(surface_particle_rate_trimmed.size(), OMEGA_H_LAMBDA(const o::LO& fid) {
+    
+    particleCDF[fid]=out[fid+1]/out[surface_particle_rate_trimmed.size()];
+    //printf("particleCDF %f \n", particleCDF[fid]);
+
+  });
+
+  printf("particleCDF_size rank %d: %d \n", rank, particleCDF.size());
+  //GENERATE_PARTICLE_PART
+  Kokkos::Random_XorShift64_Pool<> randy_pool;
+  randy_pool=Kokkos::Random_XorShift64_Pool<>(102);
+
+
+
+  int temp = nsrc*totalPtcls;
+  int np_create = temp/nsrc_all;
+  if (rank==comm_size-1)
+    np_create=np_create ;
+  printf("RANK %d np_create %d \n", rank, np_create);
+  
+  /*
+  o::Write<o::Real> rand_ptcl_gen(np_create, 0,"Random numbers");
+  o::Write<o::Real> rand_ptcl_gen2(np_create, 0,"Random numbers");
+  o::Write<o::Real> rand_ptcl_gen3(np_create, 0,"Random numbers");
+  o::Write<o::Real> rand_ptcl_gen4(np_create, 0,"Random numbers");
+  */
+  o::Write<o::Real> diff(np_create*particleCDF.size(), 0,"differences");
+  o::Write<o::LO> mins(np_create, 0,"Minimum indices");
+
+  /*
+  o::parallel_for(np_create, OMEGA_H_LAMBDA(const o::LO& ptid) { 
+    auto state=randy_pool.get_state();
+    rand_ptcl_gen[ptid]=state.drand();
+    rand_ptcl_gen2[ptid]=state.drand();
+    rand_ptcl_gen3[ptid]=state.drand();
+    rand_ptcl_gen4[ptid]=state.drand();
+    //printf("PTCL_RANDOM_NUMBER IS %f \n",rand_ptcl_gen[ptid]);
+    randy_pool.free_state(state);
+  });
+  */
+
+
+  o::parallel_for(np_create, OMEGA_H_LAMBDA(const o::LO& ptid) {
+  int min;
+  
+    
+    auto state=randy_pool.get_state();
+    auto rand_ptcl_gen=state.drand();
+    randy_pool.free_state(state);
+
+    for (int i=0; i<particleCDF.size();i++){
+       
+       diff[ptid*particleCDF.size()+i]=particleCDF[i]-rand_ptcl_gen;
+          if (diff[ptid*particleCDF.size()+i]<0)
+       diff[ptid*particleCDF.size()+i]=100;
+    }
+
+    min=ptid*particleCDF.size();
+    for (int i=0; i<particleCDF.size()-1; i++){
+      if (diff[ptid*particleCDF.size()+i+1]<diff[min])
+        min=ptid*particleCDF.size()+i+1;
+
+      if(ptid==0 && false ){
+        printf("value is %f \n", diff[ptid*particleCDF.size()+i]);
+        printf("Min %d index %d\n", min, i);
+      }
+        
+    }
+    mins[ptid]=min-ptid*particleCDF.size(); //Surface id for the particle
+    
+  });
+
+
+  //o::Write<o::Real> abcd_d(4*np_create, 0, "abcd");
+  //o::Write<o::Real> planeNorm_d(np_create, 0, "planeNormal");
+  //o::Write<o::Real> pos_created(3*np_create,0,"particlePositions");
+  o::Write<o::Real> ptcl_created_data_w(6*np_create,0,"particleCreateddata");
+  printf("Created ptcl_created_data with size %d rank %d \n", rank, ptcl_created_data_w.size());
+
+
+    o::LO n_E=5;
+    o::LO n_phi=5;
+    o::LO n_theta=5;
+    o::LO n_Loc=3;
+    
+    o::HostWrite<o::Real>phiGrid_h{0.25, 0.45, 0.2, 0.2, 0.6};     //READ THEM FROM FILES is a TODO
+    o::HostWrite<o::Real>thetaGrid_h{0.125, 0.445, 0.70, 0.56, 0.908};
+    o::HostWrite<o::Real>EGrid_h{0.25, 0.45, 0.25, 0.75, 0.4};
+
+
+    o::Write<o::Real> phiGrid(phiGrid_h.write());
+    o::Write<o::Real> thetaGrid(thetaGrid_h.write());
+    o::Write<o::Real> EGrid(EGrid_h.write());
+
+
+    o::HostWrite<o::Real>EDist_h(n_Loc*n_E);
+    o::HostWrite<o::Real>thetaDist_h(n_Loc*n_theta);
+    o::HostWrite<o::Real>phiDist_h(n_Loc*n_phi);
+
+    for (int i=0; i<n_phi; ++i){
+      for (int j=0; j<n_Loc; ++j){
+
+        EDist_h[i*n_Loc+j]=i*n_Loc+j*n_phi;
+        thetaDist_h[i*n_Loc+j]=2+i+j;
+        phiDist_h[i*n_Loc+j]=2-i-j;
+      }
+    }
+    o::Write<o::Real> thetaDist(thetaDist_h.write());
+    o::Write<o::Real> phiDist(phiDist_h.write());
+    o::Write<o::Real> EDist(EDist_h.write());
+
+    
+
+    //LIKE AN INCLUSIVE SCAN OVER THE 2D ARRAY TO FIND 2D CUMSUM
+    // eCDF = np.cumsum(Edist,axis=0) Indicates sum over rows for each column
+    o::Write<o::Real> thetaCDF(thetaDist.size(), 0, "thetaCDF");
+    o::parallel_for(n_Loc, OMEGA_H_LAMBDA(const o::LO& fid) {
+      
+      for(int i=0; i<n_theta;i++){
+
+        if(i==0)
+
+          thetaCDF[fid+i*n_Loc]=thetaDist[fid+i*n_Loc];
+        else
+
+          thetaCDF[fid+i*n_Loc]=thetaCDF[fid+(i-1)*n_Loc] + thetaDist[fid+i*n_Loc];
+
+        //if (fid==1) printf("THETA_ROW_WISE_CDF fid %d %f \n", fid, thetaCDF[fid+i*n_Loc]);
+      }
+
+    });
+
+
+    o::Write<o::Real> phiCDF(phiDist.size(), 0, "phiCDF");
+    o::parallel_for(n_Loc, OMEGA_H_LAMBDA(const o::LO& fid) {
+      
+      for(int i=0; i<n_phi;i++){
+
+        if(i==0)
+
+          phiCDF[fid+i*n_Loc]=phiDist[fid+i*n_Loc];
+        else
+
+          phiCDF[fid+i*n_Loc]=phiCDF[fid+(i-1)*n_Loc] + phiDist[fid+i*n_Loc];
+
+        //if (fid==0) printf("PHI_ROW_WISE_CDF fid %d %f \n", fid, thetaCDF[fid+i*n_Loc]);
+      }
+
+    });
+
+
+    o::Write<o::Real> ECDF(EDist.size(), 0, "ECDF");
+    o::parallel_for(n_Loc, OMEGA_H_LAMBDA(const o::LO& fid) {
+      
+      for(int i=0; i<n_E;i++){
+
+        if(i==0)
+
+          ECDF[fid+i*n_Loc]=EDist[fid+i*n_Loc];
+        else
+
+          ECDF[fid+i*n_Loc]=ECDF[fid+(i-1)*n_Loc] + EDist[fid+i*n_Loc];
+
+        //if (fid==0) printf("E_ROW_WISE_CDF fid %d %f \n", fid, ECDF[fid+i*n_Loc]);
+      }
+
+    });
+
+
+
+  o::Write<o::Real> asd_theta(np_create*n_theta, 0, "asd_theta");
+  o::Write<o::Real> diff_1(np_create*n_theta, 0, "diff_1");
+
+  o::Write<o::Real> asd_phi(np_create*n_phi, 0, "asd_phi");
+  o::Write<o::Real> diff_2(np_create*n_phi, 0, "diff_2");
+  
+  o::Write<o::Real> asd_e(np_create*n_E, 0, "asd_e");
+  o::Write<o::Real> diff_3(np_create*n_E, 0, "diff_3");
+
+  //o::Write<o::Real> v_sampled(np_create*3, -1, "v_sampled");
+  //o::Write<o::Real> v_final(np_create*3, -1, "v_sampled");
+
+  o::parallel_for(np_create, OMEGA_H_LAMBDA(const o::LO& ptid) {
+  
+    int minsi = mins[ptid];
+    const auto fv2v = o::gather_verts<3>(face_verts, final_surfaces_trimmed[minsi]);      //Both do the sme thing
+    const auto face = p::gatherVectors3x3(coords, fv2v);
+
+    auto abc = p::get_face_coords_of_tet(face_verts, coords, final_surfaces_trimmed[minsi]);
+
+    int elem_face=p::elem_id_of_bdry_face_of_tet(final_surfaces_trimmed[minsi], f2r_ptr, f2r_elem); //GET element id from face
+
+    if (ptid<20&& false) printf("Element id %d is %d \n", ptid, elem_face);
+    //if (ptid<100) printf("face id %d is %d \n", ptid, final_surfaces_trimmed[minsi]);
+
+    if(ptid==0 && false)
+    for (int i=0; i<3;i++){
+      for (int j=0; j<3;j++)
+      printf("abc %f \n", abc[i][j]);
+    }
+
+    auto ab = abc[1] - abc[0];
+    auto ac = abc[2] - abc[0];
+    auto bc = abc[2] - abc[1];
+
+    auto abc_transform0=abc[0]-abc[0];
+    auto abc_transform1=abc[1]-abc[0];
+    auto abc_transform2=abc[2]-abc[0];
+
+    if(ptid==0 && false)
+    for (int i=0; i<3;i++){
+      printf("abc_transform %f \n", abc_transform1[i]);
+    }
+
+
+    auto state=randy_pool.get_state();
+    auto a1=state.drand();
+    auto a2=state.drand();
+    //randy_pool.free_state(state);
+
+    auto samples=a1*abc_transform1 + a2*abc_transform2;
+    //abc_transform2 = -abc_transform2;
+    samples=-samples+abc_transform1;
+    samples= samples+abc_transform2;
+    samples=samples+abc[0];
+     
+    auto normalVec = o::cross(ab, ac);
+
+    /*
+    for(auto i=0; i<3; ++i) {
+      abcd_d[ptid*4+i] = normalVec[i];
+    }
+    abcd_d[ptid*4+3] = -(o::inner_product(normalVec, abc[0]));
+    planeNorm_d[ptid] = o::norm(normalVec);
+    */
+
+    o::Vector<4> abcd_d;
+    for(auto i=0; i<3; ++i) {
+      abcd_d[i] = normalVec[i];
+    }
+    abcd_d[3] = -(o::inner_product(normalVec, abc[0]));
+    auto planeNorm_d=o::norm(normalVec);
+
+
+    for (int i=0; i<3; i++){
+      //pos_created[ptid*3+i]=samples[i]-abcd_d[ptid*4+i]/planeNorm_d[ptid]*0.00001;
+      //ptcl_created_data_w[i*np_create+ptid]=samples[i]-abcd_d[ptid*4+i]/planeNorm_d[ptid]*0.00001;
+      ptcl_created_data_w[i*np_create+ptid]=samples[i]-abcd_d[i]/planeNorm_d*0.00001;
+      //ptcl_created_data_w[i*np_create+ptid]=(abc[0][i]+abc[1][i]+abc[2][i])/3; //Centroids
+    }
+
+
+     //The velocities: 2ND PART OF INITIALIZATION
+    
+    //FInding the z nearest to the initialized point
+    double diff_pos[3];
+    for (int i=0; i<3; i++){
+      //diff_pos[i]= pos_created[ptid*3+2]-abc[i][2];
+        diff_pos[i]= ptcl_created_data_w[2*np_create+ptid]-abc[i][2]; //z-zz[i]
+        if (ptid<20 && false)
+        printf("ptid %d diff_pos %f \n", ptid, diff_pos[i]);
+    }
+
+    int rzdiff=0;
+    for (int i=0; i<2; i++){
+      if(std::abs(diff_pos[i+1])<std::abs(diff_pos[rzdiff]))
+        rzdiff=i+1;
+    }
+
+
+    if (ptid<20 && false){
+     printf("ptid %d rzdiff %d \n",ptid, rzdiff); 
+    }
+
+
+
+    //All rows 1 column of eDIST, PHIDIST AND THETADIT cumsum
+
+    //PHI_DIST
+    for (int i=0; i<n_phi;i++){
+      auto col = rzdiff;
+      asd_phi[ptid*n_phi+i]=phiCDF[i*n_Loc + col];
+      
+      
+      if(ptid==0 && false)
+        printf("ptid %d asd_phi is %f \n",ptid, asd_phi[ptid*n_phi+i]);
+    }
+
+
+    for (int i=0; i<n_theta;i++){
+      auto col = rzdiff;
+      asd_theta[ptid*n_theta+i]=thetaCDF[i*n_Loc + col];
+    }
+
+    for (int i=0; i<n_E;i++){
+      auto col = rzdiff;
+      asd_e[ptid*n_E+i]=ECDF[i*n_Loc + col];
+    }
+
+
+
+
+    int  min_theta, min_phi, min_E;
+
+    //auto state=randy_pool.get_state();
+    auto rand_ptcl_gen2=state.drand();
+    //randy_pool.free_state(state);
+
+    for (int i=0; i<n_E;i++){
+       diff_3[ptid*n_E+i]=std::abs(asd_e[ptid*n_E+i]-rand_ptcl_gen2);
+    }
+    min_E=ptid*n_E;
+
+    for (int i=0; i<n_E-1; i++){
+      if (diff_3[ptid*n_E+i+1]<diff_3[min_E])
+        min_E=ptid*n_E+i+1; 
+    }
+    double pE=EGrid[min_E-ptid*n_E];
+      if (pE>20)
+        pE=6;
+    double pvel=sqrt(2*pE*1.602e-19/184/1.66e-27);
+
+    
+    if (ptid<20 && false){
+     printf("ptid %d pvel %f \n",ptid, pvel); 
+    }
+
+
+    //auto state=randy_pool.get_state();
+    auto rand_ptcl_gen4=state.drand();
+    //randy_pool.free_state(state);
+    for (int i=0; i<n_theta;i++){
+       diff_1[ptid*n_theta+i]=std::abs(asd_theta[ptid*n_theta+i]-rand_ptcl_gen4);
+    }
+    min_theta=ptid*n_theta;
+    for (int i=0; i<n_theta-1; i++){
+      if (diff_1[ptid*n_theta+i+1]<diff_1[min_theta])
+        min_theta=ptid*n_theta+i+1; 
+    }
+    double pTheta=thetaGrid[min_theta-ptid*n_theta];
+
+    
+    if (ptid<20 && false){
+     printf("ptid %d pTheta %f \n", ptid, pTheta); 
+    }
+
+    
+
+    //auto state=randy_pool.get_state();
+    auto rand_ptcl_gen3=state.drand();
+    randy_pool.free_state(state);
+    for (int i=0; i<n_phi;i++){
+       diff_2[ptid*n_phi+i]=std::abs(asd_phi[ptid*n_phi+i]-rand_ptcl_gen3);
+    }
+    min_phi=ptid*n_phi;
+    for (int i=0; i<n_phi-1; i++){
+      if (diff_2[ptid*n_phi+i+1]<diff_2[min_phi])
+        min_phi=ptid*n_phi+i+1; 
+    }
+    double pPhi=phiGrid[min_phi-ptid*n_phi];
+
+    
+    if (ptid<20 && false){
+     printf("ptid %d min_phi %d, pPhi %f \n", ptid, min_phi-ptid*n_phi, pPhi); 
+    }
+    
+    //v_sampled[ptid*3]=pvel*sin(pPhi*3.1415/180)*cos(pTheta*3.1415/180);
+    //v_sampled[ptid*3+1]=pvel*sin(pPhi*3.1415/180)*sin(pTheta*3.1415/180);
+    //v_sampled[ptid*3+2]=pvel*cos(pPhi*3.1415/180);
+
+    //Replace above three lines by
+    o::Vector<3> v_sampled;
+
+    v_sampled[0]=pvel*sin(pPhi*3.1415/180)*cos(pTheta*3.1415/180);
+    v_sampled[1]=pvel*sin(pPhi*3.1415/180)*sin(pTheta*3.1415/180);
+    v_sampled[2]=pvel*cos(pPhi*3.1415/180);
+
+    
+    if (ptid<20 && false){
+      printf("vsampled 0 is %f \n",v_sampled[0]);
+      printf("vsampled 1 is %f \n",v_sampled[1]);
+      printf("vsampled 2 is %f \n",v_sampled[2]);
+    }
+
+
+
+    o::Vector<3> b_field;
+    o::Vector<3> pos_b;
+    
+
+    //pos_b[0]=sqrt(pos_created[ptid*3+0]*pos_created[ptid*3+0] + pos_created[ptid*3+1]*pos_created[ptid*3+1]);
+    pos_b[0]=sqrt(ptcl_created_data_w[0*np_create+ptid]*ptcl_created_data_w[0*np_create+ptid] + ptcl_created_data_w[1*np_create+ptid]*ptcl_created_data_w[1*np_create+ptid]);
+    pos_b[1]=0;
+    pos_b[2]=ptcl_created_data_w[2*np_create+ptid];
+
+    p::interp2dVector(BField_2d, bX0, bZ0, bDx, bDz, bGridNx, bGridNz,
+      pos_b, b_field, true);
+
+    if (ptid==0 && false){
+
+      printf("bfield is %f",b_field[0]);
+      printf("bfield is %f",b_field[1]);
+      printf("bfield is %f \n",b_field[2]);
+      
+    }
+
+    o::Vector<3> surfNorm;
+    o::Vector<3> surfPar;
+    o::Vector<3> surfParX;
+
+    //surfNorm[0]=-abcd_d[ptid*4]/planeNorm_d[ptid];
+    surfNorm[0]=-abcd_d[0]/planeNorm_d;
+    //surfNorm[1]=-abcd_d[ptid*4+1]/planeNorm_d[ptid];
+    surfNorm[1]=-abcd_d[1]/planeNorm_d;
+    //surfNorm[2]=-abcd_d[ptid*4+2]/planeNorm_d[ptid];
+    surfNorm[2]=-abcd_d[2]/planeNorm_d;
+    surfPar = o::cross(surfNorm,o::cross(b_field,surfNorm));
+
+    if(ptid==0 && false){
+    for (int i= 0; i<3;i++)
+        printf("abcd %f \n", abcd_d[i]);
+    //surfPar =o::cross(b_field,surfNorm);
+      for (int i= 0; i<3;i++)
+        printf("SURF_PAR %f \n", surfPar[i]);
+
+    }
+    double surfPar_norm=o::norm(surfPar);
+    surfPar=surfPar/surfPar_norm;
+    surfParX=o::cross(surfPar,surfNorm);
+
+    for (int i=0; i<3;i++){
+
+      //v_final[ptid*3+i]=v_sampled[ptid*3]*surfParX[i]+surfPar[i]*v_sampled[ptid*3+1]+surfNorm[i]*v_sampled[ptid*3+2];
+      //ptcl_created_data_w[(i+3)*np_create+ptid]=v_sampled[ptid*3]*surfParX[i]+surfPar[i]*v_sampled[ptid*3+1]+surfNorm[i]*v_sampled[ptid*3+2];
+      ptcl_created_data_w[(i+3)*np_create+ptid]=v_sampled[0]*surfParX[i]+surfPar[i]*v_sampled[1]+surfNorm[i]*v_sampled[2];
+    }
+  });
+
+  printf("ptcl_created_data INSIDE is %d \n", ptcl_created_data_w.size());
+  ptcl_created_data=ptcl_created_data_w;
+
+  o::parallel_for(np_create, OMEGA_H_LAMBDA(const o::LO& ind) {    
+      
+      if (ind<10)    
+      for(int i=0; i<3;i++){
+        printf("IND %d i %d , PTCL_POSITIONS %f \n ", ind, i, ptcl_created_data_w[i*np_create+ind]);
+        printf("IND %d i %d , PTCL_VELOCITIES %f \n ", ind, i, ptcl_created_data_w[(i+3)*np_create+ind]);
+      }
+
+  });
+  
+ 
+  //writeGeneratedParticleDataNc(ptcl_created_data_host, np_create, totalPtcls, "ptcl_gen_file0.nc");  
+  
+  bool write_output=false;
+  if (write_output){
+
+    int nThistory=1;
+    OutputNcFileFieldStruct outStruct({"nP", "nT"}, {"x", "y", "z", "vx", "vy", "vz"},
+                                       {np_create, nThistory});
+    if (rank==0){
+        o::HostWrite<o::Real> ptcl_created_data_host0(ptcl_created_data_w);
+        std::ofstream outfile;
+        outfile.open("file0.txt");
+        for (int i=0; i<ptcl_created_data_host0.size();i++){
+            outfile << ptcl_created_data_host0[i] << std::endl;
+        }
+        outfile.close();
+    
+    }
+    if (rank==1){
+        o::HostWrite<o::Real> ptcl_created_data_host1(ptcl_created_data_w);
+        std::ofstream outfile1;
+        outfile1.open("file1.txt");
+        for (int i=0; i<ptcl_created_data_host1.size();i++){
+          outfile1 << ptcl_created_data_host1[i] << std::endl;
+        }
+        outfile1.close();
+    }
+  }
+  //writeOutputNcFile(ptcl_created_data_host0, np_create, 6, outStruct, "ptcl_gen_file0.nc");
+
+}
+
+//  END_ OF_PARTILCLE_INITIALIZATION
 
 //allocated for totalPtcls in each picpart
 void GitrmParticles::initPtclHistoryData(int hstep) {

@@ -417,4 +417,34 @@ inline o::Reals getConstBField() {
 
 }//ns
 
+
+namespace gitrm {
+/** @brief Function to mark (to newVal) bdry faces on the classified model ids.
+ * Also if init is true, the passed in array is initialized to 1 if the 
+ * corresponding element is on the classified model ids. If newVal=1 then
+ * the default is expected to be 0 and init should be false, ie, only 
+ * matching entries should be 1. Otherwise the initialized values won't be
+ * different from that of matching class ids.
+*/
+inline void markBdryFacesOnGeomModelIds(o::Mesh& mesh, const o::LOs& gFaces,
+   o::Write<o::LO>& mark_d, o::LO newVal, bool init) {
+  if(init && newVal)
+    std::cout << "****WARNING markBdryFacesOnGeomModelIds init = newVal\n";
+  const auto side_is_exposed = o::mark_exposed_sides(&mesh);
+  auto faceClassIds = mesh.get_array<o::ClassId>(2, "class_id");
+  auto nIds = gFaces.size();
+  auto lambda = OMEGA_H_LAMBDA(const o::LO& fid) {
+    auto val = mark_d[fid];
+    if(init && side_is_exposed[fid])
+      val = 1;
+    for(o::LO id=0; id < nIds; ++id)
+      if(gFaces[id] == faceClassIds[fid]) {
+        val = newVal;
+      }
+    mark_d[fid] = val;
+  };
+  o::parallel_for(mesh.nfaces(), lambda, "MarkFaces");
+}
+}
+
 #endif// define
