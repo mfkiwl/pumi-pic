@@ -15,9 +15,8 @@ GitrmBoundary::GitrmBoundary(GitrmMesh* gm, FaceFieldFillTarget t):
 }
 
 void GitrmBoundary::initBoundaries() {
-  //TODO retrieve settings from GitrmInput class to replace global consts
-  isBiasedSurf = (BIASED_SURFACE) ? true : false;
-  biasPotential = BIAS_POTENTIAL;
+  isBiasedSurf = gm->isBiasedSurface();
+  biasPotential = gm->getBiasPotential();
   // calcEfieldUsingD2Bdry = CALC_EFIELD_USING_D2BDRY;
 
   // if any of the other picpart has less than all the elements of fullMesh
@@ -213,7 +212,8 @@ bool GitrmBoundary::calculateBdryFaceFields(GitrmMeshFaceFields& ff, int debug) 
   const o::LO background_Z = BACKGROUND_Z;
   const o::Real background_amu = BACKGROUND_AMU;
   auto useConstantBField = USE_CONSTANT_BFIELD;
-  OMEGA_H_CHECK(useConstantBField);
+  //TODO
+  //OMEGA_H_CHECK(useConstantBField);
   o::Reals bField_const(3);
   if(useConstantBField)
     bField_const = utils::getConstBField();

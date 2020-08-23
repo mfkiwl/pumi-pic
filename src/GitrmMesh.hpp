@@ -43,7 +43,7 @@ const int D2BDRY_MEM_FACTOR = 1; //per 8G memory
 const bool WRITE_TEXT_D2BDRY_FACES = false;
 const bool WRITE_BDRY_FACE_COORDS_NC = false;
 const bool WRITE_MESH_FACE_COORDS_NC = false;
-const o::LO D2BDRY_GRIDS_PER_TET = 15; // if csr bdry not re-used
+const o::LO D2BDRY_GRIDS_PER_TET = 10; // if csr bdry not re-used
 
 const int USE_2DREADIN_IONI_REC_RATES = 1;
 const int USE3D_BFIELD = 0;
@@ -308,6 +308,8 @@ public:
   int numDetectorSurfaceFaces = 0;
   std::string getGeometryName() const { return geomName; }
   bool isUsingConstBField() const {return useConstBField; }
+  bool isBiasedSurface() const { return biasedSurface; }
+  double getBiasPotential() const {return biasPotential; }
 
 private:
 
@@ -316,6 +318,8 @@ private:
   o::LO numAddedBdryFaces = 0;
   std::string geomName{};
   bool useConstBField = false;
+  bool biasedSurface = false;
+  double biasPotential = 0;
 
   std::shared_ptr<o::LOs> bdryFacesCsrBFS;
   std::shared_ptr<o::LOs> bdryFacePtrsBFS;

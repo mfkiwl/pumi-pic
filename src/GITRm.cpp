@@ -130,7 +130,7 @@ void writeParallelVtkMesh(o::Mesh* mesh, o::Mesh* fullMesh, const std::string& o
     int nel = 0;
     while(ifs >> own)
       owners_h[nel++] = own;
-    OMEGA_H_CHECK(fullMesh->nelems() == nel);
+    std::cout << " rendering: n nonzero owners " << nel << "\n";
     fullMesh->add_tag(o::REGION, "owners", 1, o::GOs(owners_h.write()));
     Omega_h::vtk::write_parallel("meshvtkFull" + nstr, fullMesh);
   }
@@ -178,13 +178,13 @@ int main(int argc, char** argv) {
     if(comm_rank == 0)
       std::cout << "Usage: " << argv[0]
         << " <mesh> <owners_file> <ptcls_file> <prof_file> <rate_file><surf_file>"
-        << " <thermal_gradient_file> [ <nPtcls><nIter> "
+        << " <thermal_gradient_file> <bField.nc> [ <nPtcls><nIter> "
         << " <histInterval> <gitrDataInFileName> iter/pisces ]\n";
     exit(1);
   }
   bool chargedTracking = true; //false for neutral tracking
   std::string geomName = "pisces" ;// "Iter";
-  if(argc > 12 && std::string(argv[12]) == "iter")
+  if(argc > 13 && std::string(argv[13]) == "iter")
     geomName = "Iter";
     
   //TODO set USE_CONSTANT_BFIELD to false
@@ -251,7 +251,6 @@ int main(int argc, char** argv) {
   std::string ptclSource = argv[3];
   std::string profFile = argv[4];
   std::string ionizeRecombFile = argv[5];
-  std::string bFile = "bField_iter2d.nc"; //TODO
   std::string surfModelFile = argv[6];
   std::string thermGradientFile = argv[7];
   std::string bFile = argv[8];
@@ -271,17 +270,17 @@ int main(int argc, char** argv) {
   int histInterval = 0;
   double dTime = 5e-9; //pisces:5e-9 for 100,000 iterations
   int numIterations = 1; //higher beads needs >10K
-  if(argc > 8)
-    totalNumPtcls = atol(argv[8]);
   if(argc > 9)
-    numIterations = atoi(argv[9]);
-  if(argc > 10 && std::string(argv[10]) != "-")
-    histInterval = atoi(argv[10]);
+    totalNumPtcls = atol(argv[9]);
+  if(argc > 10)
+    numIterations = atoi(argv[10]);
+  if(argc > 11 && std::string(argv[11]) != "-")
+    histInterval = atoi(argv[11]);
 
   std::string gitrDataFileName;
   bool useGitrRndNums = 0;
-  if(argc > 11 && std::string(argv[11]) != "-") {
-    gitrDataFileName = argv[11];
+  if(argc > 12 && std::string(argv[12]) != "-") {
+    gitrDataFileName = argv[12];
     useGitrRndNums = true;
     if(!comm_rank)
       printf(" gitr rand num DataFile %s\n", gitrDataFileName.c_str());

@@ -252,7 +252,7 @@ inline void gitrm_findDistanceToBdry(GitrmParticles& gp,
   int rank = gp.getCommRank();
   auto* ptcls = gp.ptcls;
 
-  //NOTE: this is only for picpart, unless picpart itself is full mesh
+  //NOTE: this is only for picpart or if picpart itself is full mesh
   o::Mesh& mesh = gm.mesh;
   const auto f2rPtr = mesh.ask_up(o::FACE, o::REGION).a2ab;
   const auto f2rElem = mesh.ask_up(o::FACE, o::REGION).ab2b;

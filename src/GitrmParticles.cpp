@@ -251,9 +251,9 @@ void GitrmParticles::initPtclsFromFile(const std::string& fName,
   if (rank == commSize-1 && ptclSplitRead)
     each_chunk = each_chunk + totalPtcls%commSize;
 
-  //Reading all simulating particles in all ranks
+  //Reading all simulating particles in all ranks. replaceNaN false to skip those later
   auto stat = readParticleSourceNcFile(fName, readInData_h, numPtclsRead,
-     size_t(each_chunk), each_chunk_pos, true);
+     size_t(each_chunk), each_chunk_pos, false);
   //OMEGA_H_CHECK( stat && (numPtclsRead >= totalPtcls));
   auto readInData_r = o::Reals(o::Write<o::Real>(readInData_h));
   o::LOs elemIdOfPtcls;
@@ -328,6 +328,7 @@ bool GitrmParticles::searchPtclInAllElems(const o::Reals& data, const o::LO pind
 // totalPtcls are searched in each rank
 o::LO GitrmParticles::searchAllPtclsInAllElems(const o::Reals& data,
    o::Write<o::LO>& elemIdOfPtcls, o::Write<o::LO>& numPtclsInElems) {
+  printf("%d: %s \n", rank, __FUNCTION__);
   MESHDATA(mesh);
   int rank = this->rank;
   auto owners = elemOwners;
@@ -335,18 +336,22 @@ o::LO GitrmParticles::searchAllPtclsInAllElems(const o::Reals& data,
   auto nPtcls = elemIdOfPtcls.size();
 
   auto lamb = OMEGA_H_LAMBDA(const o::LO& elem) {
-    bool select = (rank == owners[elem]);
-    //if(elem==443015) printf("rank %d  elem %d owner %d\n", rank, elem, owners[elem]);
+    bool select = (rank == owners[elem]);;
     if(select) {
       auto tetv2v = o::gather_verts<4>(mesh2verts, elem);
       auto tet = p::gatherVectors4x3(coords, tetv2v);
       auto pos = o::zero_vector<3>();
       for(auto pind=0; pind < nPtcls; ++pind) {
-        for(int j=0; j<3; ++j)
+        bool valid = true;
+        for(int j=0; j<3; ++j) {
           pos[j] = data[j*nPtclsRead+pind];
+          auto vel = data[(j+3)*nPtclsRead+pind];
+          valid = (valid && !(isnan(pos[j]) || isnan(vel)));
+        }
         auto bcc = o::zero_vector<4>();
         p::find_barycentric_tet(tet, pos, bcc);
-        if(p::all_positive(bcc, 1.0e-10)) {
+        valid = (valid && p::all_positive(bcc, 1.0e-10));
+        if(valid) {
           Kokkos::atomic_increment(&numPtclsInElems[elem]);
           Kokkos::atomic_exchange(&(elemIdOfPtcls[pind]), elem);
         }
@@ -373,13 +378,19 @@ o::LO GitrmParticles::searchPtclsByAdjSearchFromParent(const o::Reals& data,
     auto pos = o::zero_vector<3>();
     auto bcc = o::zero_vector<4>();
     o::LO elem = parentElem;
-    int isearch=0;
+    int isearch = 0;
+    bool valid = true;
     while(!found) {
       auto tetv2v = o::gather_verts<4>(mesh2verts, elem);
       auto tet = p::gatherVectors4x3(coords, tetv2v);
       for(int j=0; j<3; ++j) {
         pos[j] = data[j*nPtclsRead+ip];
+        //Note the data array index where vel is saved
+        auto vel = data[(j+3)*nPtclsRead+ip];
+        valid = (valid && !(isnan(pos[j]) || isnan(vel)));
       }
+      if(!valid)
+        break;
       p::find_barycentric_tet(tet, pos, bcc);
 
       bool select = (rank == owners[elem]);
@@ -416,7 +427,6 @@ o::LO GitrmParticles::searchPtclsByAdjSearchFromParent(const o::Reals& data,
   };
   auto nPtcls = elemIdOfPtclsAll.size();
   o::parallel_for(nPtcls, lambda, "init_ptcl2");
-  auto status=o::get_min(o::LOs(elemIdOfPtclsAll));
   return o::get_min(o::LOs(elemIdOfPtclsAll));
 }
 
@@ -539,20 +549,21 @@ void GitrmParticles::convertInitPtclElemIdsToCSR(const o::LOs& numPtclsInElems,
 void GitrmParticles::setPidsOfPtclsLoadedFromFile(const o::LOs& ptclIdPtrsOfElem,
   const o::LOs& ptclIdsInElem,  const o::LOs& elemIdOfPtcls, const o::LOs& ptclDataInds) {
   int debug = 0;
-  //auto nInitPtcls = numInitPtcls;
   //TODO for full-buffer only
   int rank = this->rank;
   int pBegin = 0;// TODO rank*int(totalPtcls/commSize);
-  if(debug && !rank)
+  //if(debug && !rank)
     printf("%d: numInitPtcls %d numPtclsRead %d \n", rank, numInitPtcls, numPtclsRead);
   auto nel = picparts.nelems();
   o::Write<o::LO> nextPtclInd(nel, 0, "nextPtclInd");
   auto pid_ps = ptcls->get<PTCL_ID>();
   auto pid_ps_global=ptcls->get<PTCL_ID_GLOBAL>();
-  auto lambda = PS_LAMBDA(const int &elem, const int &pid, const int &mask) {
+  auto lambda = PS_LAMBDA(const int& elem, const int& pid, const int& mask) {
     if(mask > 0) {
       auto thisInd = Kokkos::atomic_fetch_add(&(nextPtclInd[elem]), 1);
-      auto ind = ptclIdPtrsOfElem[elem] + thisInd;
+      auto idPtr = ptclIdPtrsOfElem[elem];
+      OMEGA_H_CHECK(idPtr >= 0);
+      auto ind = idPtr + thisInd;
       auto limit = ptclIdPtrsOfElem[elem+1];
       //Set checks separately to avoid possible Error
       OMEGA_H_CHECK(ind >= 0);

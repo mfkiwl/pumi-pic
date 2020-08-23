@@ -65,6 +65,8 @@ void GitrmMesh::initPiscesGeometry() {
   surfaceAndMaterialModelIds = o::HostWrite<o::LO>(smIds);
 
   useConstBField = true;
+  biasedSurface = BIASED_SURFACE;
+  biasPotential = BIAS_POTENTIAL; 
 }
 
 void GitrmMesh::initIterGeometry() {
@@ -73,6 +75,8 @@ void GitrmMesh::initIterGeometry() {
   detectorSurfaceModelIds = o::HostWrite<o::LO>{354,581,295};
   bdryMaterialModelIds = o::HostWrite<o::LO>{354};
   bdryMaterialModelIdsZ = o::HostWrite<o::LO>{74}; //W Tungsten
+
+  //TODO verify the ids
   surfaceAndMaterialModelIds = o::HostWrite<o::LO>{354,581,295};
 }
 
@@ -257,7 +261,7 @@ void GitrmMesh::initBField(const std::string &bFile) {
   }else {
     mesh.add_tag<o::Real>(o::VERT, "BField", 3);
     // set bt=0. Pisces BField is perpendicular to W target base plate.
-    Field3StructInput fb({"br", "bt", "bz"}, {"gridR", "gridZ"}, {"nR", "nZ"});
+    Field3StructInput fb({"br", "bt", "bz"}, {"r", "z"}, {"nR", "nZ"});
     o::Write<o::Real> bField;
     load3DFieldOnVtxFromFile("BField", bFile, fb, bField);
     Bfield_2d = std::make_shared<o::Reals>(bField);
@@ -769,7 +773,7 @@ void GitrmMesh::preprocessSelectBdryFacesOnPicpart( bool onlyMaterialSheath) {
   const int nMin = D2BDRY_MIN_SELECT; 
   const int ndiv = D2BDRY_GRIDS_PER_TET; //6->84
   const int ngrid = ((ndiv+1)*(ndiv+2)*(ndiv+3))/6;
-  const int sizeLimit = D2BDRY_MEM_FACTOR*3e8; //1*300M*4*3 arrays=3.6G
+  const int sizeLimit = D2BDRY_MEM_FACTOR*1e7; //1*10M*4*3 arrays=120M
   int loopSize = sizeLimit/(ngrid*nMin);
   OMEGA_H_CHECK(loopSize > 0);
   
