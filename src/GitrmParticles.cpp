@@ -52,7 +52,8 @@ GitrmParticles::GitrmParticles(GitrmMesh* gm, p::Mesh& picparts, long int nPtcls
 
   int dataSize = gm->getNumDetectorModelIds();
   initPtclDetectionData(dataSize);
-  initPtclsOnGeometricBoundarys(*gm);
+  if(false)
+    initPtclsOnGeometricBoundarys(*gm);
 }
 
 GitrmParticles::~GitrmParticles() {
