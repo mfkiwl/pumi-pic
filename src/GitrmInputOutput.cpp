@@ -232,9 +232,9 @@ int readInputDataNcFileFS3(const std::string& ncFileName,
   std::string numStr, bool debug) {
   int ncSizePerComp = 1;
   int status = 0;
-  verifyNetcdfFile(ncFileName);
+  //verifyNetcdfFile(ncFileName);
   if(debug)
-    printf("Verified NC file %s\n", ncFileName.c_str());
+    printf("Reading NC file %s\n", ncFileName.c_str());
   try {
     netCDF::NcFile ncf(ncFileName, netCDF::NcFile::read);
     int dimCount = ncf.getDimCount();
@@ -317,6 +317,8 @@ int readInputDataNcFileFS3(const std::string& ncFileName,
           << " size " << size << " \n";
       fs.nVarVec.push_back(size);
     }
+
+    ncf.close();
   } catch (netCDF::exceptions::NcException &e) {
     std::cout << e.what() << std::endl;
     status = 1;

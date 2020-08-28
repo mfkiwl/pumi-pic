@@ -4,64 +4,25 @@
 
 GitrmSurfaceModel::GitrmSurfaceModel(GitrmMesh& gm, std::string ncFile):
   gm(gm), mesh(gm.mesh),  ncFile(ncFile) { 
-  surfaceAndMaterialModelIds = gm.getSurfaceAndMaterialModelIds();
   initSurfaceModelData(ncFile, true);
 
   numSurfMaterialFaces = gm.nSurfMaterialFaces;
   surfaceAndMaterialOrderedIds = gm.getSurfaceAndMaterialOrderedIds();
   nDetectSurfaces = gm.nDetectSurfaces;
-  detectorSurfaceOrderedIds = gm.getDetectorSurfaceOrderedIds();
+  detectorMeshFaceOrderedIds = gm.getDetectorMeshFaceOrderedIds();
   bdryFaceMaterialZs = gm.getBdryFaceMaterialZs();
   bdryFaceOrderedIds = gm.getBdryFaceOrderedIds();
+  surfMatGModelSeqNums = gm.getSurfMatGModelSeqNums();
   rank = mesh.comm()->rank();
 }
 
-//TODO
-//includes only surfaces to be processed
-void GitrmSurfaceModel::setFaceId2SurfaceIdMap() {
-  auto nf = mesh.nfaces();
-  auto surfModelIds = o::LOs(surfaceAndMaterialModelIds);
-  auto numIds = surfModelIds.size();
-  const auto side_is_exposed = o::mark_exposed_sides(&mesh);
-  auto faceClassIds = mesh.get_array<o::ClassId>(2, "class_id");
-  o::Write<o::LO> surfMarked(nf, -1, "surfMarked");
-  o::Write<o::LO> total(1,0, "total");
-  auto lambda = OMEGA_H_LAMBDA(const o::LO& fid) {
-    if(!side_is_exposed[fid])
-      return;
-    //if surface to be processed
-    for(auto id=0; id < numIds; ++id) {
-      if(surfModelIds[id] == faceClassIds[fid]) {
-        Kokkos::atomic_fetch_add(&(total[0]), 1);
-        surfMarked[fid] = 1;
-      }
-    }
-  };
-  o::parallel_for(nf, lambda, "makeSurfaceIndMap");
-  auto count_h = o::HostWrite<o::LO>(total);
-  numDetectorSurfaceFaces = count_h[0];
-  auto surfInds_h = o::HostWrite<o::LO>(nf, "surfInds");
-  auto surfMarked_h = o::HostRead<o::LO>(surfMarked);
-  int bid = 0;
-  for(int fid=0; fid< mesh.nfaces(); ++fid) {
-    if(surfMarked_h[fid]) {
-      surfInds_h[fid] = bid;
-      ++bid;
-    }
-  }
-  mesh.add_tag<o::LO>(o::FACE, "SurfaceIndex", 1, o::LOs(o::Write<o::LO>(surfInds_h)));
-}
 
 void GitrmSurfaceModel::initSurfaceModelData(std::string ncFile, bool debug) {
   getConfigData(ncFile);
-  setFaceId2SurfaceIdMap();
   if(debug)
     std::cout << "Done reading data \n";
-  
-  //numDetectorSurfaceFaces = gm.numDetectorSurfaceFaces;
-  printf("numDetectorSurfaceFaces %d from_mesh %d\n", numDetectorSurfaceFaces,
-      gm.numDetectorSurfaceFaces);
-  //OMEGA_H_CHECK(numDetectorSurfaceFaces > 0);
+  int ndmIds = gm.getNumDetectorModelIds();
+
   nDistEsurfaceModel =
      nEnSputtRefDistIn * nAngSputtRefDistIn * nEnSputtRefDistOut;
   nDistEsurfaceModelRef =
@@ -74,24 +35,24 @@ void GitrmSurfaceModel::initSurfaceModelData(std::string ncFile, bool debug) {
   prepareSurfaceModelData();
 
   //if(gitrm::SURFACE_FLUX_EA > 0) {
-    dEdist = (enDist - en0Dist)/nEnDist;
-    dAdist = (angDist - ang0Dist)/nAngDist;
-  //}
-  auto nDist = numDetectorSurfaceFaces * nEnDist * nAngDist;
+  dEdist = (enDist - en0Dist)/nEnDist;
+  dAdist = (angDist - ang0Dist)/nAngDist;
+
+  auto nDist = ndmIds * nEnDist * nAngDist;
   if(debug)
-    printf(" nEdist %d nAdist %d #DetSurfFaces %d nDist %d\n", 
-      nEnDist, nAngDist, numDetectorSurfaceFaces, nDist);
-  energyDistribution = o::Write<o::Real>(nDist,0,"surfEnDist"); //9k/detFace
-  sputtDistribution = o::Write<o::Real>(nDist,0, "surfSputtDist"); //9k/detFace
-  reflDistribution = o::Write<o::Real>(nDist,0, "surfReflDist"); //9k/detFace
+    printf(" nEdist %d nAdist %d #nDetModelIds %d nDist %d\n", nEnDist, nAngDist, ndmIds, nDist);
+  energyDistribution = o::Write<o::Real>(nDist, 0, "surfEnDist"); // one per detFace
+  sputtDistribution = o::Write<o::Real>(nDist, 0, "surfSputtDist"); // one per detFace
+  reflDistribution = o::Write<o::Real>(nDist, 0, "surfReflDist"); //one per detFace
   auto nf = mesh.nfaces();
-  mesh.add_tag<o::Int>(o::FACE, "SumParticlesStrike", 1, o::Read<o::Int>(nf,
-   0, "SumParticlesStrike"));
-  mesh.add_tag<o::Int>(o::FACE, "SputtYldCount", 1, o::Read<o::Int>(nf, 0, "SputtYldCount"));
-  mesh.add_tag<o::Real>(o::FACE, "SumWeightStrike", 1, o::Reals(nf, 0, "SumWeightStrike"));
-  mesh.add_tag<o::Real>(o::FACE, "GrossDeposition", 1, o::Reals(nf, 0, "GrossDeposition"));
-  mesh.add_tag<o::Real>(o::FACE, "GrossErosion", 1, o::Reals(nf, 0, "GrossErosion"));
-  mesh.add_tag<o::Real>(o::FACE, "AveSputtYld", 1, o::Reals(nf, 0, "AveSputtYld")); 
+  sideIsExposed = o::mark_exposed_sides(&mesh);
+  sumPtclStrike = o::Write<o::LO>(nf, 0, "sumPtclStrike");
+  sputtYldCount = o::Write<o::LO>(nf, 0, "sputtYldCount");
+  sumWtStrike = o::Write<o::Real>(nf, 0, "sumWtStrike");
+  grossDeposition = o::Write<o::Real>(nf, 0, "grossDeposition");
+  grossErosion = o::Write<o::Real>(nf, 0, "grossErosion");
+  aveSputtYld = o::Write<o::Real>(nf, 0, "aveSputtYld");
+  //mesh.add_tag<o::LO>(o::FACE, "SumParticlesStrike", 1, o::Read<o::Int>(nf,0, "SumParticlesStrike"));
 }
 
 void GitrmSurfaceModel::make2dCDF(const int nX, const int nY, const int nZ, 
@@ -413,22 +374,10 @@ void GitrmSurfaceModel::writeSurfaceDataFile(std::string fileName) const {
   if(rank) {
     return;
   }
-  // mesh synchronized at the end of run ?
-  auto sumPtclStrike = o::HostRead<int>(mesh.get_array<o::Int>(o::FACE, 
-    "SumParticlesStrike"));
-  auto sputtYldCount = o::HostRead<int>(mesh.get_array<o::Int>(o::FACE, 
-    "SputtYldCount")); 
-  auto sumWtStrike = o::HostRead<double>(mesh.get_array<o::Real>(o::FACE, 
-    "SumWeightStrike"));
-  auto grossDeposition = o::HostRead<double>(mesh.get_array<o::Real>(o::FACE, 
-    "GrossDeposition"));
-  auto grossErosion = o::HostRead<double>(mesh.get_array<o::Real>(o::FACE, 
-    "GrossErosion"));
-  auto aveSputtYld = o::HostRead<double>(mesh.get_array<o::Real>(o::FACE, 
-    "AveSputtYld")); 
  
   netCDF::NcFile ncf(fileName, netCDF::NcFile::replace);
-  netCDF::NcDim ncs = ncf.addDim("nSurfaces", numDetectorSurfaceFaces);
+  int ndmIds = gm.getNumDetectorModelIds();
+  netCDF::NcDim ncs = ncf.addDim("nSurfaces", ndmIds);
   std::vector<netCDF::NcDim> dims;
   dims.push_back(ncs);
   netCDF::NcDim nEn = ncf.addDim("nEnergies", nEnDist);

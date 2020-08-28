@@ -147,7 +147,6 @@ inline void gitrm_ionize(PS* ptcls, const GitrmIonizeRecombine& gir,
   const auto mesh2verts = mesh.ask_elem_verts();
   const auto tIonVtx = mesh.get_array<o::Real>(o::VERT, "IonTempVtx");
   const auto densVtx = mesh.get_array<o::Real>(o::VERT, "IonDensityVtx"); 
-  auto tempWrite = o::deep_copy(mesh.get_array<o::Real>(o::VERT, "IonTempVtx"));
 
   auto pid_ps = ptcls->get<PTCL_ID>();
   auto pid_ps_global = ptcls->get<PTCL_ID_GLOBAL>();
