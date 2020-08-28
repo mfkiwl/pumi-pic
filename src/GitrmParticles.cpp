@@ -37,7 +37,7 @@ GitrmParticles::GitrmParticles(GitrmMesh* gm, p::Mesh& picparts, long int nPtcls
   ptclSplitRead = PTCLS_SPLIT_READ;
   //if(!useGitrRndNums) //TODO testing
     initRandGenerator(seed);
-  requireFindingAllPtcls = REQUIRE_FINDING_ALL_PTCLS;
+  mustFindAllPtcls = MUST_FIND_ALL_PTCLS;
 
   //TODO handle this neatly
   auto geomName = gm->getGeometryName();
@@ -49,8 +49,7 @@ GitrmParticles::GitrmParticles(GitrmMesh* gm, p::Mesh& picparts, long int nPtcls
   else
     geometryId = INVALID;
 
-  //TODO set using mesh class data
-  int dataSize = (geometryId == PISCES_ID) ? 14 : mesh.nfaces();
+  int dataSize = gm->getNumDetectorModelIds();
   initPtclDetectionData(dataSize);
 }
 
@@ -234,8 +233,21 @@ void GitrmParticles::assignParticles(const o::LOs& elemIdOfPtclsAll,
 //  if(!rank)
     printf("%d: isFullMesh %d Particles %d total %ld reduced %ld\n",
        rank, isFullMesh, numInitPtcls, totalPtcls, totalPtcls_);
-  if(rank == collectRank && requireFindingAllPtcls)
+  if(rank == collectRank && mustFindAllPtcls)
     OMEGA_H_CHECK(totalPtcls_ == totalPtcls);
+}
+
+o::LOs findInvalidPtcls(o::Reals& data, int dof= 6) {
+  int np = data.size()/dof;
+  o::Write<o::LO> valids(np, 0, "validPtclIds");
+  o::parallel_for(np, OMEGA_H_LAMBDA(const o::LO& ip) {
+    bool stat = true;
+    for(int j=0; j<6 && j<dof; ++j) {
+      stat = (stat && !isnan(data[j*np+ip]));
+    }
+    valids[ip] = stat;
+  });
+  return o::LOs(valids);
 }
 
 
@@ -252,17 +264,24 @@ void GitrmParticles::initPtclsFromFile(const std::string& fName,
     each_chunk = each_chunk + totalPtcls%commSize;
 
   //Reading all simulating particles in all ranks. replaceNaN false to skip those later
+  bool replaceNaN = false;
   auto stat = readParticleSourceNcFile(fName, readInData_h, numPtclsRead,
-     size_t(each_chunk), each_chunk_pos, false);
+     size_t(each_chunk), each_chunk_pos, replaceNaN);
+
   //OMEGA_H_CHECK( stat && (numPtclsRead >= totalPtcls));
   auto readInData_r = o::Reals(o::Write<o::Real>(readInData_h));
+  o::LOs validPtcls;
+  int dof = 6; //pos,vel
+  if(!replaceNaN)
+    validPtcls = findInvalidPtcls(readInData_r, dof);
+
   o::LOs elemIdOfPtcls;
   o::LOs ptclDataInds;
   o::LOs numPtclsInElems;
   if(!rank)
     printf("%d: partices read %d. Finding ElemIds of Ptcls \n", rank, numPtclsRead);
   findElemIdsOfPtclCoordsByAdjSearch(readInData_r, elemIdOfPtcls, ptclDataInds,
-    numPtclsInElems);
+    numPtclsInElems, validPtcls);
 
   defineParticles(numPtclsInElems, -1);
 
@@ -288,7 +307,7 @@ void GitrmParticles::initPtclsFromFile(const std::string& fName,
 
 
 bool GitrmParticles::searchPtclInAllElems(const o::Reals& data, const o::LO pind,
-   o::LO& parentElem) {
+   o::LO& parentElem, o::LOs& validPtcls) {
   int debug = 0;
   if(debug > 2 && !rank)
     std::cout << rank << ": " << __FUNCTION__ << "\n";
@@ -305,17 +324,19 @@ bool GitrmParticles::searchPtclInAllElems(const o::Reals& data, const o::LO pind
   auto owners = elemOwners;
   o::Write<o::LO> elemDet(1, -1, "elemDet_searchPtclInAllElems");
   auto lamb = OMEGA_H_LAMBDA(const o::LO& elem) {
-    bool select = (rank == owners[elem]);
-    if(select) {
-      auto pos = o::zero_vector<3>();
-      auto bcc = o::zero_vector<4>();
-      for(int j=0; j<3; ++j)
-        pos[j] = data[j*nPtclsRead+pind];
-      if(p::isPointWithinElemTet(mesh2verts, coords, pos, elem, bcc)) {
-        auto prev = Kokkos::atomic_exchange(&(elemDet[0]), elem);
-        if(prev >= 0)
-          printf("%d: InitParticle %d in rank %d was found in multiple elements %d %d \n",
-            rank, pind, rank, prev, elem);
+    if(validPtcls[pind] > 0) {
+      bool select = (rank == owners[elem]);
+      if(select) {
+        auto pos = o::zero_vector<3>();
+        auto bcc = o::zero_vector<4>();
+        for(int j=0; j<3; ++j)
+          pos[j] = data[j*nPtclsRead+pind];
+        if(p::isPointWithinElemTet(mesh2verts, coords, pos, elem, bcc)) {
+          auto prev = Kokkos::atomic_exchange(&(elemDet[0]), elem);
+          if(prev >= 0)
+            printf("%d: InitParticle %d in rank %d was found in multiple elements %d %d \n",
+              rank, pind, rank, prev, elem);
+        }
       }
     }
   };
@@ -327,7 +348,7 @@ bool GitrmParticles::searchPtclInAllElems(const o::Reals& data, const o::LO pind
 
 // totalPtcls are searched in each rank
 o::LO GitrmParticles::searchAllPtclsInAllElems(const o::Reals& data,
-   o::Write<o::LO>& elemIdOfPtcls, o::Write<o::LO>& numPtclsInElems) {
+   o::Write<o::LO>& elemIdOfPtcls, o::Write<o::LO>& numPtclsInElems, o::LOs& validPtcls) {
   printf("%d: %s \n", rank, __FUNCTION__);
   MESHDATA(mesh);
   int rank = this->rank;
@@ -342,12 +363,14 @@ o::LO GitrmParticles::searchAllPtclsInAllElems(const o::Reals& data,
       auto tet = p::gatherVectors4x3(coords, tetv2v);
       auto pos = o::zero_vector<3>();
       for(auto pind=0; pind < nPtcls; ++pind) {
-        bool valid = true;
+        if(validPtcls[pind] <= 0)
+          continue;
         for(int j=0; j<3; ++j) {
           pos[j] = data[j*nPtclsRead+pind];
           auto vel = data[(j+3)*nPtclsRead+pind];
-          valid = (valid && !(isnan(pos[j]) || isnan(vel)));
         }
+
+        bool valid = true;
         auto bcc = o::zero_vector<4>();
         p::find_barycentric_tet(tet, pos, bcc);
         valid = (valid && p::all_positive(bcc, 1.0e-10));
@@ -364,7 +387,8 @@ o::LO GitrmParticles::searchAllPtclsInAllElems(const o::Reals& data,
 
 o::LO GitrmParticles::searchPtclsByAdjSearchFromParent(const o::Reals& data,
    const o::LO parentElem, o::Write<o::LO>& numPtclsInElemsAll,
-   o::Write<o::LO>& elemIdOfPtclsAll) {
+   o::Write<o::LO>& elemIdOfPtclsAll, o::LOs& validPtcls) {
+  printf("%d: %s \n", rank, __FUNCTION__);
   int debug = 0;
   int rank = this->rank;
   MESHDATA(mesh);
@@ -374,55 +398,51 @@ o::LO GitrmParticles::searchPtclsByAdjSearchFromParent(const o::Reals& data,
 
   //search all particles starting with this element
   auto lambda = OMEGA_H_LAMBDA(const o::LO& ip) {
-    bool found = false;
-    auto pos = o::zero_vector<3>();
-    auto bcc = o::zero_vector<4>();
-    o::LO elem = parentElem;
-    int isearch = 0;
-    bool valid = true;
-    while(!found) {
-      auto tetv2v = o::gather_verts<4>(mesh2verts, elem);
-      auto tet = p::gatherVectors4x3(coords, tetv2v);
-      for(int j=0; j<3; ++j) {
-        pos[j] = data[j*nPtclsRead+ip];
-        //Note the data array index where vel is saved
-        auto vel = data[(j+3)*nPtclsRead+ip];
-        valid = (valid && !(isnan(pos[j]) || isnan(vel)));
-      }
-      if(!valid)
-        break;
-      p::find_barycentric_tet(tet, pos, bcc);
-
-      bool select = (rank == owners[elem]);
-      if(select && p::all_positive(bcc, 0)) {
-        Kokkos::atomic_exchange(&(elemIdOfPtclsAll[ip]), elem);
-        if(debug > 2)
-          printf("%d: Final particle %d elid %d\n",rank, ip, elemIdOfPtclsAll[ip]);
-        Kokkos::atomic_increment(&numPtclsInElemsAll[elem]);
-        found = true;
-      } else {
-        o::LO minInd = p::min_index(bcc, 4);
-        auto dual_elem_id = dual_faces[elem];
-        o::LO findex = 0;
-
-        int beg = elem*4;
-        for(auto iface = beg; iface < beg+4; ++iface) {
-          auto face_id = down_r2fs[iface];
-          bool exposed = side_is_exposed[face_id];
-          if(!exposed) {
-            if(findex == minInd)
-              elem = dual_elems[dual_elem_id];
-            ++dual_elem_id;
-          }
-          ++findex;
+  if(validPtcls[ip] > 0) {
+      bool found = false;
+      auto pos = o::zero_vector<3>();
+      auto bcc = o::zero_vector<4>();
+      o::LO elem = parentElem;
+      int isearch = 0;
+      while(!found) {
+        auto tetv2v = o::gather_verts<4>(mesh2verts, elem);
+        auto tet = p::gatherVectors4x3(coords, tetv2v);
+        for(int j=0; j<3; ++j) {
+          pos[j] = data[j*nPtclsRead+ip];
         }
+        p::find_barycentric_tet(tet, pos, bcc);
+
+        bool select = (rank == owners[elem]);
+        if(select && p::all_positive(bcc, 0)) {
+          elemIdOfPtclsAll[ip] = elem;
+          if(debug > 2)
+            printf("%d: Final particle %d elid %d\n",rank, ip, elemIdOfPtclsAll[ip]);
+          Kokkos::atomic_increment(&numPtclsInElemsAll[elem]);
+          found = true;
+        } else {
+          o::LO minInd = p::min_index(bcc, 4);
+          auto dual_elem_id = dual_faces[elem];
+          o::LO findex = 0;
+
+          int beg = elem*4;
+          for(auto iface = beg; iface < beg+4; ++iface) {
+            auto face_id = down_r2fs[iface];
+            bool exposed = side_is_exposed[face_id];
+            if(!exposed) {
+              if(findex == minInd)
+                elem = dual_elems[dual_elem_id];
+              ++dual_elem_id;
+            }
+            ++findex;
+          }
+        }
+        if(isearch > maxSearch) {
+          if(debug > 1)
+            printf("%d: Error finding particle %d\n", rank, ip);
+          break;
+        }
+        ++isearch;
       }
-      if(isearch > maxSearch) {
-        if(debug > 1)
-          printf("%d: Error finding particle %d in rank %d \n", rank, ip);
-        break;
-      }
-      ++isearch;
     }
   };
   auto nPtcls = elemIdOfPtclsAll.size();
@@ -430,10 +450,17 @@ o::LO GitrmParticles::searchPtclsByAdjSearchFromParent(const o::Reals& data,
   return o::get_min(o::LOs(elemIdOfPtclsAll));
 }
 
+void setDefaultOfInvalidPtcls(o::Write<o::LO>& elemIdOfPtclsAll, o::LOs& validPtcls, int invalidMin=-1) {
+  o::parallel_for(elemIdOfPtclsAll.size(), OMEGA_H_LAMBDA(const o::LO& i) {
+    if(validPtcls[i] <= 0)
+      elemIdOfPtclsAll[i] = invalidMin;
+  });
+}
+
 
 // search all particles read. TODO update this for partitioning
 void GitrmParticles::findElemIdsOfPtclCoordsByAdjSearch(const o::Reals& data,
-   o::LOs& elemIdOfPtcls, o::LOs& ptclDataInds, o::LOs& numPtclsInElems) {
+   o::LOs& elemIdOfPtcls, o::LOs& ptclDataInds, o::LOs& numPtclsInElems, o::LOs& validPtcls) {
   bool debug = true;
   int rank = this->rank;
 
@@ -447,7 +474,7 @@ void GitrmParticles::findElemIdsOfPtclCoordsByAdjSearch(const o::Reals& data,
   o::LO pstart = 0;
   o::LO ptcl = -1;
   for(auto ip = pstart; ip < maxLoop; ++ip) {
-    searchPtclInAllElems(data, ip, parentElem);
+    searchPtclInAllElems(data, ip, parentElem, validPtcls);
     if(parentElem >= 0) {
       ptcl = ip;
       break;
@@ -461,16 +488,21 @@ void GitrmParticles::findElemIdsOfPtclCoordsByAdjSearch(const o::Reals& data,
 
   //find all particles starting from parent
   o::Write<o::LO> numPtclsInElemsAll(nel, 0, "numPtclsInElemsAll");
-  o::Write<o::LO> elemIdOfPtclsAll(nPtcls, -1, "elemIdOfPtclsAll");
-  o::LO min = -1;
+  int defMin = -2;
+  int invalidMin = -1; // more than defMin, but less than valid elemId
+  o::Write<o::LO> elemIdOfPtclsAll(nPtcls, defMin, "elemIdOfPtclsAll");
+  setDefaultOfInvalidPtcls(elemIdOfPtclsAll, validPtcls, invalidMin);
+  o::LO min = defMin;
 
   if(parentElem >= 0)
     min = searchPtclsByAdjSearchFromParent(data, parentElem, numPtclsInElemsAll,
-      elemIdOfPtclsAll);
+      elemIdOfPtclsAll, validPtcls);
+  
+  std::cout << "min of searchPtclsByAdjSearchFromParent " << min << "\n";
 
   //if not all found, do brute-force search for all
-  if(min < 0)
-    min = searchAllPtclsInAllElems(data, elemIdOfPtclsAll, numPtclsInElemsAll);
+  if(min == defMin && mustFindAllPtcls) //FIXME
+    min = searchAllPtclsInAllElems(data, elemIdOfPtclsAll, numPtclsInElemsAll, validPtcls);
   if(debug && !rank)
     printf("%d: done adjacency search for particles\n",rank);
   
@@ -501,7 +533,7 @@ void GitrmParticles::findElemIdsOfPtclCoordsByAdjSearch(const o::Reals& data,
 
 //TODO handle numPtclsInElems which was added as a member for this function call
 void GitrmParticles::printNumPtclsInElems(const std::string& fname) {
-  std::cout << "Printing Nums of ptcls in elements.\n";
+  std::cout << "Printing Nums of ptcls in elements in " << fname << "\n";
   auto nps_h = o::HostWrite<o::LO>(o::deep_copy(numOfPtclsInElems));
 
   auto origGids = mesh.get_array<o::GO>(o::REGION, "origGids");

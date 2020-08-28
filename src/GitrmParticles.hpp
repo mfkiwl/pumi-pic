@@ -109,15 +109,15 @@ public:
     bool debug=false);
   void checkCompatibilityWithGITRflags(int timestep);
 
-  bool searchPtclInAllElems(const o::Reals& data, const o::LO pind, o::LO& parentElem);
+  bool searchPtclInAllElems(const o::Reals& data, const o::LO pind, o::LO& parentElem, o::LOs& validPtcls);
 
   o::LO searchAllPtclsInAllElems(const o::Reals& data, o::Write<o::LO>& elemIdOfPtcls,
-    o::Write<o::LO>& numPtclsInElems);
+    o::Write<o::LO>& numPtclsInElems, o::LOs& validPtcls);
 
   o::LO searchPtclsByAdjSearchFromParent(const o::Reals& data, const o::LO parentElem,
-    o::Write<o::LO>& numPtclsInElemsAll, o::Write<o::LO>& elemIdOfPtclsAll);
+    o::Write<o::LO>& numPtclsInElemsAll, o::Write<o::LO>& elemIdOfPtclsAll, o::LOs& validPtcls);
   void findElemIdsOfPtclCoordsByAdjSearch(const o::Reals& data, o::LOs& elemIdOfPtcls,
-   o::LOs& ptclDataInds, o::LOs& numPtclsInElems);
+   o::LOs& ptclDataInds, o::LOs& numPtclsInElems, o::LOs& validPtcls);
 
   void storePtclDataInGridsRZ(o::LO iter, o::Write<o::LO>& data_d,
    int gridsR=1, int gridsZ=10, double radMax=0.2, double zMax=0.8,
@@ -196,7 +196,7 @@ private:
   int rank = -1;
   int commSize =-1;
   bool isFullMesh = false;
-  bool requireFindingAllPtcls = true;
+  bool mustFindAllPtcls = true;
   int geometryId = 0;
   o::LOs numOfPtclsInElems;
 
