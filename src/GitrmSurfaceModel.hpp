@@ -32,11 +32,10 @@ public:
   o::Mesh& mesh;
   std::string ncFile;
   int numDetectorSurfaceFaces = 0;
-  o::HostWrite<o::LO> surfaceAndMaterialModelIds;
   int numSurfMaterialFaces = 0;
   o::LOs surfaceAndMaterialOrderedIds;
   int nDetectSurfaces = 0;
-  o::LOs detectorSurfaceOrderedIds;
+  o::LOs detectorMeshFaceOrderedIds;
   o::LOs bdryFaceMaterialZs;
   o::LOs bdryFaceOrderedIds;
 
@@ -132,8 +131,26 @@ public:
   o::Real interp1dUnstructured(const o::Real samplePoint, const int nx, 
     const o::Real max_x, const o::Real* data, int& lowInd);
 
+  o::LOs getFaceGModelSeqNums() const { return surfMatGModelSeqNums; }
+
+  o::Read<o::I8>& getExposedMeshSide() {return sideIsExposed;}
+  o::Write<o::LO>& getSumPtclStrike() {return sumPtclStrike;}
+  o::Write<o::LO>& getSputtYldCount() { return sputtYldCount;}
+  o::Write<o::Real>& getSumWtStrike() {return sumWtStrike;}
+  o::Write<o::Real>& getGrossDeposition() {return grossDeposition;}
+  o::Write<o::Real>& getGrossErosion() {return grossErosion;}
+  o::Write<o::Real>& getAveSputtYld() {return aveSputtYld;}
+
 private:
+  o::LOs surfMatGModelSeqNums;
   int rank = -1;
+  o::Read<o::I8> sideIsExposed;
+  o::Write<o::LO> sumPtclStrike;
+  o::Write<o::LO> sputtYldCount;
+  o::Write<o::Real> sumWtStrike;
+  o::Write<o::Real> grossDeposition;
+  o::Write<o::Real> grossErosion;
+  o::Write<o::Real> aveSputtYld;
 };
 
 
@@ -200,7 +217,7 @@ inline void gitrm_surfaceReflection(PS* ptcls, GitrmSurfaceModel& sm,
   auto& rpool = gp.rand_pool;
 
   const bool useCudaRnd = gp.useCudaRnd;
-  auto* cuStates =  gp.cudaRndStates;
+  auto* cuStates = gp.cudaRndStates;
   
   const int useGitrRnd = gp.useGitrRndNums;
   if(!gp.ranSurfaceReflection)
@@ -215,7 +232,6 @@ inline void gitrm_surfaceReflection(PS* ptcls, GitrmSurfaceModel& sm,
   else
     OMEGA_H_CHECK(!gp.testGitrOptSurfaceModel);
 
-  auto bdrys = sm.bdryFaceOrderedIds;
   o::Real pi = o::PI;
   o::Real shiftRefl = gitrm::DELTA_SHIFT_BDRY_REFL;
   auto amu = gitrm::PTCL_AMU;
@@ -254,40 +270,39 @@ inline void gitrm_surfaceReflection(PS* ptcls, GitrmSurfaceModel& sm,
   const auto dEdist = sm.dEdist;
   const auto dAdist = sm.dAdist; 
   //data collection
-  //auto surfaces = mesh.get_array<o::LO>(o::FACE, "SurfaceIndex");
   Kokkos::Profiling::pushRegion("surf_mesh_data+tag_copy");
   auto mesh = sm.mesh;
   const auto coords = mesh.coords();
   const auto face_verts = mesh.ask_verts_of(2);
   const auto f2r_ptr = mesh.ask_up(o::FACE, o::REGION).a2ab;
   const auto f2r_elem = mesh.ask_up(o::FACE, o::REGION).ab2b;
-  const auto side_is_exposed = mark_exposed_sides(&mesh);
   const auto mesh2verts = mesh.ask_elem_verts();
   const auto down_r2fs = mesh.ask_down(3, 2).ab2b;
-  auto sumPtclStrike = o::deep_copy(
-    mesh.get_array<o::Int>(o::FACE, "SumParticlesStrike"),"sumPtclStrike");
-  auto sputtYldCount = o::deep_copy(
-    mesh.get_array<o::Int>(o::FACE, "SputtYldCount"), "sputtYldCount"); 
-  auto sumWtStrike = o::deep_copy(
-    mesh.get_array<o::Real>(o::FACE, "SumWeightStrike"), "sumWtStrike");
-  auto grossDeposition = o::deep_copy(
-    mesh.get_array<o::Real>(o::FACE, "GrossDeposition"), "grossDeposition");
-  auto grossErosion = o::deep_copy(
-    mesh.get_array<o::Real>(o::FACE, "GrossErosion"), "grossErosion");
-  auto aveSputtYld = o::deep_copy(
-    mesh.get_array<o::Real>(o::FACE, "AveSputtYld"), "aveSputtYld");
+  const auto& side_is_exposed = sm.getExposedMeshSide();
+  auto& sumPtclStrike = sm.getSumPtclStrike();
+  auto& sputtYldCount = sm.getSputtYldCount();
+  auto& sumWtStrike = sm.getSumWtStrike();
+  auto& grossDeposition = sm.getGrossDeposition();
+  auto& grossErosion = sm.getGrossErosion();
+  auto& aveSputtYld = sm.getAveSputtYld();
+  //auto sumPtclStrike = o::deep_copy(
+  //  mesh.get_array<o::LO>(o::FACE, "SumParticlesStrike"),"sumPtclStrike");
   Kokkos::Profiling::popRegion();
 
   const auto& xpoints = gp.wallCollisionPts; //idexed by pid of scs
   const auto& xfaces = gp.wallCollisionFaceIds;
   auto& energyDist = sm.energyDistribution;
   auto energyDist_size = energyDist.size();
-
   auto& sputtDist = sm.sputtDistribution;
   auto& reflDist = sm.reflDistribution;
-  auto& surfaceIds = sm.surfaceAndMaterialOrderedIds;
-  auto& materials = sm.bdryFaceMaterialZs;
-  
+
+  const auto& materials = sm.bdryFaceMaterialZs;
+  //for the surface interacting bdry faces, same as included in surfaceAndMaterialOrderedIds
+  const auto& smSeqNum = sm.getFaceGModelSeqNums(); 
+  // debug
+  const auto& surfaceIds = sm.surfaceAndMaterialOrderedIds;
+  const auto& bdrys = sm.bdryFaceOrderedIds;
+
   auto pid_ps_global=ptcls->get<PTCL_ID_GLOBAL>();
   auto pid_ps = ptcls->get<PTCL_ID>();
   auto next_pos_ps = ptcls->get<PTCL_NEXT_POS>();
@@ -308,6 +323,7 @@ inline void gitrm_surfaceReflection(PS* ptcls, GitrmSurfaceModel& sm,
       OMEGA_H_CHECK(side_is_exposed[fid]);
       auto weight = ps_weight(pid);
       auto newWeight = weight; 
+      auto smodId = smSeqNum[fid];
       auto surfId = surfaceIds[fid]; //surfaces[fid]; //ids 0..
       auto gridId = fid;
       //TODO pass elem_ids if it is valid or get by this method
@@ -424,9 +440,9 @@ inline void gitrm_surfaceReflection(PS* ptcls, GitrmSurfaceModel& sm,
       o::Int addSumPtclStk = 0;
 
       if(debug>1)
-        printf(" surf5 timestep %d ptcl %d totalYR %g surfId %d gridId %d "
+        printf(" surf5 timestep %d ptcl %d totalYR %g smodId %d surfId %d gridId %d "
           "sputtProb %g rand7 %g bdry %d \n", 
-          iTimeStep, ptcl, totalYR, surfId, gridId, sputtProb, rand7, bdrys[fid]);
+          iTimeStep, ptcl, totalYR, smodId, surfId, gridId, sputtProb, rand7, bdrys[fid]);
       if(totalYR > 0) {
         newWeight = weight*totalYR;
         if(rand7 > sputtProb) { //reflect
@@ -448,23 +464,24 @@ inline void gitrm_surfaceReflection(PS* ptcls, GitrmSurfaceModel& sm,
              enDist_CDF_R_regrid);
           int eDistInd = floor((eInterpVal-en0Dist)/dEdist);
           int aDistInd = floor((aInterpVal-ang0Dist)/dAdist);
-          if(surfId >=0 && eDistInd >= 0 && eDistInd < nEnDist && 
+          if(smodId >=0 && eDistInd >= 0 && eDistInd < nEnDist && 
              aDistInd >= 0 && aDistInd < nAngDist) {
-            auto idx = surfId*nEnDist*nAngDist + eDistInd*nAngDist + aDistInd;
+            auto idx = smodId*nEnDist*nAngDist + eDistInd*nAngDist + aDistInd;
             auto old = Kokkos::atomic_fetch_add(&(reflDist[idx]), newWeight);
             if(debug>1) {
               printf("surfRefl step %d ptcl %d tot-refl %g idx %d Aind %d Eind %d"
                 " aInterp %g  eInterp %g\n", iTimeStep, ptcl, old+newWeight,
                 idx, aDistInd, eDistInd, aInterpVal, eInterpVal);
-              printf("surfRefl step %d ptcl %d surfid %d r8 %g wt %g YR %g thetaImpact %g"
-                " newWt %g \n", iTimeStep, ptcl, surfId, rand8, weight, totalYR, thetaImpact, newWeight);
+              printf("surfRefl step %d ptcl %d smodId %d surfid %d r8 %g wt %g YR %g thetaImpact %g"
+                " newWt %g \n", iTimeStep, ptcl, smodId, surfId, rand8, weight,
+                totalYR, thetaImpact, newWeight);
             }
           }
  
-          if(surfId >= 0) { //id 0..
+          if(smodId >= 0) { //id 0..
             if(debug>1)
-              printf(" surf7 surfId %d GrossDep+ %g addGrossDep %g  \n", 
-                  surfId, weight*(1.0-R0), addGrossDep);
+              printf(" surf7 smodId %d surfId %d GrossDep+ %g addGrossDep %g  \n", 
+                  smodId, surfId, weight*(1.0-R0), addGrossDep);
             addGrossDep += weight*(1.0-R0);
           }
         } else {//sputters
@@ -493,9 +510,9 @@ inline void gitrm_surfaceReflection(PS* ptcls, GitrmSurfaceModel& sm,
 
           int eDistInd = floor((eInterpVal-en0Dist)/dEdist);
           int aDistInd = floor((aInterpVal-ang0Dist)/dAdist);
-          if(surfId >= 0 && eDistInd >= 0 && eDistInd < nEnDist && 
+          if(smodId >= 0 && eDistInd >= 0 && eDistInd < nEnDist && 
              aDistInd >= 0 && aDistInd < nAngDist) {
-            auto idx = surfId*nEnDist*nAngDist + eDistInd*nAngDist + aDistInd;
+            auto idx = smodId*nEnDist*nAngDist + eDistInd*nAngDist + aDistInd;
             if(debug>1)
               printf(" surf9 timestep %d ptcl %d sputtDist idx  %d newWeight %g prev %g %g \n", 
                 iTimeStep, ptcl, idx, newWeight, sputtDist[idx], sputtDist[10]);
@@ -503,7 +520,7 @@ inline void gitrm_surfaceReflection(PS* ptcls, GitrmSurfaceModel& sm,
           }
           if(o::are_close(sputtProb, 0))
             newWeight = 0;
-          if(surfId >= 0) {
+          if(smodId >= 0) {
             addGrossDep += weight*(1.0-R0);
             addGrossEros += newWeight;
             addAveSput += Y0;
@@ -512,22 +529,22 @@ inline void gitrm_surfaceReflection(PS* ptcls, GitrmSurfaceModel& sm,
             }
           }
           if(debug>1)
-            printf(" surf10 surfId %d timestep %d ptcl %d newWeight %g GrossDep %g "
-              " GrossEros %g AveSput %g  SpYCount %d \n", surfId, iTimeStep,
+            printf(" surf10 smodId %d surfId %d timestep %d ptcl %d newWeight %g GrossDep %g "
+              " GrossEros %g AveSput %g  SpYCount %d \n", smodId, surfId, iTimeStep,
               ptcl, newWeight, addGrossDep, addGrossEros, addAveSput, addSpYCount);
         }
       } else { // totalYR
         newWeight = 0;
         scs_hitNum(pid) = 2;
         double grossDep_ = 0;
-        if(surfId >= 0) {
+        if(smodId >= 0) {
           addGrossDep += weight;  //TODO Dep ?
           grossDep_ = weight;
         }
         if(debug>1)
-          printf(" surf11 totalYR timestep %d ptcl %d weight %g surfId %d "
+          printf(" surf11 totalYR timestep %d ptcl %d weight %g smodId %d "
             " newWeight %g grossDep+ %g totalGrossDep %g \n", iTimeStep, ptcl,
-            weight,surfId, newWeight, grossDep_, addGrossDep);
+            weight,smodId, newWeight, grossDep_, addGrossDep);
       }
 
       if(eInterpVal <= 0) {
@@ -536,24 +553,24 @@ inline void gitrm_surfaceReflection(PS* ptcls, GitrmSurfaceModel& sm,
             " weight %g \n", iTimeStep, ptcl, didReflect, weight );
         newWeight = 0;
         scs_hitNum(pid) = 2;
-        if(surfId >= 0 && didReflect) {
+        if(smodId >= 0 && didReflect) {
           addGrossDep += weight; //TODO Dep ?
         }
       }
-      if(surfId >=0) {
+      if(smodId >=0) {
         addSumWtStk += weight;
         addSumPtclStk += 1;
 
         int eDistInd = floor((E0-en0Dist)/dEdist);
         int aDistInd = floor((thetaImpact-ang0Dist)/dAdist);
-        if(surfId >= 0 && eDistInd >= 0 && eDistInd < nEnDist && 
+        if(smodId >= 0 && eDistInd >= 0 && eDistInd < nEnDist && 
             aDistInd >= 0 && aDistInd < nAngDist) {
-          auto idx = surfId*nEnDist*nAngDist + eDistInd*nAngDist + aDistInd;
+          auto idx = smodId*nEnDist*nAngDist + eDistInd*nAngDist + aDistInd;
 
           if(debug>1)
-            printf("surf12 timestep %d ptcl %d surfId %d nEnDist %d nAngDist %d en0Dist %g enDist %g "
+            printf("surf12 timestep %d ptcl %d smodId %d surfId %d nEnDist %d nAngDist %d en0Dist %g enDist %g "
             "ang0Dist %g dEdist %g dAdist %g eDistInd %d aDistInd %d idx %d energyDist_size %d \n", 
-            iTimeStep, ptcl, surfId, nEnDist, nAngDist,  en0Dist, enDist, ang0Dist,  dEdist, 
+            iTimeStep, ptcl, smodId, surfId, nEnDist, nAngDist,  en0Dist, enDist, ang0Dist,  dEdist, 
             dAdist, eDistInd, aDistInd, idx, energyDist_size);
          
           Kokkos::atomic_fetch_add(&(energyDist[idx]), weight);
@@ -619,12 +636,6 @@ inline void gitrm_surfaceReflection(PS* ptcls, GitrmSurfaceModel& sm,
     } //mask
   }; //lambda
   p::parallel_for(ptcls, lamb, "surfaceModel");
-  mesh.add_tag(o::FACE, "SumParticlesStrike", 1, o::Read<o::Int>(sumPtclStrike));
-  mesh.add_tag(o::FACE, "SputtYldCount", 1, o::Read<o::Int>(sputtYldCount));
-  mesh.add_tag(o::FACE, "SumWeightStrike", 1, o::Reals(sumWtStrike));
-  mesh.add_tag(o::FACE, "GrossDeposition", 1, o::Reals(grossDeposition));
-  mesh.add_tag(o::FACE, "GrossErosion", 1, o::Reals(grossErosion));
-  mesh.add_tag(o::FACE, "AveSputtYld", 1, o::Reals(aveSputtYld));
 }
 
 #endif

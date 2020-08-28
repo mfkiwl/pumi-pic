@@ -35,7 +35,7 @@ namespace gitrm {
 const bool CREATE_GITR_MESH = false;
 const int USE_READIN_CSR_BDRYFACES = 1;
 const int STORE_BDRYDATA_PIC_SAFE = 1;
-const bool REQUIRE_FINDING_ALL_PTCLS = false;
+const bool MUST_FIND_ALL_PTCLS = false;
 const int PTCLS_SPLIT_READ = 0;
 
 const int D2BDRY_MIN_SELECT = 10; //that many instead of the least one
@@ -157,42 +157,45 @@ public:
   /** create ordered ids starting 0 for given geometric bdry ids. 
    */
   o::LOs setOrderedBdryIds(const o::LOs& gFaceIds, int& nSurfaces,
-    const o::LOs& gFaceValues, bool fill = false);
+    const o::LOs& gFaceValues, bool replace = false);
 
   void markBdryFacesOnGeomModelIds(const o::LOs& gFaces,
      o::Write<o::LO>& mark_d, o::LO newVal, bool init);
   
-  template<typename T>
-  void createBdryFaceClassArray(const o::LOs& gFaceIds, o::Write<T>& bdryArray,
-     const o::Read<T>& gFaceValues, bool fill = false) {
+  template<typename T = o::LO>
+  o::Read<T> createBdryFaceClassArray(const o::LOs& gFaceIds, 
+     const o::Read<T>& gFaceValues, T initVal, const std::string& name="", bool replace = false) {
+    auto nf = mesh.nfaces();
+    o::Write<T> bdryArray(nf, initVal, name);
     const auto side_is_exposed = o::mark_exposed_sides(&mesh);
     auto faceClassIds = mesh.get_array<o::ClassId>(2, "class_id");
     auto size = gFaceIds.size();
-    o::parallel_for(mesh.nfaces(), OMEGA_H_LAMBDA(const o::LO& fid) {
+    o::parallel_for(nf, OMEGA_H_LAMBDA(const T& fid) {
       if(side_is_exposed[fid]) {
         for(auto id=0; id < size; ++id) {
           if(gFaceIds[id] == faceClassIds[fid]) {
-            auto v = (fill) ? gFaceValues[id] : 1;
+            auto v = (replace) ? gFaceValues[id] : 1;
             bdryArray[fid] = v;
           }
         }
       }
     },"kernel_createBdryFaceClassArray");
+    return o::Read<T>(bdryArray);
   }
 
   void setFaceId2BdryFaceIdMap();
-  o::LOs getBdryFaceOrderedIds() const {return *bdryFaceOrderedIds; }
+  o::LOs getBdryFaceOrderedIds() const {return bdryFaceOrderedIds; }
   int nbdryFaces = 0;
 
   void setFaceId2SurfaceAndMaterialIdMap();
   int nSurfMaterialFaces = 0;
-  o::LOs getSurfaceAndMaterialOrderedIds() const { return *surfaceAndMaterialOrderedIds; }
+  o::LOs getSurfaceAndMaterialOrderedIds() const { return surfaceAndMaterialOrderedIds; }
 
   int nDetectSurfaces = 0;
-  o::LOs getDetectorSurfaceOrderedIds() const {return *detectorSurfaceOrderedIds;}
+  o::LOs getDetectorMeshFaceOrderedIds() const {return detectorMeshFaceOrderedIds;}
 
   void setFaceId2BdryFaceMaterialsZmap();
-  o::LOs getBdryFaceMaterialZs() const {return *bdryFaceMaterialZs;}
+  o::LOs getBdryFaceMaterialZs() const {return bdryFaceMaterialZs;}
 
   void initBField(const std::string &f="bFile");
   void load3DFieldOnVtxFromFile(const std::string tagName,
@@ -238,18 +241,16 @@ public:
   o::Reals getGradTiVtx() const{ return *gradTi_vtx_d;}
   o::Reals getGradTeVtx() const{ return *gradTe_vtx_d;}
 
-  o::HostWrite<o::LO> getDetectorSurfaceModelIds() const {
-    return detectorSurfaceModelIds;
-  }
-  o::HostWrite<o::LO> getBdryMaterialModelIds() const {
-    return bdryMaterialModelIds;
-  }
-  o::HostWrite<o::LO> getBdryMaterialModelIdsZ() const {
-    return bdryMaterialModelIdsZ;
-  }
-  o::HostWrite<o::LO> getSurfaceAndMaterialModelIds() const {
-    return surfaceAndMaterialModelIds;
-  }
+  /** geometric model ids of detector segments */
+  o::LOs getDetectorModelIds() const {return detectorModelIds; }
+  int getNumDetectorModelIds() const { return detectorModelIds.size(); }
+  /** geometric model ids of */
+  o::LOs getBdryMaterialModelIds() const { return bdryMaterialModelIds;}
+  o::LOs getBdryMaterialModelIdsZ() const { return bdryMaterialModelIdsZ; }
+  o::LOs getSurfaceAndMaterialModelIds() const { return surfaceAndMaterialModelIds;}
+
+  o::LOs getSurfMatGModelSeqNums() const { return surfMatGModelSeqNums;}
+
   // Used in boundary init and if 2D field is used for particles
   o::Real bGridX0 = 0;
   o::Real bGridZ0 = 0;
@@ -327,11 +328,12 @@ private:
   o::LOs bdryFacesSelectedCsr;
   o::LOs bdryCsrReadInDataPtrs;
   o::LOs bdryCsrReadInData;
-  std::shared_ptr<o::LOs> bdryFaceOrderedIds;
 
-  std::shared_ptr<o::LOs> surfaceAndMaterialOrderedIds;
-  std::shared_ptr<o::LOs> detectorSurfaceOrderedIds;
-  std::shared_ptr<o::LOs> bdryFaceMaterialZs;
+  o::LOs bdryFaceOrderedIds;
+  o::LOs surfMatGModelSeqNums;
+  o::LOs surfaceAndMaterialOrderedIds;
+  o::LOs detectorMeshFaceOrderedIds;
+  o::LOs bdryFaceMaterialZs;
   std::string profileNcFile = "profile.nc";
   //D3D_major rad =1.6955m; https://github.com/SCOREC/Fusion_Public/blob/master/
   // samples/D-g096333.03337/g096333.03337#L1033
@@ -353,10 +355,11 @@ private:
   std::shared_ptr<o::Reals> gradTe_vtx_d;
 
   //get model Ids by opening mesh/model in Simmodeler
-  o::HostWrite<o::LO> detectorSurfaceModelIds;
-  o::HostWrite<o::LO> bdryMaterialModelIds;
-  o::HostWrite<o::LO> bdryMaterialModelIdsZ;
-  o::HostWrite<o::LO> surfaceAndMaterialModelIds;
+  o::LOs detectorModelIds;
+  o::LOs bdryMaterialModelIds;
+  o::LOs bdryMaterialModelIdsZ;
+  o::LOs surfaceAndMaterialModelIds;
+
   int rank = -1;
   bool exists = false;
 };

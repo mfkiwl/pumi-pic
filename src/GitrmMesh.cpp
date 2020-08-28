@@ -52,17 +52,17 @@ void GitrmMesh::initPiscesGeometry() {
   //mesh ht 50cm, rad 10cm. Top lid of small sylinder not included
   auto dsIds = o::HostWrite<o::LO>{268, 593, 579, 565, 551, 537, 523, 509,
    495,481, 467,453, 439, 154};
-  detectorSurfaceModelIds = o::HostWrite<o::LO> (dsIds);
+  detectorModelIds = o::LOs(o::Write<o::LO>(o::HostWrite<o::LO> (dsIds)));
 
-  //source materials model ids
+  //source materials model ids = top of inner cylinder
   auto matIds = o::HostWrite<o::LO>{138};
-  bdryMaterialModelIds = o::HostWrite<o::LO>(matIds);
+  bdryMaterialModelIds = o::LOs(o::Write<o::LO>(matIds));
   auto matZs = o::HostWrite<o::LO>{74}; //Tungsten
-  bdryMaterialModelIdsZ = o::HostWrite<o::LO>(matZs);
+  bdryMaterialModelIdsZ = o::LOs(o::Write<o::LO>(matZs));
   //top of inner cylinder and top lid of tower included
   auto smIds = o::HostWrite<o::LO>{268, 593, 579, 565, 551, 537, 523,
    509, 495,481, 467,453, 439, 154, 150, 138};
-  surfaceAndMaterialModelIds = o::HostWrite<o::LO>(smIds);
+  surfaceAndMaterialModelIds = o::LOs(o::Write<o::LO>(smIds));
 
   useConstBField = true;
   biasedSurface = BIASED_SURFACE;
@@ -72,12 +72,12 @@ void GitrmMesh::initPiscesGeometry() {
 void GitrmMesh::initIterGeometry() {
   if(!rank)
     std::cout << rank << " Initializing Iter geometry\n";
-  detectorSurfaceModelIds = o::HostWrite<o::LO>{354,581,295};
-  bdryMaterialModelIds = o::HostWrite<o::LO>{354};
-  bdryMaterialModelIdsZ = o::HostWrite<o::LO>{74}; //W Tungsten
+  bdryMaterialModelIds = o::LOs(o::Write<o::LO>(o::HostWrite<o::LO>{354}));
+  detectorModelIds = bdryMaterialModelIds;//,581,295};
+  bdryMaterialModelIdsZ = o::LOs(o::Write<o::LO>(o::HostWrite<o::LO>{74})); //W Tungsten
 
   //TODO verify the ids
-  surfaceAndMaterialModelIds = o::HostWrite<o::LO>{354,581,295};
+  surfaceAndMaterialModelIds = bdryMaterialModelIds;
 }
 
 void GitrmMesh::initGeometryAndFields(const std::string& bFile, const std::string& profFile,
@@ -136,6 +136,7 @@ void GitrmMesh::initGeometryAndFields(const std::string& bFile, const std::strin
 }
 
 //all boundary faces, ordered
+//TODO unify
 void GitrmMesh::setFaceId2BdryFaceIdMap() {
   auto nf = mesh.nfaces();
   const auto side_is_exposed = mark_exposed_sides(&mesh);
@@ -146,29 +147,17 @@ void GitrmMesh::setFaceId2BdryFaceIdMap() {
     if(!side_is_exposed[fid])
       bdryFaces_d[fid] = -1;
   },"kernel_faceid_2_bdryface_map");
-  bdryFaceOrderedIds = std::make_shared<o::LOs>(bdryFaces_d);
+  bdryFaceOrderedIds = o::LOs(bdryFaces_d);
   nbdryFaces = o::get_sum(exposed);
   OMEGA_H_CHECK(nbdryFaces == (o::HostRead<o::LO>(bdryFaces_r))[nf-1]);
 }
-/*
-void GitrmMesh::setFaceId2BdryFaceIdMap() {
-  const auto side_is_exposed = mark_exposed_sides(&mesh);
-  o::Write<o::LO> exposed(mesh.nfaces(), 0, "exposed");
-  o::parallel_for(mesh.nfaces(), OMEGA_H_LAMBDA(const o::LO& i) {
-    if(side_is_exposed[i])
-      exposed[i] = 1;
-  });
-  setOrderedIds(o::LOs(exposed), bdryFaceOrderedIds, nbdryFaces);
-}
-
-*/
 //create ordered ids starting 0 for given geometric bdry ids.
 //copy associated values if fill is true.
 o::LOs GitrmMesh::setOrderedBdryIds(const o::LOs& gFaceIds, int& nSurfaces,
-    const o::LOs& gFaceValues, bool fill) {
+    const o::LOs& gFaceValues, bool replace) {
   auto nf = mesh.nfaces();
-  o::Write<o::LO> isSurface_d(nf, 0, "isSurface");
-  createBdryFaceClassArray(gFaceIds, isSurface_d, gFaceValues, fill);
+  o::LO initVal = 0;
+  auto isSurface_d = createBdryFaceClassArray(gFaceIds, gFaceValues, initVal, "isSurface", replace);
   nSurfaces = o::get_sum(o::LOs(isSurface_d));
   auto scanIds_r = o::offset_scan(o::LOs(isSurface_d));
   auto scanIds_w = o::deep_copy(scanIds_r);
@@ -176,26 +165,27 @@ o::LOs GitrmMesh::setOrderedBdryIds(const o::LOs& gFaceIds, int& nSurfaces,
   o::parallel_for(nf, OMEGA_H_LAMBDA(const o::LO& fid) {
     if(!isSurface_d[fid])
       scanIds_w[fid]= -1;
-  },"kerenel_setOrderedBdryIds");
+  },"setOrderedBdryIds");
   //last index of scanned is cumulative sum
   OMEGA_H_CHECK(nSurfaces == (o::HostRead<o::LO>(scanIds_r))[nf-1]);
   return o::LOs(scanIds_w);
 }
 
 void GitrmMesh::setFaceId2SurfaceAndMaterialIdMap() {
-  //detector surfaces only
-  o::LOs sids = setOrderedBdryIds(o::LOs(o::Write<o::LO>(detectorSurfaceModelIds)),
-     nDetectSurfaces, o::LOs(1), false);
-  detectorSurfaceOrderedIds = std::make_shared<o::LOs>(sids);
+  //ordered indices to select boundary mesh faces classified on detector geomtric ids.
+  //The array size is mesh.nfaces(), while the rest are -1.
+  detectorMeshFaceOrderedIds = setOrderedBdryIds(detectorModelIds, nDetectSurfaces, o::LOs(), false);
   //surface+materials
-  o::LOs smids = setOrderedBdryIds(o::LOs(o::Write<o::LO>(surfaceAndMaterialModelIds)),
-    nSurfMaterialFaces, o::LOs(1), false);
-  surfaceAndMaterialOrderedIds = std::make_shared<o::LOs>(smids);
+  surfaceAndMaterialOrderedIds = setOrderedBdryIds(surfaceAndMaterialModelIds,
+    nSurfMaterialFaces, o::LOs(), false);
+  o::LO initVal = -1;
+  //sequential number ids in the same order as the geometric ids
+  auto seqNums = o::LOs(o::Write<o::LO>(surfaceAndMaterialModelIds.size(), 0, 1, "seqNum"));
+  surfMatGModelSeqNums = createBdryFaceClassArray(surfaceAndMaterialModelIds, seqNums, initVal, "surfSeqNum", true); 
+
   //only material boundary faces
-  o::Write<o::LO> matZs(mesh.nfaces(), 0, "materialZs");
-  createBdryFaceClassArray(o::LOs(o::Write<o::LO>(bdryMaterialModelIds)), 
-    matZs, o::LOs(o::Write<o::LO>(bdryMaterialModelIdsZ)), true);
-  bdryFaceMaterialZs = std::make_shared<o::LOs>(matZs);
+  initVal = 0;
+  bdryFaceMaterialZs = createBdryFaceClassArray(bdryMaterialModelIds, bdryMaterialModelIdsZ, initVal, "materialZs", true);
 }
 
 //Loads only from 2D input field
@@ -566,7 +556,7 @@ void GitrmMesh::preprocessStoreBdryFacesBfs(o::Write<o::LO>& numBdryFaceIdsInEle
   o::LOs modelIdsToSkip(1,-1);
   int numModelIds = 0;
   if(markFaces) {
-    modelIdsToSkip = o::LOs(o::Write<o::LO>(detectorSurfaceModelIds));
+    modelIdsToSkip = detectorModelIds;
     numModelIds = modelIdsToSkip.size();
   }
   auto faceClassIds = mesh.get_array<o::ClassId>(2, "class_id");
@@ -754,12 +744,11 @@ void GitrmMesh::preprocessSelectBdryFacesOnPicpart( bool onlyMaterialSheath) {
  
   // if any model ids to be skipped, in the case of multiple model bdries  
   if(!onlyMaterialSheath && SKIP_MODEL_IDS_FROM_DIST2BDRY) //false
-    markBdryFacesOnGeomModelIds(o::LOs(o::Write<o::LO>(detectorSurfaceModelIds)), 
-      markedFaces_w, 0, true);
+    markBdryFacesOnGeomModelIds(detectorModelIds, markedFaces_w, 0, true);
 
   //only sheath bdry faces to be included. Overwriting markedFaces_w
   if(onlyMaterialSheath) {
-    markBdryFacesOnGeomModelIds(o::LOs(o::Write<o::LO>(bdryMaterialModelIds)),
+    markBdryFacesOnGeomModelIds(bdryMaterialModelIds,
       markedFaces_w, 1, false); 
   }
   auto markedFaces = o::LOs(markedFaces_w);
@@ -934,8 +923,7 @@ void GitrmMesh::preprocessSelectBdryFacesFromAll( bool onlyMaterialSheath) {
   int nFaces = mesh.nfaces();
   o::Write<o::LO> markedFaces_w(nFaces, 0, "markedFaces");
   if(!onlyMaterialSheath && SKIP_MODEL_IDS_FROM_DIST2BDRY) //false
-    markBdryFacesOnGeomModelIds(o::LOs(o::Write<o::LO>(detectorSurfaceModelIds)), 
-      markedFaces_w, 0, true);
+    markBdryFacesOnGeomModelIds(detectorModelIds, markedFaces_w, 0, true);
 
   //only sheath bdry faces to be included. Overwriting markedFaces_w
   if(onlyMaterialSheath) {
@@ -1093,7 +1081,7 @@ OMEGA_H_DEVICE o::Matrix<sdim, edim> makeMeshBdryData() {
 
 void GitrmMesh::writeResultAsMeshTag(o::Write<o::LO>& result_d) {
   //ordered model ids corresp. to  material face indices: 0..
-  auto faceIds = o::LOs(o::Write<o::LO>(detectorSurfaceModelIds));
+  auto faceIds = detectorModelIds;
   auto numFaceIds = faceIds.size();
   OMEGA_H_CHECK(numFaceIds == result_d.size());
   const auto sideIsExposed = o::mark_exposed_sides(&mesh);
@@ -1124,7 +1112,7 @@ void GitrmMesh::writeResultAsMeshTag(o::Write<o::LO>& result_d) {
 }
 
 int GitrmMesh::markDetectorSurfaces(bool render) {
-  auto faceIds = o::LOs(o::Write<o::LO>(detectorSurfaceModelIds));
+  auto faceIds = detectorModelIds;
   auto numFaceIds = faceIds.size();
   const auto side_is_exposed = o::mark_exposed_sides(&mesh);
   // array of all faces, but only classification ids are valid
@@ -1413,7 +1401,7 @@ void GitrmMesh::createSurfaceGitrMesh() {
   if(!rank)
     printf("Number of boundary faces(including material surfaces) %d "
       " total-faces %d\n", nbdryFaces, nf);
-  auto surfaceAndMaterialIds = *surfaceAndMaterialOrderedIds;
+  auto surfaceAndMaterialIds = surfaceAndMaterialOrderedIds;
   //using arrays of all faces, later filtered out
   o::Write<o::Real> points_d(9*nf, 0, "points");
   o::Write<o::Real> abcd_d(4*nf, 0, "abcd");
@@ -1481,10 +1469,7 @@ void GitrmMesh::createSurfaceGitrMesh() {
   auto BCxBA = o::HostRead<o::Real>(BCxBA_d);
   auto CAxCB = o::HostRead<o::Real>(CAxCB_d);
   auto area = o::HostRead<o::Real>(area_d);
-  auto materialZ_l = o::HostRead<o::LO>(*bdryFaceMaterialZs);
-  o::HostWrite<o::Real> materialZ_h(materialZ_l.size(), 0);
-  for(int i=0; i<materialZ_l.size(); ++i)
-    materialZ_h[i] = materialZ_l[i];
+  o::HostRead<o::LO> materialZ_h(o::deep_copy(bdryFaceMaterialZs));
   auto surface = o::HostRead<o::LO>(surface_d);
   auto inDir = o::HostRead<o::LO>(inDir_d);
   auto exposed = o::HostRead<o::Byte>(side_is_exposed);
@@ -1504,7 +1489,7 @@ void GitrmMesh::createSurfaceGitrMesh() {
   outputGitrMeshData(BCxBA, exposed, {"BCxBA"}, fp, format);
   outputGitrMeshData(CAxCB, exposed, {"CAxCB"}, fp, format);
   outputGitrMeshData(area, exposed, {"area"}, fp, format);
-  outputGitrMeshData(materialZ_h, exposed, {"Z"}, fp,"%f");
+  outputGitrMeshData(materialZ_h, exposed, {"Z"}, fp,"%d");
   outputGitrMeshData(surface, exposed, {"surface"}, fp, "%d");
   outputGitrMeshData(inDir, exposed, {"inDir"}, fp, "%d");
   fprintf(fp, "periodic = 0;\ntheta0 = 0.0;\ntheta1 = 0.0\n}\n");
