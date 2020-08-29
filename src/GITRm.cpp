@@ -187,10 +187,6 @@ int main(int argc, char** argv) {
   if(argc > 13 && std::string(argv[13]) == "iter")
     geomName = "Iter";
 
-  //TODO set USE_CONSTANT_BFIELD to false
-
-  bool printNumPtclsInElems = true;
-
   bool debug = false; //search
   int debug2 = 1;  //routines
   bool useCudaRnd = false; //replace kokkos rnd
@@ -201,6 +197,7 @@ int main(int argc, char** argv) {
   bool coulomb_collision = true;
   bool diffusion = true; //not for diffusion>1
 
+  bool printNumPtclsInElems = false;
   //GitrmInput inp("gitrInput.cfg", true);
   // inp.testInputConfig();
 

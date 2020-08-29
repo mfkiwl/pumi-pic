@@ -237,6 +237,11 @@ void GitrmMesh::load3DFieldOnVtxFromFile(const std::string tagName,
 }
 
 void GitrmMesh::initBField(const std::string &bFile) {
+  if(geomName == "pisces")
+    OMEGA_H_CHECK(USE_CONSTANT_BFIELD);
+  else
+    OMEGA_H_CHECK(! USE_CONSTANT_BFIELD);
+
   if(USE_CONSTANT_BFIELD) {
     if(!rank)
       printf("Setting constant BField\n");
