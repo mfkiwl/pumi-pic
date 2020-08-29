@@ -52,7 +52,7 @@ void GitrmMesh::initPiscesGeometry() {
   //mesh ht 50cm, rad 10cm. Top lid of small sylinder not included
   auto dsIds = o::HostWrite<o::LO>{268, 593, 579, 565, 551, 537, 523, 509,
    495,481, 467,453, 439, 154};
-  detectorModelIds = o::LOs(o::Write<o::LO>(o::HostWrite<o::LO> (dsIds)));
+  detectorModelIds = o::LOs(o::Write<o::LO>(dsIds));
 
   //source materials model ids = top of inner cylinder
   auto matIds = o::HostWrite<o::LO>{138};

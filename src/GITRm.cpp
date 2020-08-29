@@ -415,22 +415,19 @@ int main(int argc, char** argv) {
   std::chrono::duration<double> dur_steps = end_sim - end_init;
   std::cout << "Total Main Loop duration " << dur_steps.count()/60 << " min.\n";
 
-  bool writeData = (comm_size == 1 || bm == p::Input::Method::FULL);
-
   //gp.writeOutPtclEndPoints();
   std::string npStr = "_np-" + std::to_string(comm_size);
   if(geomName == "pisces") {
     std::string fname(geomName + "Counts" + npStr + ".txt");
     gp.writeDetectedParticles(fname, geomName+"Detected");
-    if(writeData)
-      gm.writeResultAsMeshTag(gp.collectedPtcls);
+    gm.writeResultAsMeshTag(gp.collectedPtcls);
   }
-  if(false && histInterval >0)
+  if(histInterval >0)
     gp.writePtclStepHistoryFile("gitrm-history" + npStr + ".nc");
 
-  if(writeData && surfacemodel)
+  if(surfacemodel)
     sm.writeSurfaceDataFile("gitrm-surface" + npStr + ".nc");
-  if(writeData && spectroscopy)
+  if(spectroscopy)
     sp.writeSpectroscopyFile("gitrm-spec" + npStr + ".nc");
 
   bool renderPicpMesh = false;

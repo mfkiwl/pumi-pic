@@ -2121,20 +2121,18 @@ void GitrmParticles::writeDetectedParticles(std::string fname, std::string heade
   o::HostWrite<o::LO> dataTot_in(collectedPtcls);
   o::HostWrite<o::LO> dataTot(collectedPtcls.size());
 
-  //TODO handle if different size in ranks
+  //NOTE: based on the array of same size on all picparts
   if(!rank)
     printf("Detected size %d this %d \n", dataTot.size(),dataTot_in.size());
-  int stat = MPI_Reduce(dataTot_in.data(), dataTot.data(), dataTot_in.size(), MPI_INT, MPI_SUM,
-    0, MPI_COMM_WORLD);
+  int stat = MPI_Reduce(dataTot_in.data(), dataTot.data(), dataTot_in.size(),
+    MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
   OMEGA_H_CHECK(!stat);
   if(rank)
     return;
 
-  printf("rank %d Detected size %d this %d \n", rank, dataTot.size(),
-    dataTot_in.size());
+  printf("rank %d Detected size %d this %d \n", rank, dataTot.size(), dataTot_in.size());
   int total = 0;
   auto dataTot_d = o::Write<o::LO>(dataTot);
-  Kokkos::fence();
   Kokkos::parallel_reduce(dataTot_d.size(), OMEGA_H_LAMBDA(const int i, o::LO& lsum) {
     lsum += dataTot_d[i];
   }, total);
