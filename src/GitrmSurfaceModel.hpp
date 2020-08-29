@@ -325,7 +325,7 @@ inline void gitrm_surfaceReflection(PS* ptcls, GitrmSurfaceModel& sm,
       auto newWeight = weight; 
       auto smodId = smSeqNum[fid];
       auto surfId = surfaceIds[fid]; //surfaces[fid]; //ids 0..
-      auto gridId = fid;
+      auto gridId = smodId; //fid;
       //TODO pass elem_ids if it is valid or get by this method
       auto pelem = p::elem_id_of_bdry_face_of_tet(fid, f2r_ptr, f2r_elem);
       if(elemId != pelem)

@@ -44,14 +44,14 @@ void GitrmSurfaceModel::initSurfaceModelData(std::string ncFile, bool debug) {
   energyDistribution = o::Write<o::Real>(nDist, 0, "surfEnDist"); // one per detFace
   sputtDistribution = o::Write<o::Real>(nDist, 0, "surfSputtDist"); // one per detFace
   reflDistribution = o::Write<o::Real>(nDist, 0, "surfReflDist"); //one per detFace
-  auto nf = mesh.nfaces();
+  auto n = ndmIds;//mesh.nfaces();
   sideIsExposed = o::mark_exposed_sides(&mesh);
-  sumPtclStrike = o::Write<o::LO>(nf, 0, "sumPtclStrike");
-  sputtYldCount = o::Write<o::LO>(nf, 0, "sputtYldCount");
-  sumWtStrike = o::Write<o::Real>(nf, 0, "sumWtStrike");
-  grossDeposition = o::Write<o::Real>(nf, 0, "grossDeposition");
-  grossErosion = o::Write<o::Real>(nf, 0, "grossErosion");
-  aveSputtYld = o::Write<o::Real>(nf, 0, "aveSputtYld");
+  sumPtclStrike = o::Write<o::LO>(n, 0, "sumPtclStrike");
+  sputtYldCount = o::Write<o::LO>(n, 0, "sputtYldCount");
+  sumWtStrike = o::Write<o::Real>(n, 0, "sumWtStrike");
+  grossDeposition = o::Write<o::Real>(n, 0, "grossDeposition");
+  grossErosion = o::Write<o::Real>(n, 0, "grossErosion");
+  aveSputtYld = o::Write<o::Real>(n, 0, "aveSputtYld");
   //mesh.add_tag<o::LO>(o::FACE, "SumParticlesStrike", 1, o::Read<o::Int>(nf,0, "SumParticlesStrike"));
 }
 
@@ -352,56 +352,46 @@ void GitrmSurfaceModel::getSurfaceModelData(const std::string fileName,
   }
 }
 
-//This won't work for partitioned mesh of non-full-buffer
+
+template<typename T>
+void writeData(const o::Write<T>& dd, const netCDF::NcType& ncType,
+    const std::vector<netCDF::NcDim>& ncd, netCDF::NcFile& ncf,
+    const std::string& name, bool write) {
+  o::HostWrite<T> dh(dd.size());
+  o::HostWrite<T> dh_in(dd);
+  MPI_Reduce(dh_in.data(), dh.data(), dh_in.size(), MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+  if(write) {
+    netCDF::NcVar ncv = ncf.addVar(name, ncType, ncd);
+    ncv.putVar(dh.data());  
+  }
+}
+
 //TODO move to IO file
-//Call at the end of simulation
+//collect data at the end of run, using mpi reduce. This is valid as long as
+//the data collected on each picpart based on seq. num of geometric ids, which 
+//are same on every picpart.
 void GitrmSurfaceModel::writeSurfaceDataFile(std::string fileName) const {
   printf("Writing surface model output \n");
-  o::HostWrite<o::Real> energyDist_in(energyDistribution);
-  o::HostWrite<o::Real> reflDist_in(reflDistribution);
-  o::HostWrite<o::Real> sputtDist_in(sputtDistribution);
-  o::HostWrite<o::Real> energyDist_h(energyDistribution.size(), "energyDist_h");
-  o::HostWrite<o::Real> reflDist_h(reflDistribution.size(), "reflDist_h");
-  o::HostWrite<o::Real> sputtDist_h(sputtDistribution.size(), "sputtDist_h");
-
-  //FIXME this is only for full buffer partitioning.
-  MPI_Reduce(energyDist_in.data(), energyDist_h.data(), 
-    energyDist_h.size(), MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
-  MPI_Reduce(reflDist_in.data(), reflDist_h.data(), 
-    reflDist_h.size(), MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
-  MPI_Reduce(sputtDist_in.data(), sputtDist_h.data(),
-    sputtDist_h.size(), MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
-  if(rank) {
-    return;
-  }
- 
   netCDF::NcFile ncf(fileName, netCDF::NcFile::replace);
   int ndmIds = gm.getNumDetectorModelIds();
+  std::vector<netCDF::NcDim> ncd;
   netCDF::NcDim ncs = ncf.addDim("nSurfaces", ndmIds);
+  ncd.push_back(ncs);
   std::vector<netCDF::NcDim> dims;
   dims.push_back(ncs);
   netCDF::NcDim nEn = ncf.addDim("nEnergies", nEnDist);
   dims.push_back(nEn);
   netCDF::NcDim nAng = ncf.addDim("nAngles", nAngDist);
   dims.push_back(nAng);
-  netCDF::NcVar grossDep = ncf.addVar("grossDeposition", netCDF::ncDouble, ncs);
-  grossDep.putVar(grossDeposition.data());
-  netCDF::NcVar grossEro = ncf.addVar("grossErosion", netCDF::ncDouble, ncs);
-  grossEro.putVar(grossErosion.data());
-  netCDF::NcVar aveSpyl = ncf.addVar("aveSpyl", netCDF::ncDouble, ncs);
-  aveSpyl.putVar(aveSputtYld.data());
-  netCDF::NcVar spylCounts = ncf.addVar("spylCounts", netCDF::ncInt, ncs);
-  spylCounts.putVar(sputtYldCount.data());
-  //NcVar surfNum = ncf.addVar("surfaceNumber", ncInt, ncs);
-  //surfNum.putVar(&surfIds[0]);
-  netCDF::NcVar nPtlcsStrike = ncf.addVar("sumParticlesStrike", netCDF::ncInt, ncs);
-  nPtlcsStrike.putVar(sumPtclStrike.data());
-  netCDF::NcVar nWtStrike =  ncf.addVar("sumWeightStrike", netCDF::ncDouble, ncs);
-  nWtStrike.putVar(sumWtStrike.data());
-  netCDF::NcVar surfEDist = ncf.addVar("surfEDist", netCDF::ncDouble, dims);
-  surfEDist.putVar(energyDist_h.data());
-  netCDF::NcVar surfReflDist = ncf.addVar("surfReflDist", netCDF::ncDouble, dims);
-  surfReflDist.putVar(reflDist_h.data());
-  netCDF::NcVar surfSputtDist = ncf.addVar("surfSputtDist", netCDF::ncDouble, dims);
-  surfSputtDist.putVar(sputtDist_h.data());
+
+  bool write = (rank == 0);
+  writeData(grossDeposition, netCDF::ncDouble, ncd, ncf, "grossDeposition", write);
+  writeData(grossErosion, netCDF::ncDouble, ncd, ncf, "grossErosion", write);
+  writeData(aveSputtYld, netCDF::ncDouble, ncd, ncf, "aveSpyl", write);
+  writeData(sputtYldCount, netCDF::ncInt, ncd, ncf, "spylCounts", write);
+  writeData(sumPtclStrike, netCDF::ncInt, ncd, ncf, "sumParticlesStrike", write);
+  writeData(sumWtStrike, netCDF::ncDouble, ncd, ncf, "sumWeightStrike", write);
+  writeData(energyDistribution, netCDF::ncDouble, dims, ncf, "surfEDist", write);
+  writeData(reflDistribution, netCDF::ncDouble, dims, ncf, "surfReflDist", write);
+  writeData(sputtDistribution, netCDF::ncDouble, dims, ncf, "surfSputtDist", write);
 }

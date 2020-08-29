@@ -58,7 +58,7 @@ void rebuild(p::Mesh& picparts, PS* ptcls, o::LOs elem_ids,
 
   //Added to check particle migration
   auto pid_ps = ptcls->get<PTCL_ID>();
-  auto pid_ps_global = ptcls->get<PTCL_ID_GLOBAL>(); 
+  auto pid_ps_global = ptcls->get<PTCL_ID_GLOBAL>();
   //delete later
   //
   auto lamb = PS_LAMBDA(const int& e, const int& pid, const int& mask) {
@@ -66,7 +66,7 @@ void rebuild(p::Mesh& picparts, PS* ptcls, o::LOs elem_ids,
       int new_elem = elem_ids[pid];
       ps_elem_ids(pid) = new_elem;
       ps_process_ids(pid) = comm_rank;
-     
+
       //Added to check migration
       auto ptcl = pid_ps(pid);
       auto ptcl_global=pid_ps_global(pid);
@@ -186,28 +186,24 @@ int main(int argc, char** argv) {
   std::string geomName = "pisces" ;// "Iter";
   if(argc > 13 && std::string(argv[13]) == "iter")
     geomName = "Iter";
-    
+
   //TODO set USE_CONSTANT_BFIELD to false
-  
+
   bool printNumPtclsInElems = true;
 
   bool debug = false; //search
   int debug2 = 1;  //routines
   bool useCudaRnd = false; //replace kokkos rnd
-  
+
   bool surfacemodel = true;
   bool spectroscopy = true;
-  bool thermal_force = false; //false in pisces conf
-  
-  if(geomName == "pisces")
-    OMEGA_H_CHECK(!thermal_force);
-
+  bool thermal_force = (geomName == "pisces") ? false : true;
   bool coulomb_collision = true;
   bool diffusion = true; //not for diffusion>1
-  
+
   //GitrmInput inp("gitrInput.cfg", true);
   // inp.testInputConfig();
- 
+
   auto deviceCount = 0;
   cudaGetDeviceCount(&deviceCount);
   size_t free, total;
@@ -289,7 +285,7 @@ int main(int argc, char** argv) {
   //TODO get mesh from picparts inside gm
   GitrmMesh gm(&picparts, &full_mesh, *mesh, owners);
   gm.initGeometryAndFields(bFile, profFile, thermGradientFile, geomName, debug2);
-  
+
   //TODO move to unit tests
   //gm.getBdryPtr()->testDistanceToBdry(2);
 
@@ -365,13 +361,13 @@ int main(int argc, char** argv) {
     if(spectroscopy)
       gitrm_spectroscopy(ptcls, sp, elem_ids_r, debug2);
     Kokkos::Profiling::popRegion();
-    
+
     Kokkos::Profiling::pushRegion("ionize");
     gitrm_ionize(ptcls, gir, gp, gm, elem_ids_r, debug2);
     Kokkos::Profiling::popRegion();
 
     Kokkos::Profiling::pushRegion("recombine");
-    gitrm_recombine(ptcls, gir, gp, gm, elem_ids_r, debug2);  
+    gitrm_recombine(ptcls, gir, gp, gm, elem_ids_r, debug2);
     Kokkos::Profiling::popRegion();
 
     if(diffusion) {
@@ -419,20 +415,23 @@ int main(int argc, char** argv) {
   std::chrono::duration<double> dur_steps = end_sim - end_init;
   std::cout << "Total Main Loop duration " << dur_steps.count()/60 << " min.\n";
 
+  bool writeData = (comm_size == 1 || bm == p::Input::Method::FULL);
+
   //gp.writeOutPtclEndPoints();
   std::string npStr = "_np-" + std::to_string(comm_size);
   if(geomName == "pisces") {
-    std::string fname("piscesCounts" + npStr + ".txt");
-    gp.writeDetectedParticles(fname, "piscesDetected");
-    //gm.writeResultAsMeshTag(gp.collectedPtcls);
+    std::string fname(geomName + "Counts" + npStr + ".txt");
+    gp.writeDetectedParticles(fname, geomName+"Detected");
+    if(writeData)
+      gm.writeResultAsMeshTag(gp.collectedPtcls);
   }
-  //if(histInterval >0)
-  //  gp.writePtclStepHistoryFile("gitrm-history" + npStr + ".nc");
+  if(false && histInterval >0)
+    gp.writePtclStepHistoryFile("gitrm-history" + npStr + ".nc");
 
-  //if(surfacemodel)
-  //  sm.writeSurfaceDataFile("gitrm-surface" + npStr + ".nc");
-  //if(spectroscopy)
-  //  sp.writeSpectroscopyFile("gitrm-spec" + npStr + ".nc");
+  if(writeData && surfacemodel)
+    sm.writeSurfaceDataFile("gitrm-surface" + npStr + ".nc");
+  if(writeData && spectroscopy)
+    sp.writeSpectroscopyFile("gitrm-spec" + npStr + ".nc");
 
   bool renderPicpMesh = false;
   bool renderFullMesh = true;
