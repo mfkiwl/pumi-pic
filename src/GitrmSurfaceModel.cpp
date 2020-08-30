@@ -21,7 +21,7 @@ void GitrmSurfaceModel::initSurfaceModelData(std::string ncFile, bool debug) {
   getConfigData(ncFile);
   if(debug)
     std::cout << "Done reading data \n";
-  int ndmIds = gm.getNumDetectorModelIds();
+  int ndmIds = gm.getNumSurfaceAndMaterialModelIds();
 
   nDistEsurfaceModel =
      nEnSputtRefDistIn * nAngSputtRefDistIn * nEnSputtRefDistOut;
@@ -41,7 +41,7 @@ void GitrmSurfaceModel::initSurfaceModelData(std::string ncFile, bool debug) {
   auto nDist = ndmIds * nEnDist * nAngDist;
   if(debug)
     printf(" nEdist %d nAdist %d #nDetModelIds %d nDist %d\n", nEnDist, nAngDist, ndmIds, nDist);
-  energyDistribution = o::Write<o::Real>(nDist, 0, "surfEnDist"); // one per detFace
+  energyDistribution = o::Write<o::Real>(nDist, 0, "surfEnDist"); // per geom face
   sputtDistribution = o::Write<o::Real>(nDist, 0, "surfSputtDist"); // one per detFace
   reflDistribution = o::Write<o::Real>(nDist, 0, "surfReflDist"); //one per detFace
   auto n = ndmIds;//mesh.nfaces();
@@ -261,10 +261,10 @@ void GitrmSurfaceModel::prepareSurfaceModelData() {
 void GitrmSurfaceModel::getConfigData(std::string ncFileName) {
   //TODO get from config file
   //collect data for analysis/plot
-  nEnDist = 50; //100 //TODO FIXME
+  nEnDist = 100;
   en0Dist = 0.0;
   enDist = 1000.0;
-  nAngDist = 45; //90
+  nAngDist = 90
   ang0Dist = 0.0;
   angDist = 90.0; 
   //from NC file ftridynSelf.nc
@@ -352,16 +352,34 @@ void GitrmSurfaceModel::getSurfaceModelData(const std::string fileName,
   }
 }
 
+namespace utils {
+template<class T>
+struct NetcdfTypes;
+
+template<>
+struct NetcdfTypes<o::LO> {
+  static netCDF::NcType datatype() { return netCDF::ncInt;}
+};
+
+template<>
+struct NetcdfTypes<o::GO> {
+  static netCDF::NcType datatype() { return netCDF::ncInt64;}
+};
+
+template<>
+struct NetcdfTypes<o::Real> {
+  static netCDF::NcType datatype() { return netCDF::ncDouble;}
+};
+} //ns
 
 template<typename T>
-void writeData(const o::Write<T>& dd, const netCDF::NcType& ncType,
-    const std::vector<netCDF::NcDim>& ncd, netCDF::NcFile& ncf,
-    const std::string& name, bool write) {
-  o::HostWrite<T> dh(dd.size());
-  o::HostWrite<T> dh_in(dd);
-  MPI_Reduce(dh_in.data(), dh.data(), dh_in.size(), MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+void writeData(const o::Write<T>& dd, const std::vector<netCDF::NcDim>& ncd,
+    netCDF::NcFile& ncf, const std::string& name, bool write) {
+  o::HostWrite<T> dh(o::Write<T>(dd.size(), 0, name));
+  MPI_Reduce(MPI_IN_PLACE, dh.data(), dh.size(), o::MpiTraits<T>::datatype(),
+    MPI_SUM, 0, MPI_COMM_WORLD);
   if(write) {
-    netCDF::NcVar ncv = ncf.addVar(name, ncType, ncd);
+    netCDF::NcVar ncv = ncf.addVar(name, utils::NetcdfTypes<T>::datatype(), ncd);
     ncv.putVar(dh.data());  
   }
 }
@@ -373,7 +391,7 @@ void writeData(const o::Write<T>& dd, const netCDF::NcType& ncType,
 void GitrmSurfaceModel::writeSurfaceDataFile(std::string fileName) const {
   printf("Writing surface model output \n");
   netCDF::NcFile ncf(fileName, netCDF::NcFile::replace);
-  int ndmIds = gm.getNumDetectorModelIds();
+  int ndmIds = gm.getNumSurfaceAndMaterialModelIds();
   std::vector<netCDF::NcDim> ncd;
   netCDF::NcDim ncs = ncf.addDim("nSurfaces", ndmIds);
   ncd.push_back(ncs);
@@ -385,13 +403,13 @@ void GitrmSurfaceModel::writeSurfaceDataFile(std::string fileName) const {
   dims.push_back(nAng);
 
   bool write = (rank == 0);
-  writeData(grossDeposition, netCDF::ncDouble, ncd, ncf, "grossDeposition", write);
-  writeData(grossErosion, netCDF::ncDouble, ncd, ncf, "grossErosion", write);
-  writeData(aveSputtYld, netCDF::ncDouble, ncd, ncf, "aveSpyl", write);
-  writeData(sputtYldCount, netCDF::ncInt, ncd, ncf, "spylCounts", write);
-  writeData(sumPtclStrike, netCDF::ncInt, ncd, ncf, "sumParticlesStrike", write);
-  writeData(sumWtStrike, netCDF::ncDouble, ncd, ncf, "sumWeightStrike", write);
-  writeData(energyDistribution, netCDF::ncDouble, dims, ncf, "surfEDist", write);
-  writeData(reflDistribution, netCDF::ncDouble, dims, ncf, "surfReflDist", write);
-  writeData(sputtDistribution, netCDF::ncDouble, dims, ncf, "surfSputtDist", write);
+  writeData(grossDeposition, ncd, ncf, "grossDeposition", write);
+  writeData(grossErosion, ncd, ncf, "grossErosion", write);
+  writeData(aveSputtYld, ncd, ncf, "aveSpyl", write);
+  writeData(sputtYldCount, ncd, ncf, "spylCounts", write);
+  writeData(sumPtclStrike, ncd, ncf, "sumParticlesStrike", write);
+  writeData(sumWtStrike, ncd, ncf, "sumWeightStrike", write);
+  writeData(energyDistribution, dims, ncf, "surfEDist", write);
+  writeData(reflDistribution, dims, ncf, "surfReflDist", write);
+  writeData(sputtDistribution, dims, ncf, "surfSputtDist", write);
 }
