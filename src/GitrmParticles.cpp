@@ -36,11 +36,10 @@ GitrmParticles::GitrmParticles(GitrmMesh* gm, p::Mesh& picparts, long int nPtcls
   elemOwners = picparts.entOwners(3);
 
   ptclSplitRead = PTCLS_SPLIT_READ;
-  //if(!useGitrRndNums) //TODO testing
+  if(!useGitrRndNums)
     initRandGenerator(seed);
   mustFindAllPtcls = MUST_FIND_ALL_PTCLS;
 
-  //TODO handle this neatly
   auto geomName = gm->getGeometryName();
  
   if(geomName == "pisces")
@@ -234,7 +233,7 @@ void GitrmParticles::assignParticles(const o::LOs& elemIdOfPtclsAll,
   MPI_Barrier(MPI_COMM_WORLD);//picparts.comm()->get_impl());
   MPI_Reduce(&nPtcls_, &totalPtcls_, 1, MPI_LONG, MPI_SUM, collectRank, MPI_COMM_WORLD);
 //  if(!rank)
-    printf("%d: isFullMesh %d Particles %d total %ld reduced %ld\n",
+    printf("%d: isFullMesh %d Particles %d total %ld valid %ld\n",
        rank, isFullMesh, numInitPtcls, totalPtcls, totalPtcls_);
   if(rank == collectRank && mustFindAllPtcls)
     OMEGA_H_CHECK(totalPtcls_ == totalPtcls);
@@ -277,6 +276,8 @@ void GitrmParticles::initPtclsFromFile(const std::string& fName,
   int dof = 6; //pos,vel
   if(!replaceNaN)
     validPtcls = findInvalidPtcls(readInData_r, dof);
+  else
+    validPtcls = o::LOs(o::Write<o::LO>(numPtclsRead, 1, "valids"));
 
   o::LOs elemIdOfPtcls;
   o::LOs ptclDataInds;
@@ -584,7 +585,6 @@ void GitrmParticles::convertInitPtclElemIdsToCSR(const o::LOs& numPtclsInElems,
 void GitrmParticles::setPidsOfPtclsLoadedFromFile(const o::LOs& ptclIdPtrsOfElem,
   const o::LOs& ptclIdsInElem,  const o::LOs& elemIdOfPtcls, const o::LOs& ptclDataInds) {
   int debug = 0;
-  //TODO for full-buffer only
   int rank = this->rank;
   int pBegin = 0;// TODO rank*int(totalPtcls/commSize);
   //if(debug && !rank)
@@ -616,10 +616,8 @@ void GitrmParticles::setPidsOfPtclsLoadedFromFile(const o::LOs& ptclIdPtrsOfElem
   p::parallel_for(ptcls, lambda, "setPidsOfPtcls");
 }
 
-//To use ptcls, PS_LAMBDA is required, not o::parallel_for
-// since ptcls in each element is iterated in groups. Construct PS with
-// #particles in each elem passed in, otherwise newly added particles in
-// originally empty elements won't show up in PS_LAMBDA iterations.
+// Construct PS with  #particles in each elem passed in, otherwise newly added
+//  particles in originally empty elements won't show up in PS_LAMBDA iterations.
 // ie. their mask will be 0. If mask is not used, invalid particles may
 // show up from other threads in the launch group.
 void GitrmParticles::setPtclInitData(const o::Reals& data) {

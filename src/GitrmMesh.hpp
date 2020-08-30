@@ -49,15 +49,11 @@ const int USE_2DREADIN_IONI_REC_RATES = 1;
 const int USE3D_BFIELD = 0;
 const int USE2D_INPUTFIELDS = 1;
 
-// in GITR only constant EField is used.
-const int USE_CONSTANT_FLOW_VELOCITY=1;
-const int USE_CONSTANT_BFIELD = 0; //used for pisces
 const int USE_CYL_SYMMETRY = 1;
 
 const o::LO BACKGROUND_Z = 1;
 const o::Real BACKGROUND_AMU = 4.0; //for pisces
-const o::Real BIAS_POTENTIAL = 250.0;
-const o::LO BIASED_SURFACE = 1;
+// in GITR only constant EField is used.
 const o::Real CONSTANT_EFIELD0 = 0;
 const o::Real CONSTANT_EFIELD1 = 0;
 const o::Real CONSTANT_EFIELD2 = 0;
@@ -248,7 +244,7 @@ public:
   o::LOs getBdryMaterialModelIds() const { return bdryMaterialModelIds;}
   o::LOs getBdryMaterialModelIdsZ() const { return bdryMaterialModelIdsZ; }
   o::LOs getSurfaceAndMaterialModelIds() const { return surfaceAndMaterialModelIds;}
-
+  int getNumSurfaceAndMaterialModelIds() const { return surfaceAndMaterialModelIds.size(); }
   o::LOs getSurfMatGModelSeqNums() const { return surfMatGModelSeqNums;}
 
   // Used in boundary init and if 2D field is used for particles
@@ -308,9 +304,10 @@ public:
 
   int numDetectorSurfaceFaces = 0;
   std::string getGeometryName() const { return geomName; }
-  bool isUsingConstBField() const {return useConstBField; }
+  bool isUsingConstBField() const { return useConstBField; }
   bool isBiasedSurface() const { return biasedSurface; }
-  double getBiasPotential() const {return biasPotential; }
+  double getBiasPotential() const { return biasPotential; }
+  bool isUsingConstFlowVel() const { return useConstFlowVel; }
 
 private:
 
@@ -321,6 +318,7 @@ private:
   bool useConstBField = false;
   bool biasedSurface = false;
   double biasPotential = 0;
+  bool useConstFlowVel = false;
 
   std::shared_ptr<o::LOs> bdryFacesCsrBFS;
   std::shared_ptr<o::LOs> bdryFacePtrsBFS;

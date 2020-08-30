@@ -49,6 +49,7 @@ inline void gitrm_calculateE(GitrmParticles* gp, GitrmMesh* gm, int debug=0) {
   auto efield_ps  = ptcls->get<PTCL_EFIELD>();
   auto pid_ps = ptcls->get<PTCL_ID>();
   auto charge_ps = ptcls->get<PTCL_CHARGE>();
+  auto vel_d = ptcls->get<PTCL_VEL>();
 
   auto run = PS_LAMBDA(const int& elem, const int& pid, const int& mask) {
     if(mask >0) {
@@ -70,7 +71,7 @@ inline void gitrm_calculateE(GitrmParticles* gp, GitrmMesh* gm, int debug=0) {
         auto larmorRadius = larmorRadii[faceId];
         auto childLangmuirDist = childLangmuirDists[faceId];
         auto pos = p::makeVector3(pid, pos_ps);
-        if(debug >1)
+        if(debug > 2)
           printf("%d CALC-E: ptcl %d tstep %d fid %d angle %g pot %g DL %g LR %g CLD %g\n",
             rank, ptcl, iTimeStep, faceId, angle, pot, debyeLength, larmorRadius, childLangmuirDist);
 
@@ -102,7 +103,7 @@ inline void gitrm_calculateE(GitrmParticles* gp, GitrmMesh* gm, int debug=0) {
         for(int i=0; i<3; ++i)
           efield_ps(pid, i) = exd[i];
 
-        if(debug>1) {
+        if(debug > 2) {
           printf(" calcE: ptcl %d emag %.15e distVec %g %g %.15e dirUnitVec %g %g %g \n",
             ptcl, emag, distVector[0], distVector[1], distVector[2], dirUnitVector[0],
             dirUnitVector[1], dirUnitVector[2]);
@@ -114,7 +115,14 @@ inline void gitrm_calculateE(GitrmParticles* gp, GitrmMesh* gm, int debug=0) {
             ptcl, iTimeStep, charge_ps(pid), d2bdry, efield_ps(pid, 0),
             efield_ps(pid, 1), efield_ps(pid, 2), childLangmuirDist, nelMesh,
             telMesh, biasedSurface);
-         }
+        }
+
+        auto vel = p::makeVector3(pid, vel_d);
+        if(debug > 1 || isnan(pos[0]) || isnan(pos[1]) || isnan(pos[2])
+          || isnan(vel[0]) || isnan(vel[1]) || isnan(vel[2])) {
+          printf("%d: ptcl %d tstep %d pos %g %g %g vel %g %g %g\n", rank, ptcl, iTimeStep,
+           pos[0], pos[1], pos[2], vel[0], vel[1], vel[2]);
+        }
       } //faceId
     } //mask
   };
@@ -202,7 +210,7 @@ inline void gitrm_borisMove(PS* ptcls, const GitrmMesh &gm, const o::Real dTime,
       vel_ps(pid, 0) = vel[0];
       vel_ps(pid, 1) = vel[1];
       vel_ps(pid, 2) = vel[2];
-      if(debug>2 || isnan(tgt[0]) || isnan(tgt[1]) || isnan(tgt[2])) {
+      if(debug > 2) {
         printf(" Boris0 ptcl %d timestep %d eField %.15e %.15e %.15e bField %.15e %.15e %.15e "
           " qPrime %.15e coeff %.15e qpE %.15e %.15e %.15e vmxB %.15e %.15e %.15e "
           " qp_vmxB %.15e %.15e %.15e  v_prime %.15e %.15e %.15e vpxB %.15e %.15e %.15e "
@@ -213,7 +221,9 @@ inline void gitrm_borisMove(PS* ptcls, const GitrmMesh &gm, const o::Real dTime,
           vpxB[0], vpxB[1], vpxB[2], cVpxB[0],cVpxB[1],cVpxB[2], vel_[0], vel_[1], vel_[2] );
       }
 
-      if(debug>1 || isnan(tgt[0]) || isnan(tgt[1]) || isnan(tgt[2])) {
+      if(debug > 1 || isnan(tgt[0]) || isnan(tgt[1]) || isnan(tgt[2])
+          || isnan(pos[0]) || isnan(pos[1]) || isnan(pos[2]) 
+          || isnan(vel[0]) || isnan(vel[1]) || isnan(vel[2])) {
         printf(" Boris1 ptcl %d timestep %d e %d charge %d pos %.15e %.15e %.15e =>  %.15e %.15e %.15e  "
           "vel %.15e %.15e %.15e =>  %.15e %.15e %.15e eField %.15e %.15e %.15e\n", ptcl, iTimeStep,
           elem, charge, pos[0], pos[1], pos[2], tgt[0], tgt[1], tgt[2],

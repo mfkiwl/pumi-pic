@@ -361,9 +361,9 @@ void writeOutBdryFaceCoordsNcFile(const std::string& fileName,
     dims_ncy.push_back(nc_ynums);
     std::vector<netCDF::NcDim> dims_ncz;
     dims_ncz.push_back(nc_znums);
-    netCDF::NcVar ncvx = ncMeshFile.addVar("x", netCDF::NcDouble(), dims_ncx);
-    netCDF::NcVar ncvy = ncMeshFile.addVar("y", netCDF::NcDouble(), dims_ncy);
-    netCDF::NcVar ncvz = ncMeshFile.addVar("z", netCDF::NcDouble(), dims_ncz);
+    netCDF::NcVar ncvx = ncMeshFile.addVar("x", netCDF::ncDouble, dims_ncx);
+    netCDF::NcVar ncvy = ncMeshFile.addVar("y", netCDF::ncDouble, dims_ncy);
+    netCDF::NcVar ncvz = ncMeshFile.addVar("z", netCDF::ncDouble, dims_ncz);
     ncvx.putVar(&xx[0]);
     ncvy.putVar(&yy[0]);
     ncvz.putVar(&zz[0]);

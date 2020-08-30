@@ -13,7 +13,7 @@ inline void gitrm_cross_diffusion(PS* ptcls, const GitrmMesh& gm,
   auto vel_ps_d = ptcls->get<PTCL_VEL>();
   auto charge_ps_d = ptcls->get<PTCL_CHARGE>();
   if(debug)
-    printf("CROSS DIFFUSION\n");
+    printf("Cross field Diffusion\n");
   
   //Setting up of 2D magnetic field data 
   const auto& BField_2d = gm.getBfield2d();
@@ -26,7 +26,7 @@ inline void gitrm_cross_diffusion(PS* ptcls, const GitrmMesh& gm,
 
   const int USEPERPDIFFUSION = 1;
   const double diffusionCoefficient=1;
-  auto useConstantBField = USE_CONSTANT_BFIELD;
+  auto useConstantBField = gm.isUsingConstBField();
   auto use2dInputFields = USE2D_INPUTFIELDS;
   auto use3dField = USE3D_BFIELD;
   bool cylSymm = true;
@@ -155,13 +155,13 @@ inline void gitrm_cross_diffusion(PS* ptcls, const GitrmMesh& gm,
     
         if(useGitrRnd){
           r3  = testGitrPtclStepData[ptcl_global*testGNT*testGDof + iTimeStep*testGDof + diff_rnd1];
-          if(debug >1)
+          if(debug > 2)
             printf("gitrRndNums-diff %d tstep %d %g\n", ptcl, iTimeStep, r3);
         } else if (useCudaRnd) {
           auto localState = cuStates[ptcl_global];
           r3 = curand_uniform(&localState);
           cuStates[ptcl_global] = localState;
-          if(debug >1)
+          if(debug > 2)
             printf("cudaRndNums-diff %d tstep %d %g\n", ptcl, iTimeStep, r3);
         } else{
           auto rnd = rpool.get_state();
@@ -197,15 +197,16 @@ inline void gitrm_cross_diffusion(PS* ptcls, const GitrmMesh& gm,
         xtgt_ps_d(pid,2)=posit_next[2]+step*perpVector[2];
 
       } 
-      if (debug>1){      
-        printf("positions before updation CROSS_DIFFUSION partcle %d timestep %d "
-          "are %.15f %.15f %.15f \n", ptcl, iTimeStep, posit_next[0], posit_next[1], posit_next[2]); 
-        printf("perpVectors %.15f %0.15f %0.15f \n",perpVector[0],perpVector[1],perpVector[2]);
-        printf("random number %.15f\n", r3);
-        printf("numbers %d  %d  %d  %d  %d  %d \n",ptcl,testGNT, testGDof, iTimeStep, testGDof, diff_rnd1);
-        printf("diffusion coefficient and step %.15f,%.15f \n",diffusionCoefficient,step);
-        printf("positions after updation CROSS_DIFFUSION partcle %d timestep %d "
-          "are %.15f %.15f %.15f \n", ptcl, iTimeStep, xtgt_ps_d(pid,0), xtgt_ps_d(pid,1), xtgt_ps_d(pid,2)); 
+      if (debug > 1) {
+        printf("Diffusion: ptcl %d tstep %d pos %.15f %.15f %.15f => %.15f %.15f %.15f\n",
+          ptcl, iTimeStep, posit_next[0], posit_next[1], posit_next[2], xtgt_ps_d(pid,0),
+          xtgt_ps_d(pid,1), xtgt_ps_d(pid,2)); 
+      }
+      if(debug > 2) {   
+        printf("Diff: perpVectors %.15f %0.15f %0.15f \n",perpVector[0],perpVector[1],perpVector[2]);
+        printf("Diff: ptcl %d tstep %d rand %.15f numbers %d  %d  %d  %d  %d\n",ptcl, iTimeStep,
+            r3, testGNT, testGDof, testGDof, diff_rnd1);
+        printf("Diff: coefficient and step %.15f,%.15f \n",diffusionCoefficient,step);
       }
     }
   };

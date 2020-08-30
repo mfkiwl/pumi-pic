@@ -125,12 +125,16 @@ void writeParallelVtkMesh(o::Mesh* mesh, o::Mesh* fullMesh, const std::string& o
     int rnum = (rank) ? 1: 0;
     nstr = npstr + "_" + std::to_string(rnum);
     o::HostWrite<o::GO> owners_h(fullMesh->nelems(),"owners");
-    std::ifstream ifs(ownFile);
-    int own;
-    int nel = 0;
-    while(ifs >> own)
-      owners_h[nel++] = own;
-    std::cout << " rendering: n nonzero owners " << nel << "\n";
+    if(nranks > 1) {
+      std::ifstream ifs(ownFile);
+      int own;
+      int nel = 0;
+      while(ifs >> own)
+        owners_h[nel++] = own;
+      std::cout << " rendering: n nonzero owners " << nel << "\n";
+    } else {
+      owners_h = o::HostWrite<o::GO>(o::Write<o::GO>(fullMesh->nelems(),0, "owners"));
+    }
     fullMesh->add_tag(o::REGION, "owners", 1, o::GOs(owners_h.write()));
     Omega_h::vtk::write_parallel("meshvtkFull" + nstr, fullMesh);
   }
@@ -188,7 +192,7 @@ int main(int argc, char** argv) {
     geomName = "Iter";
 
   bool debug = false; //search
-  int debug2 = 1;  //routines
+  int debug2 = 0;  //routines
   bool useCudaRnd = false; //replace kokkos rnd
 
   bool surfacemodel = true;
@@ -201,13 +205,9 @@ int main(int argc, char** argv) {
   //GitrmInput inp("gitrInput.cfg", true);
   // inp.testInputConfig();
 
-  auto deviceCount = 0;
-  cudaGetDeviceCount(&deviceCount);
-  size_t free, total;
-  cudaMemGetInfo(&free, &total);
-
   if(comm_rank == 0) {
-    std::cout << "free " << free/(1024.0*1024.0) << " total " << total/(1024.0*1024.0) << " MB\n";
+    auto deviceCount = 0;
+    cudaGetDeviceCount(&deviceCount);
     printf("device count per process %d\n", deviceCount);
     printf("world ranks %d\n", comm_size);
     printf("particle_structs floating point value size (bits): %zu\n", sizeof(fp_t));
@@ -287,7 +287,7 @@ int main(int argc, char** argv) {
   //gm.getBdryPtr()->testDistanceToBdry(2);
 
 
-  unsigned long int seed = 0; // zero value for seed not considered !
+  unsigned long int seed = 2; // zero value for seed not considered !
   GitrmParticles gp(&gm, picparts, totalNumPtcls, numIterations, dTime, useCudaRnd,
     seed, 0, useGitrRndNums);
   if(histInterval > 0)
@@ -332,9 +332,9 @@ int main(int argc, char** argv) {
       break;
     }
     if(comm_rank == 0) {
-      fprintf(stderr, "=================iter %d===============\n", iter);
+      fprintf(stderr, "=================step %d===============\n", iter);
       if(debug2)
-        printf("=================iter %d===============\n", iter);
+        printf("=================step %d===============\n", iter);
     }
     Kokkos::Profiling::pushRegion("dist2bdry");
     gitrm_findDistanceToBdry(gp, gm, debug2);
@@ -414,23 +414,23 @@ int main(int argc, char** argv) {
 
   //gp.writeOutPtclEndPoints();
   std::string npStr = "_np-" + std::to_string(comm_size);
-  if(geomName == "pisces") {
-    std::string fname(geomName + "Counts" + npStr + ".txt");
-    gp.writeDetectedParticles(fname, geomName+"Detected");
-    gm.writeResultAsMeshTag(gp.collectedPtcls);
-  }
+  std::string fname(geomName + "Counts" + npStr + ".txt");
+  gp.writeDetectedParticles(fname, geomName+"Detected");
+  gm.writeResultAsMeshTag(gp.collectedPtcls);
+
   if(histInterval >0)
     gp.writePtclStepHistoryFile("gitrm-history" + npStr + ".nc");
 
   if(surfacemodel)
     sm.writeSurfaceDataFile("gitrm-surface" + npStr + ".nc");
-  if(spectroscopy)
+  if(false && spectroscopy)
     sp.writeSpectroscopyFile("gitrm-spec" + npStr + ".nc");
 
   bool renderPicpMesh = false;
   bool renderFullMesh = true;
   writeParallelVtkMesh(mesh, &full_mesh, owners, renderPicpMesh, renderFullMesh);
 
+  size_t free, total;
   cudaMemGetInfo(&free, &total);
   double mtotal = 1.0/(1024*1024) * (double)total;
   double mfree = 1.0/(1024*1024) * (double)free;

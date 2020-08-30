@@ -19,13 +19,13 @@ public:
   // 2. PICPART: On the whole picpart mesh face as tags; data on non-boundary
   //    faces not used. This case may be used for full-buffer mesh.
   // In either case the data is stored per element of the picpart.
-  enum FaceFieldFillTarget {
+  enum FaceFieldFillCoverage {
     INVALID = 0,
     BDRY = 1,
     PICPART = 2
   };
 
-  GitrmBoundary(GitrmMesh*, FaceFieldFillTarget);
+  GitrmBoundary(GitrmMesh*, FaceFieldFillCoverage);
 
   GitrmMesh* getGitrmMesh() const { return gm; }
   p::Mesh* getPicparts() const { return picparts; }
@@ -50,6 +50,7 @@ public:
 
   void initBoundaries();
   void storeBdryData();
+  void setBoundaryInput();
 
   void storeBdryFaceFieldsForPicpart(bool pre, int debug=0);
 
@@ -72,7 +73,7 @@ public:
 
   bool isBiasedSurface() const { return isBiasedSurf;}
   bool usingStoredBdryData() const { return useStoredBdryData; }
-  bool isAddingTag(FaceFieldFillTarget);
+  bool isAddingTag(FaceFieldFillCoverage);
 
   bool isUsingOrigBdryData() const { return useOrigBdryData; }
 
@@ -84,7 +85,7 @@ private:
   p::Mesh* picparts;
   o::Mesh* mesh;
   o::Mesh* fullMesh;
-  FaceFieldFillTarget target;
+  FaceFieldFillCoverage coverage;
 
   //on picpart 
   o::Reals bdryFaceVertCoordsPic;

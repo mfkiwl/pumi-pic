@@ -170,9 +170,9 @@ inline void gitrm_ionize(PS* ptcls, const GitrmIonizeRecombine& gir,
       auto pos = p::makeVector3(pid, new_pos);
       auto charge = charge_ps(pid);
       auto pos_previous = p::makeVector3(pid, pos_prev);
-      if(false && debug>1) {
-        printf(" IONIZE particle %d pid %d timestep %d positions %.15e, %.15e, %.15e\n", 
-          ptcl, pid, iTimeStep, pos_previous[0], pos_previous[1], pos_previous[2]);
+      if(debug>1) {
+        printf(" IONIZE ptcl %d timestep %d pos %.15e, %.15e, %.15e\n", 
+          ptcl, iTimeStep, pos_previous[0], pos_previous[1], pos_previous[2]);
       }
       o::Real tlocal = 0;
       o::Real nlocal = 0;
@@ -192,7 +192,7 @@ inline void gitrm_ionize(PS* ptcls, const GitrmIonizeRecombine& gir,
         auto temp = p::interpolate2dField(temIon_d, x0Temp, z0Temp, dxTemp,
           dzTemp, nxTemp, nzTemp, pos, cylSymm, 1,0,false);
         
-        if(debug>1)
+        if(debug > 2)
           printf(" Ionization point: ptcl %d timestep %d position %g"
             " %g %g dens2D %g temp2D %g  tlocal %g nlocal %g  nxTemp %d nzTemp %d\n", 
             ptcl, iTimeStep, pos[0], pos[1], pos[2], dens, temp, tlocal, 
@@ -208,7 +208,7 @@ inline void gitrm_ionize(PS* ptcls, const GitrmIonizeRecombine& gir,
       double randn = 0;
       if(useGitrRnd) {
         randn = testGitrPtclStepData[ptcl_global*testGNT*testGDof + iTimeStep*testGDof + testGIind];
-        if(debug>1)
+        if(debug > 2)
           printf("gitrRnd:ioni ptcl %d  ptcl_global %ld t %d rand %g\n",
            ptcl, ptcl_global, iTimeStep, randn);
       } else if (useCudaRnd) {
@@ -216,7 +216,7 @@ inline void gitrm_ionize(PS* ptcls, const GitrmIonizeRecombine& gir,
         auto localState = cuStates[ptcl_global];
         randn = curand_uniform(&localState);
         cuStates[ptcl_global] = localState;
-        if(debug>1)
+        if(debug > 2)
           printf("cudaRndNums-ioni ptcl %d ptcl_global %ld tstep %d rand %g\n",
            ptcl, ptcl_global, iTimeStep, randn);
       } else {
@@ -237,9 +237,9 @@ inline void gitrm_ionize(PS* ptcls, const GitrmIonizeRecombine& gir,
         auto fit = first_ionizeT_ps(pid);
         first_ionizeT_ps(pid) = fit + dt;
       } 
-      if(debug>1)
-        printf(" ionizable %d ptcl %d timestep %d charge %d randn %g P1 %g rateIon %g dt %gn",
-          xfid<0, ptcl, iTimeStep, charge_ps(pid), randn, P1, rateIon, dt);
+      if(debug > 1)
+        printf(" ionizable %d ptcl %d timestep %d charge %d randn %g P1 %g rateIon %g\n",
+          xfid<0, ptcl, iTimeStep, charge_ps(pid), randn, P1, rateIon);
     } //mask 
   };
   p::parallel_for(ptcls,lambda, "ionizeKernel");
@@ -311,6 +311,8 @@ inline void gitrm_recombine(PS* ptcls, const GitrmIonizeRecombine& gir,
   auto first_ionizeZ_ps = ptcls->get<PTCL_FIRST_IONIZEZ>();
   auto prev_recomb_ps = ptcls->get<PTCL_PREV_RECOMBINE>();
   auto psCapacity = ptcls->capacity();
+  auto vel_ps = ptcls->get<PTCL_VEL>();
+
   auto& rpool = gp.rand_pool; 
   // is elm_ids[pid] >= 0 make sure ptcl not intersected bdry
   auto lambda = PS_LAMBDA(const int &elem, const int &pid, const int &mask) {
@@ -342,15 +344,12 @@ inline void gitrm_recombine(PS* ptcls, const GitrmIonizeRecombine& gir,
           auto temp = p::interpolate2dField(temIon_d, x0Temp, z0Temp, dxTemp,
             dzTemp, nxTemp, nzTemp, pos, cylSymm,1,0,false);
           
-          if(debug>1)
+          if(debug > 2)
             printf(" Recomb Dens: ptcl %d x0 %g z0 %g dx %g dz %g nx %d " 
             " nz %d \n", ptcl, x0Dens, z0Dens, dxDens, dzDens, nxDens, nzDens);
-          if(debug>1)
+          if(debug > 2)
             printf(" Recomb Temp: ptcl %d x0 %g z0 %g dx %g dz %g nx %d " 
             " nz %d \n", ptcl, x0Temp, z0Temp, dxTemp,dzTemp, nxTemp, nzTemp);  
-          if(debug>1)
-            printf(" Recomb point: ptcl %d temp2D %g dens2D %g t3D %g d3D %g pos %g %g %g \n", 
-              ptcl, temp, dens, tlocal, nlocal, pos[0], pos[1], pos[2]);
           nlocal = dens;
           tlocal = temp;
         }
@@ -366,14 +365,15 @@ inline void gitrm_recombine(PS* ptcls, const GitrmIonizeRecombine& gir,
           randGitr = testGitrPtclStepData[ptcl_global*testGNT*testGDof + 
             iTimeStep*testGDof + testGrecInd];
           randn = randGitr;
-          if(debug>1)
-            printf("gitrRnd:recomb ptcl %d ptcl_global %ld t %d rand %g\n",
-             ptcl, ptcl_global, iTimeStep, randn);
+          gitrInd = ptcl*testGNT*testGDof+iTimeStep*testGDof+testGrecInd;
+          if(debug > 2)
+            printf("gitrRnd:recomb ptcl %d ptcl_global %ld t %d rand %g @ %d\n",
+             ptcl, ptcl_global, iTimeStep, randn, gitrInd);
         } else if (useCudaRnd) {
           auto localState = cuStates[ptcl_global];
           randn = curand_uniform(&localState);
           cuStates[ptcl_global] = localState;
-          if(debug>1)
+          if(debug > 2)
             printf("cudaRndNums-recomb ptcl %d tstep %d rand %g\n", ptcl, iTimeStep, randn);
         } else { 
           auto rnd = rpool.get_state();
@@ -387,12 +387,13 @@ inline void gitrm_recombine(PS* ptcls, const GitrmIonizeRecombine& gir,
           prev_recomb_ps(pid) = 1;
         }
 
-        if(useGitrRnd && debug)
-          gitrInd = ptcl*testGNT*testGDof+iTimeStep*testGDof+testGrecInd;
-        
-        if(debug>1)
-          printf(" recomb %d ptcl %d  tstep %d charge %d randn %g P1 %g rateRecomb %g @ %d\n", 
-            xfid<0, ptcl, iTimeStep, charge_ps(pid), randn, P1, rateRecomb, gitrInd);
+        auto vel = p::makeVector3(pid, vel_ps);
+        if(debug > 1)
+          printf(" Recomb: ptcl %d tstep %d temp %g dens %g pos %g %g %g vel %g %g %g\n", 
+             ptcl, iTimeStep, tlocal, nlocal, pos[0], pos[1], pos[2], vel[0], vel[1], vel[2]);
+        if(debug > 1)
+          printf(" recomb %d ptcl %d  tstep %d charge %d randn %g P1 %g rateRecomb %g\n", 
+            xfid<0, ptcl, iTimeStep, charge_ps(pid), randn, P1, rateRecomb);
       } //charge >0
     } //mask 
   };

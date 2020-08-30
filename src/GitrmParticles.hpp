@@ -289,12 +289,12 @@ inline void gitrm_findDistanceToBdry(GitrmParticles& gp,
   const auto psCapacity = ptcls->capacity();
   o::Write<o::Real> closestPoints(psCapacity*3, 0, "closest_points");
   o::Write<o::LO> closestBdryFaceIds(psCapacity, -1, "closest_fids");
-  auto pos_d = ptcls->get<PTCL_POS>();
+  auto pos_ps = ptcls->get<PTCL_POS>();
   auto pid_ps = ptcls->get<PTCL_ID>();
+  auto vel_ps = ptcls->get<PTCL_VEL>();
 
-//  if(debug>1)
+  if(debug>1)
     MPI_Barrier(MPI_COMM_WORLD);
- bool printPos = false;
 
   if(tstep==0)
     std::cout << rank << " : useReadInCsr " << useReadInCsr
@@ -330,7 +330,7 @@ inline void gitrm_findDistanceToBdry(GitrmParticles& gp,
       double min = 1.0e+30;
       o::LO bfid = -1;
       o::LO fid = -1;
-      auto ref = p::makeVector3(pid, pos_d);
+      auto ref = p::makeVector3(pid, pos_ps);
       auto point = o::zero_vector<3>();
       auto pt = o::zero_vector<3>();
       o::Matrix<3,3> face;
@@ -356,7 +356,7 @@ inline void gitrm_findDistanceToBdry(GitrmParticles& gp,
         pt = p::closest_point_on_triangle(face, ref, &region);
         dist = o::norm(pt - ref);
 
-        if(debug > 1) {
+        if(debug > 2) {
           o::LO gid = origGlobalIds[elem]; //GO
           auto gbeg = bdryCsrReadInDataPtrs[gid];
           auto gbfid = bdryCsrReadInData[gbeg+ii];
@@ -371,7 +371,7 @@ inline void gitrm_findDistanceToBdry(GitrmParticles& gp,
 
           auto f = face;
 
-          if(debug > 2)
+          if(debug > 3)
             printf("%d: p %d e%d gel %d ii %d f %g %g %g %g %g %g %g %g %g "
              "gf %g %g %g %g %g %g %g %g %g\n", rank, ptcl, elem,
               gid, ii, f[0][0],f[0][1],f[0][2],
@@ -403,7 +403,7 @@ inline void gitrm_findDistanceToBdry(GitrmParticles& gp,
       for(o::LO j=0; j<3; ++j)
         closestPoints[pid*3+j] = point[j];
 
-      if(debug >1) {
+      if(debug >2) {
         o::Matrix<3,3> f;
         if(useStoredBdryDataOnPic)
           f = p::get_face_coords_of_tet(bdryFaceVertsPic,
@@ -416,8 +416,12 @@ inline void gitrm_findDistanceToBdry(GitrmParticles& gp,
           f[0][0], f[0][1], f[0][2], f[1][0],f[1][1], f[1][2],f[2][0],f[2][1],f[2][2]);
       } //debug
 
-      if(printPos)
-        printf("%d: ptcl %d tstep %d pos %.15e %.15e %.15e \n", rank, ptcl, tstep,ref[0], ref[1], ref[2]);
+      auto vel = p::makeVector3(pid, vel_ps);
+      if(debug > 1 || isnan(ref[0]) || isnan(ref[1]) || isnan(ref[2]) 
+        || isnan(vel[0]) || isnan(vel[1]) || isnan(vel[2])) {
+        printf("%d: ptcl %d tstep %d pos %g %g %g vel %g %g %g\n", rank, ptcl, tstep,
+          ref[0], ref[1], ref[2], vel[0], vel[1], vel[2]);
+      }
     } //mask
   };
 

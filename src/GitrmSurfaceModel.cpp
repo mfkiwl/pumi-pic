@@ -264,7 +264,7 @@ void GitrmSurfaceModel::getConfigData(std::string ncFileName) {
   nEnDist = 100;
   en0Dist = 0.0;
   enDist = 1000.0;
-  nAngDist = 90
+  nAngDist = 90;
   ang0Dist = 0.0;
   angDist = 90.0; 
   //from NC file ftridynSelf.nc

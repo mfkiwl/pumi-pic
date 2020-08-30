@@ -3,20 +3,23 @@
 #include "GitrmBoundary.hpp"
 
 
-GitrmBoundary::GitrmBoundary(GitrmMesh* gm, FaceFieldFillTarget t):
-   gm(gm), target(t) {
+GitrmBoundary::GitrmBoundary(GitrmMesh* gm, FaceFieldFillCoverage fill):
+   gm(gm), coverage(fill) {
   picparts = gm->getPicparts();
   mesh = picparts->mesh();
   fullMesh = gm->getFullMesh();
   rank = picparts->comm()->rank();
   std::cout << rank << ": Initializing GitrmBoundary\n";
- 
   initBoundaries();
 }
 
-void GitrmBoundary::initBoundaries() {
+void GitrmBoundary::setBoundaryInput() {
   isBiasedSurf = gm->isBiasedSurface();
   biasPotential = gm->getBiasPotential();
+}
+
+void GitrmBoundary::initBoundaries() {
+  std::cout << "BIAS_POTENTIAL setting " << biasPotential << "\n";
   // calcEfieldUsingD2Bdry = CALC_EFIELD_USING_D2BDRY;
 
   // if any of the other picpart has less than all the elements of fullMesh
@@ -32,18 +35,18 @@ void GitrmBoundary::initBoundaries() {
   useOrigBdryData = minAll;
 
   //set flag for enabling tag fields
-  if(target == PICPART) { //add tags on all faces of all elements
+  if(coverage == PICPART) { //add tags on all faces of all elements
     useBdryTagFields= true;
     if(!minAll) {
       printf("Error: The option to store boundary data on the picpart is incompatible\n");
       Omega_h_fail("ERROR: Cannot store the whole boundary data on smaller picpart\n");
     }
     useStoredBdryData = false;
-  } else if(target == BDRY) { //separat bdry data stored
+  } else if(coverage == BDRY) { //separat bdry data stored
     useBdryTagFields = false;
     useStoredBdryData = true;
   } else {
-    Omega_h_fail("%d: Error : Dist-to-bdry target not known\n", rank);
+    Omega_h_fail("%d: Error : Dist-to-bdry coverage not known\n", rank);
   }
 
   std::cout << rank << ": Setting bdry storage, use tag? " << useBdryTagFields
@@ -211,7 +214,7 @@ bool GitrmBoundary::calculateBdryFaceFields(GitrmMeshFaceFields& ff, int debug) 
 
   const o::LO background_Z = BACKGROUND_Z;
   const o::Real background_amu = BACKGROUND_AMU;
-  auto useConstantBField = USE_CONSTANT_BFIELD;
+  auto useConstantBField = gm->isUsingConstBField();
   //TODO
   //OMEGA_H_CHECK(useConstantBField);
   o::Reals bField_const(3);

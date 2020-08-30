@@ -47,7 +47,7 @@ const GitrmParticles& gp, double dt, const o::LOs& elm_ids, int debug=0) {
   const auto gradTelVtx   = mesh.get_array<o::Real>(o::VERT, "gradTeVtx");
   const auto BField = o::Reals(); //o::Reals(mesh.get_array<o::Real>(o::VERT, "BField"));
 
-  auto useConstantBField = USE_CONSTANT_BFIELD;
+  auto useConstantBField = gm.isUsingConstBField();
   auto use2dInputFields = USE2D_INPUTFIELDS;
   auto use3dField = USE3D_BFIELD;
   bool cylSymm = true;
