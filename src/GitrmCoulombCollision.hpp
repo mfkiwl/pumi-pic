@@ -76,7 +76,7 @@ const double temp_el, const double dens, const double charge, int ptcl_t, int iT
     nu_energy = 0.0;
   }
 
-  if(debug>1){
+  if(debug > 2){
     printf("ptcl %d tstep %d NU_friction %.15f NU_deflection %.15f\n",ptcl_t,
       iTimeStep_t, nu_friction, nu_deflection);
     printf("ptcl %d tstep %d NU_parallel %.15f NU_energy %.15f\n", ptcl_t,
@@ -87,50 +87,50 @@ const double temp_el, const double dens, const double charge, int ptcl_t, int iT
 }
 
 OMEGA_H_DEVICE void get_direc(const Omega_h::Vector<3> &vel, const Omega_h::Vector<3> &flowVelocity,
-  const Omega_h::Vector<3> &b_field, Omega_h::Vector<3> &parallel_dir, Omega_h::Vector<3> &perp1_dir,
-  Omega_h::Vector<3> &perp2_dir, int ptcl_t, int iTimeStep_t, int debug){
+ const Omega_h::Vector<3> &b_field, Omega_h::Vector<3> &parallel_dir, Omega_h::Vector<3> &perp1_dir,
+ Omega_h::Vector<3> &perp2_dir, int ptcl_t, int iTimeStep_t, int debug){
 
-    auto b_mag  = Omega_h::norm(b_field);
-    auto b_unit = Omega_h::zero_vector<3>();
-    if(p::almost_equal(b_mag,0)) {
-      b_unit[0] = 1.0;
-      b_unit[1] = 0.0;
-      b_unit[2] = 0.0;
-      b_mag     = 1.0;
-    }
-    else
-      b_unit = b_field/b_mag;
-    
-    auto relvel1 = vel ;// - flowVelocity;
-    auto velocityNorm   = Omega_h::norm(relvel1);
-    parallel_dir=relvel1/velocityNorm;
-    
-    auto s1 = Omega_h::inner_product(parallel_dir, b_unit);
-    auto s2 = sqrt(1.0-s1*s1);
-    if(abs(s1) >=1.0) s2=0;
-    perp1_dir=1.0/s2*(s1*parallel_dir-b_unit);
-    perp2_dir=1.0/s2*(Omega_h::cross(parallel_dir, b_unit));
+  auto b_mag  = Omega_h::norm(b_field);
+  auto b_unit = Omega_h::zero_vector<3>();
+  if(p::almost_equal(b_mag,0)) {
+    b_unit[0] = 1.0;
+    b_unit[1] = 0.0;
+    b_unit[2] = 0.0;
+    b_mag     = 1.0;
+  }
+  else
+    b_unit = b_field/b_mag;
+  
+  auto relvel1 = vel ;// - flowVelocity;
+  auto velocityNorm   = Omega_h::norm(relvel1);
+  parallel_dir=relvel1/velocityNorm;
+  
+  auto s1 = Omega_h::inner_product(parallel_dir, b_unit);
+  auto s2 = sqrt(1.0-s1*s1);
+  if(abs(s1) >=1.0) s2=0;
+  perp1_dir=1.0/s2*(s1*parallel_dir-b_unit);
+  perp2_dir=1.0/s2*(Omega_h::cross(parallel_dir, b_unit));
 
-    if(debug>1){
-      printf("ptcl %d tstep %d s1 %.15f s2 %.15f\n",ptcl_t, iTimeStep_t, s1, s2);
-      printf("ptcl %d tstep %d parallel_dir %.15f %.15f %.15f\n",ptcl_t,iTimeStep_t,
-       parallel_dir[0], parallel_dir[1], parallel_dir[2]);
-      printf("ptcl %d tstep %d b_field %.15f %.15f %.15f\n",ptcl_t,iTimeStep_t, b_field[0], b_field[1],b_field[2]);
-      printf("ptcl %d tstep %d b_unit %.15f %.15f %.15f\n",ptcl_t,iTimeStep_t, b_unit[0], b_unit[1],b_unit[2]);
-      printf("ptcl %d tstep %d perp1_dir %.15f %.15f %.15f\n",ptcl_t,iTimeStep_t, perp1_dir[0], perp1_dir[1], perp1_dir[2]);
-      printf("ptcl %d tstep %d perp2_dir %.15f %.15f %.15f\n",ptcl_t,iTimeStep_t, perp2_dir[0], perp2_dir[1], perp2_dir[2]);
-    }  
+  if(debug > 2){
+    printf("ptcl %d tstep %d s1 %.15f s2 %.15f\n",ptcl_t, iTimeStep_t, s1, s2);
+    printf("ptcl %d tstep %d parallel_dir %.15f %.15f %.15f\n",ptcl_t,iTimeStep_t,
+     parallel_dir[0], parallel_dir[1], parallel_dir[2]);
+    printf("ptcl %d tstep %d b_field %.15f %.15f %.15f\n",ptcl_t,iTimeStep_t, b_field[0], b_field[1],b_field[2]);
+    printf("ptcl %d tstep %d b_unit %.15f %.15f %.15f\n",ptcl_t,iTimeStep_t, b_unit[0], b_unit[1],b_unit[2]);
+    printf("ptcl %d tstep %d perp1_dir %.15f %.15f %.15f\n",ptcl_t,iTimeStep_t, perp1_dir[0], perp1_dir[1], perp1_dir[2]);
+    printf("ptcl %d tstep %d perp2_dir %.15f %.15f %.15f\n",ptcl_t,iTimeStep_t, perp2_dir[0], perp2_dir[1], perp2_dir[2]);
+  }  
 
-    if (p::almost_equal(s2, 0)) {
-      perp1_dir[0] =  s1;//why no idea?
-      perp1_dir[1] =  s2;//why no idea?
-      perp2_dir[0] = parallel_dir[2];
-      perp2_dir[1] = parallel_dir[0];
-      perp2_dir[2] = parallel_dir[1];
-      s1 = Omega_h::inner_product(parallel_dir, perp2_dir);
-      s2 = sqrt(1.0-s1*s1);
-      perp1_dir = -1.0/s2*Omega_h::cross(parallel_dir,perp2_dir);
-    }
+  if (p::almost_equal(s2, 0)) {
+    perp1_dir[0] =  s1;//why no idea?
+    perp1_dir[1] =  s2;//why no idea?
+    perp2_dir[0] = parallel_dir[2];
+    perp2_dir[1] = parallel_dir[0];
+    perp2_dir[2] = parallel_dir[1];
+    s1 = Omega_h::inner_product(parallel_dir, perp2_dir);
+    s2 = sqrt(1.0-s1*s1);
+    perp1_dir = -1.0/s2*Omega_h::cross(parallel_dir,perp2_dir);
+  }
 }
 
 inline void gitrm_coulomb_collision(PS* ptcls, int *iteration, const GitrmMesh& gm,
@@ -144,13 +144,16 @@ inline void gitrm_coulomb_collision(PS* ptcls, int *iteration, const GitrmMesh& 
   auto vel_ps_d = ptcls->get<PTCL_VEL>();
   auto charge_ps_d = ptcls->get<PTCL_CHARGE>();
   if(debug)
-    printf("Coulomb Collision routine\n");
+    printf("Coulomb Collision\n");
 
-  auto useConstantFlowVelocity=USE_CONSTANT_FLOW_VELOCITY;
+  auto useConstantFlowVelocity = gm.isUsingConstFlowVel();
   auto useConstantBField = gm.isUsingConstBField();
   auto use2dInputFields = USE2D_INPUTFIELDS;
   auto use3dField = USE3D_BFIELD;
   bool cylSymm = true;
+
+  std::cout << "COULOMB collision ConstFlowVel " << useConstantFlowVelocity << "\n";
+  OMEGA_H_CHECK(useConstantFlowVelocity);
 
   o::Reals constFlowVelocity(3); 
   if(useConstantFlowVelocity) {
@@ -278,7 +281,7 @@ inline void gitrm_coulomb_collision(PS* ptcls, int *iteration, const GitrmMesh& 
                dzTemp, nxTemp, nzTemp, pos2D, true, 1,0,false);
         temp_el= p::interpolate2dField(temEl_d, x0Temp_el, z0Temp_el, dxTemp_el,
                dzTemp_el, nxTemp_el, nzTemp_el, pos2D, true, 1,0,false);
-        if(debug>1)
+        if(debug > 2)
           printf("ptcl %d tstep %d density %.15f ion_temp %.15f el_temp2D %.15f\n",
            ptcl, iTimeStep, dens, temp, temp_el);
       }
@@ -288,7 +291,7 @@ inline void gitrm_coulomb_collision(PS* ptcls, int *iteration, const GitrmMesh& 
         dens    = p::interpolateTetVtx(mesh2verts, densVtx, el, bcc, 1);
         temp    = p::interpolateTetVtx(mesh2verts, tIonVtx, el, bcc, 1);
         temp_el = p::interpolateTetVtx(mesh2verts, tElVtx, el, bcc, 1);
-        if(debug >1)
+        if(debug > 2)
           printf("ptcl %d tstep %d density %.15f ion_temp %.15f el_temp3D %.15f\n",
            ptcl, iTimeStep, dens, temp, temp_el);
       }   
@@ -313,7 +316,7 @@ inline void gitrm_coulomb_collision(PS* ptcls, int *iteration, const GitrmMesh& 
         n1  = testGitrPtclStepData[ptcl_global*testGNT*testGDof + iTimeStep*testGDof + collisionIndex1];
         n2  = testGitrPtclStepData[ptcl_global*testGNT*testGDof + iTimeStep*testGDof + collisionIndex2];
         xsi = testGitrPtclStepData[ptcl_global*testGNT*testGDof + iTimeStep*testGDof + collisionIndex3];
-        if(debug >1)
+        if(debug > 2)
           printf("gitrRndNums-coulomb ptcl %d tstep %d n1 %.15f n2 %.15f xsi %.15f\n",
            ptcl, iTimeStep, n1, n2, xsi);
       } else if (useCudaRnd) {
@@ -323,13 +326,13 @@ inline void gitrm_coulomb_collision(PS* ptcls, int *iteration, const GitrmMesh& 
         xsi = curand_uniform(&localState);
         cuStates[ptcl_global] = localState;
        
-        if(debug >1)
+        if(debug > 2)
           printf("cudaRndNums-coulomb ptcl %d tstep %d n1 %.15f n2 %.15f xsi %.15f nu_parallel %.15f\n",
            ptcl, iTimeStep,n1,n2,xsi, nu_parallel);
 
       } else {
         auto rnd = rpool.get_state();
-        n1 = rnd.normal(); //TODO test normal dist
+        n1 = rnd.normal();
         n2 = rnd.normal();
         xsi = rnd.drand();
         rpool.free_state(rnd);
@@ -354,7 +357,7 @@ inline void gitrm_coulomb_collision(PS* ptcls, int *iteration, const GitrmMesh& 
       //vel = Omega_h::norm(vel)*(1-0.5*nuEdt)*((1+coeff_par)*parallel_dir+abs(n2) * 
       //     (coeff_perp1 * perp1_dir + coeff_perp2 * perp2_dir)) + drag/velocityNorm * relvel;
 
-      if(debug>1){
+      if(debug > 2){
         printf("Collision ptcl %d timestep %d cosXsi %.15f sinXsi %.15f n2 %.15f vPartNorm %.15f charge %d\n",
           ptcl, iTimeStep, cosXsi, sinXsi, n2, Omega_h::norm(vel), charge);
         printf("Collision ptcl %d timestep %d nuEdt %.15f coeff_par %.15f cf_perp1,2 %.15f %.15f \n",
@@ -367,15 +370,12 @@ inline void gitrm_coulomb_collision(PS* ptcls, int *iteration, const GitrmMesh& 
           perp2_dir[0], perp2_dir[1], perp2_dir[2]);
         printf("Collision: ptcl %d timestep %d vel-coll %.15f %.15f %.15f \n", ptcl, iTimeStep, velColl[0],
           velColl[1], velColl[2]);
+      }
 
-        printf("Collision ptcl %d timestep %d pos %.15f %.15f %.15f vel_in %.15e %.15e %.15e \n", 
-          ptcl, iTimeStep, posit_next[0],posit_next[1],posit_next[2], velIn[0], velIn[1], velIn[2]);
-      } 
-
-
-      if(debug>1) 
-        printf("ptcl %d timestep %d Coulomb vel_out  %.15e %.15e %.15e \n",
-          ptcl, iTimeStep, vel[0],vel[1],vel[2]); 
+      if(debug > 1)
+        printf("Collision ptcl %d timestep %d pos %.15f %.15f %.15f vel_in %.15e %.15e %.15e"
+          " => %.15e %.15e %.15e\n", ptcl, iTimeStep, posit_next[0],
+          posit_next[1],posit_next[2], velIn[0], velIn[1], velIn[2], vel[0],vel[1],vel[2]);
 
       vel_ps_d(pid,0)=vel[0];
       vel_ps_d(pid,1)=vel[1];
