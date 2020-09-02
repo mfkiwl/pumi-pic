@@ -47,7 +47,7 @@ typedef p::ParticleStructure<Particle> PS;
 
 class GitrmParticles {
 public:
-  GitrmParticles(GitrmMesh* gm, p::Mesh& picparts, long int totalPtcls, int nIter, double dT, 
+  GitrmParticles(GitrmMesh* gm, p::Mesh& picparts, long int totalPtcls, int nIter, double dT,
     bool useCudaRnd=false, unsigned long int seed=0, unsigned long int seq=0,
     bool gitrRnd=false);
   ~GitrmParticles();
@@ -87,7 +87,7 @@ public:
 
   void initPtclsInADirection(o::Real theta, o::Real phi, o::Real r,
     o::LO maxLoops = 100, o::Real outer=2);
-  
+
   void initPtclsOnGeometricIdSurfaces();
 
   void setInitialTargetCoords(o::Real dTime);
@@ -145,7 +145,7 @@ public:
   o::Write<o::Real> ptclEndPoints;
   o::Reals ptcl_created_data; //PARTICLE CREATED DATA
   o::Write<o::Real> ptcl_created_data_w;
-  
+
   void initPtclEndPoints();
   void writeOutPtclEndPoints(const std::string& file="positions_gitrm.m") const;
 
@@ -293,10 +293,10 @@ inline void gitrm_findDistanceToBdry(GitrmParticles& gp,
   auto pid_ps = ptcls->get<PTCL_ID>();
   auto vel_ps = ptcls->get<PTCL_VEL>();
 
-  if(debug>1)
+  if(debug > 1)
     MPI_Barrier(MPI_COMM_WORLD);
 
-  if(tstep==0)
+  if(debug > 1 && tstep==0)
     std::cout << rank << " : useReadInCsr " << useReadInCsr
               << " useStoredBdryDataOnPic " << useStoredBdryDataOnPic << "\n";
   auto lambda = PS_LAMBDA(const int& elem, const int& pid, const int& mask) {
@@ -316,7 +316,7 @@ inline void gitrm_findDistanceToBdry(GitrmParticles& gp,
         beg = bdryCsrReadInDataPtrs[elem];
         end = bdryCsrReadInDataPtrs[elem+1];
         nFaces = end - beg;
-      } //else { //TODO calculated bdry data disabled  
+      } //else { //TODO calculated bdry data disabled
        // beg = bdryFaceIdPtrsPic[elem];// bdryFacePtrs[elem];
        // nFaces = bdryFaceIdPtrsPic[elem+1] - beg; //bdryFacePtrs[elem+1] - beg;
      // }
@@ -417,7 +417,7 @@ inline void gitrm_findDistanceToBdry(GitrmParticles& gp,
       } //debug
 
       auto vel = p::makeVector3(pid, vel_ps);
-      if(debug > 1 || isnan(ref[0]) || isnan(ref[1]) || isnan(ref[2]) 
+      if(debug > 1 || isnan(ref[0]) || isnan(ref[1]) || isnan(ref[2])
         || isnan(vel[0]) || isnan(vel[1]) || isnan(vel[2])) {
         printf("%d: ptcl %d tstep %d pos %g %g %g vel %g %g %g\n", rank, ptcl, tstep,
           ref[0], ref[1], ref[2], vel[0], vel[1], vel[2]);

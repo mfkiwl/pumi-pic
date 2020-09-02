@@ -38,21 +38,18 @@ const int STORE_BDRYDATA_PIC_SAFE = 1;
 const bool MUST_FIND_ALL_PTCLS = false;
 const int PTCLS_SPLIT_READ = 0;
 
+const o::LO D2BDRY_GRIDS_PER_TET = 10; // if csr bdry not re-used
 const int D2BDRY_MIN_SELECT = 10; //that many instead of the least one
 const int D2BDRY_MEM_FACTOR = 1; //per 8G memory
 const bool WRITE_TEXT_D2BDRY_FACES = false;
 const bool WRITE_BDRY_FACE_COORDS_NC = false;
 const bool WRITE_MESH_FACE_COORDS_NC = false;
-const o::LO D2BDRY_GRIDS_PER_TET = 10; // if csr bdry not re-used
 
 const int USE_2DREADIN_IONI_REC_RATES = 1;
 const int USE3D_BFIELD = 0;
 const int USE2D_INPUTFIELDS = 1;
-
 const int USE_CYL_SYMMETRY = 1;
 
-const o::LO BACKGROUND_Z = 1;
-const o::Real BACKGROUND_AMU = 4.0; //for pisces
 // in GITR only constant EField is used.
 const o::Real CONSTANT_EFIELD0 = 0;
 const o::Real CONSTANT_EFIELD1 = 0;
@@ -309,6 +306,21 @@ public:
   double getBiasPotential() const { return biasPotential; }
   bool isUsingConstFlowVel() const { return useConstFlowVel; }
 
+  double getImpurityAmu() const { return impurityAmu; }
+  double getBackgroundAmu() const { return backgroundAmu; }
+  int getBackgroundZ() const { return backgroundZ;}
+  int getImpurityZ() const { return impurityZ; }
+
+  o::Reals getFlowVel2d() const { return flowVel_d; }
+  o::Real getFlowVelX0() const { return flowVX0; }
+  o::Real getFlowVelZ0() const { return flowVZ0; }
+  o::LO getFlowVelNx() const { return flowVNx; }
+  o::LO getFlowVelNz() const { return flowVNz; }
+  o::Real getFlowVelDx() const { return flowVDx; }
+  o::Real getFlowVelDz() const { return flowVDz; }
+
+  o::Real getPerpDiffusionCoeft() const { return perpDiffCoeft; }
+
 private:
 
   o::LOs ownersAll;
@@ -352,11 +364,25 @@ private:
   std::shared_ptr<o::Reals> gradTi_vtx_d;
   std::shared_ptr<o::Reals> gradTe_vtx_d;
 
+  //floc velocity
+  o::Reals flowVel_d;
+  o::Real flowVX0 = 0;
+  o::Real flowVZ0 = 0;
+  o::LO flowVNx = 0;
+  o::LO flowVNz = 0;
+  o::Real flowVDx = 0;
+  o::Real flowVDz = 0;
   //get model Ids by opening mesh/model in Simmodeler
   o::LOs detectorModelIds;
   o::LOs bdryMaterialModelIds;
   o::LOs bdryMaterialModelIdsZ;
   o::LOs surfaceAndMaterialModelIds;
+
+  o::Real backgroundAmu = 0;
+  o::LO backgroundZ = 0;
+  o::Real impurityAmu = 0;
+  o::LO impurityZ = 0;
+  o::Real perpDiffCoeft = 0;
 
   int rank = -1;
   bool exists = false;

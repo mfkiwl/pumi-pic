@@ -167,7 +167,7 @@ void GitrmBoundary::calculateBdryData(GitrmMeshFaceFields& ff) {
   if(useStoredBdryData)
     Omega_h_fail("%d: Error: In dist-to-bdry data storage\n", rank);
   OMEGA_H_CHECK(useBdryTagFields);
-  calculateBdryFaceFields(ff); 
+  calculateBdryFaceFields(ff);
 }
 
 void GitrmBoundary::storeBdryFaceFieldsForPicpart(bool pre, int debug) {
@@ -189,7 +189,7 @@ void GitrmBoundary::storeBdryFaceFieldsForPicpart(bool pre, int debug) {
 //TODO replace hard-coded constants to use the common values
 //If tags added on mesh, then this is called from mesh class to return fields.
 //Otherwise, the bdry data stored separate local order in this class.
-//NOTE: tags fields calculated on only picpart faces, not full mesh, which 
+//NOTE: tags fields calculated on only picpart faces, not full mesh, which
 //will not include the bdry faces needed.
 bool GitrmBoundary::calculateBdryFaceFields(GitrmMeshFaceFields& ff, int debug) {
   std::cout << rank << ": CalculateBdryFaceFields-bdry\n";
@@ -212,8 +212,8 @@ bool GitrmBoundary::calculateBdryFaceFields(GitrmMeshFaceFields& ff, int debug) 
   auto te = getElTemp();
   auto ti = getIonTemp();
 
-  const o::LO background_Z = BACKGROUND_Z;
-  const o::Real background_amu = BACKGROUND_AMU;
+  const o::LO background_Z = gm->getBackgroundZ();
+  const o::Real background_amu = gm->getBackgroundAmu();
   auto useConstantBField = gm->isUsingConstBField();
   //TODO
   //OMEGA_H_CHECK(useConstantBField);
@@ -223,8 +223,8 @@ bool GitrmBoundary::calculateBdryFaceFields(GitrmMeshFaceFields& ff, int debug) 
 
   o::Real potential = biasPotential;
   auto biased = isBiasedSurf;
-  
- // if(debug >1 && !rank) 
+
+ // if(debug >1 && !rank)
     std::cout << "BIAS_POTENTIAL " << biased << " " << potential << " nf " << nf << "\n";
 
   auto bGrids = o::Reals(o::Write<o::Real>(o::HostWrite<o::Real>(
@@ -303,7 +303,7 @@ bool GitrmBoundary::calculateBdryFaceFields(GitrmMeshFaceFields& ff, int debug) 
 
       if(debug > 1)// || o::are_close(angle_d[fid],0))
         printf("%d: fid %d DL %g LR %g flux %g impact %g CLD %g pot %g\n",
-        rank, fid, debyeLength_d[fid], larmorRadius_d[fid], flux_d[fid], impacts_d[fid], 
+        rank, fid, debyeLength_d[fid], larmorRadius_d[fid], flux_d[fid], impacts_d[fid],
         childLangmuirDist_d[fid], pot);
     }
   };
@@ -344,7 +344,7 @@ o::Reals GitrmBoundary::calculateScalarFieldOnBdryFacesFromFile(const std::strin
   if(debug > 1)
     std::cout << rank << ": selecting Data done nf " << nf << " nv " << face_verts.size() <<
       " ncoords " << coords.size() << " addTags " << useBdryTagFields << "\n";
- 
+
   auto addTag = useBdryTagFields;
 
   int nR = fs.getNumGrids(0);
@@ -362,7 +362,7 @@ o::Reals GitrmBoundary::calculateScalarFieldOnBdryFacesFromFile(const std::strin
   //Interpolate at vertices and Set tag
   o::Write<o::Real> tag_d(nf, 0, fieldName);
   const auto readInData_d = o::Reals(fs.data.write());
-  auto len = readInData_d.size(); 
+  auto len = readInData_d.size();
   if(!rank && debug >1)
     std::cout << rank << ": " << fieldName << " file " << file << " data-size " << len << "\n";
 
@@ -402,8 +402,8 @@ o::Reals GitrmBoundary::calculateScalarFieldOnBdryFacesFromFile(const std::strin
 
 
 /* To get the original global ids, the tag origGids added to the full mesh
- * before passing it to the picpart creation. 
- * If the buffer elements are skipped from bdry storage, the rebuild 
+ * before passing it to the picpart creation.
+ * If the buffer elements are skipped from bdry storage, the rebuild
  * would need to be done once in every time step.
 */
 bool GitrmBoundary::storeBdrySurfaceMeshForPicpart(int debug) {
@@ -414,7 +414,7 @@ bool GitrmBoundary::storeBdrySurfaceMeshForPicpart(int debug) {
   if(debug)
     std::cout << rank << ": " <<  __FUNCTION__ << " Bdry\n";
   const auto nelAll = fullMesh->nelems();
- 
+
   //Retreive the original gid tag from picpart. It was set in fullMesh
   origGlobalIds = mesh->get_array<o::GO>(o::REGION, "origGids");
 
@@ -445,7 +445,7 @@ bool GitrmBoundary::storeBdrySurfaceMeshForPicpart(int debug) {
     const auto picOwners = picparts->entOwners(dim);
     const auto picSafeTags = picparts->safeTag();
     const auto picLocalIds = picparts->rankLocalIndex(dim);
-    std::cout << rank << ": nelems " << nelems << " nfaces " << mesh->nfaces() 
+    std::cout << rank << ": nelems " << nelems << " nfaces " << mesh->nfaces()
       << " safeSize " << picSafeTags.size()
       << " nAllFaceVerts " << allFaceVerts.size() << " nfullELelms " << nelAll << "\n";
   }
@@ -479,7 +479,7 @@ bool GitrmBoundary::storeBdrySurfaceMeshForPicpart(int debug) {
   o::Write<o::LO> faceGid_flags(nfAll, 0, "faceGid_flags");
   o::Write<o::LO> gFaceVert_flags(nvAll, 0, "faceGVert_flags");
   o::LO exchange = 1; //identifier non default (0) value
-  
+
   //copy mesh data from the boundaries of fullMesh for this picpart.
   //For explicit storage of individual face vertex coordinates
   // the input face ptrs and fids are based on global element ids
@@ -489,7 +489,7 @@ bool GitrmBoundary::storeBdrySurfaceMeshForPicpart(int debug) {
     auto end = inFidPtrs[gid+1];
     o::LO nf = end - beg;
     dataNums[e] = nf;
-    
+
     if(!nf)
       printf("%d:e %d gid %d  ptr %d %d\n", rank, e, gid, beg, end);
     OMEGA_H_CHECK(nf);
@@ -507,7 +507,7 @@ bool GitrmBoundary::storeBdrySurfaceMeshForPicpart(int debug) {
     }
   };
   o::parallel_for(nelems, makePtrs, "makePicpartDist2BdryPtrs");
-  auto bfPtrs = o::offset_scan(o::LOs(dataNums), "bdryFaceIdPtrsPic"); 
+  auto bfPtrs = o::offset_scan(o::LOs(dataNums), "bdryFaceIdPtrsPic");
   bdryFaceIdPtrsPic = o::LOs(o::deep_copy(bfPtrs));
   if(debug > 1)
     std::cout << rank <<": Created faceId csr ptrs\n";
@@ -517,10 +517,10 @@ bool GitrmBoundary::storeBdrySurfaceMeshForPicpart(int debug) {
   int nLocVerts = 0;
   auto glob2locFVertmap = utils::makeLocalIdMap<o::LO>(gFaceVert_flags, exchange,
     nLocVerts, "glob2locFVertmap");
-  
+
   if(debug > 1)
     std::cout << rank << " storing relevant bdry vertices nLocVerts " << nLocVerts
-      << " nBdryFids " << nBdryFids << " nPtrs " <<  nPtrsPic << "\n";  
+      << " nBdryFids " << nBdryFids << " nPtrs " <<  nPtrsPic << "\n";
 
   //Convert global fids to that of separate local storage.
   int nums = 0;
@@ -576,7 +576,7 @@ bool GitrmBoundary::storeBdrySurfaceMeshForPicpart(int debug) {
       if(debug >2) {
         auto f = p::get_face_coords_of_tet(allFaceVerts, allCoords, fid);
         printf("%d: e %d gid %d ind %d fid %d f %g %g %g :"
-          " %g %g %g : %g %g %g\n", rank, e, gid, b+i, fid, 
+          " %g %g %g : %g %g %g\n", rank, e, gid, b+i, fid,
           f[0][0],f[0][1],f[0][2], f[1][0],f[1][1],f[1][2], f[2][0],f[2][1],f[2][2]);
       }
     }
@@ -612,7 +612,7 @@ void GitrmBoundary::testDistanceToBdry(int debug) {
 
   const auto bdryCsrReadInDataPtrs = gm->getBdryCsrReadInPtrs();
   const auto bdryCsrReadInData = gm->getBdryCsrReadInFids();
-  
+
   const auto owners = picparts->entOwners(3);
 
   //test makeLocalIdMap function
@@ -681,7 +681,7 @@ void GitrmBoundary::testDistanceToBdry(int debug) {
       auto pt = p::closest_point_on_triangle(lf, ref, &region);
       auto dist = o::norm(pt - ref);
       OMEGA_H_CHECK(dist >= 0);
-    } 
+    }
   };
   o::parallel_for(nel, lambda, "testDist2bdry");
   MPI_Barrier(MPI_COMM_WORLD);

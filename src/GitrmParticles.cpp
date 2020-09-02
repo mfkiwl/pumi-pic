@@ -32,7 +32,7 @@ GitrmParticles::GitrmParticles(GitrmMesh* gm, p::Mesh& picparts, long int nPtcls
   rank = rn; //picparts.comm()->rank();
   commSize = size;//picparts.comm()->size();
   isFullMesh = picparts.isFullMesh();
-  
+
   elemOwners = picparts.entOwners(3);
 
   ptclSplitRead = PTCLS_SPLIT_READ;
@@ -41,7 +41,7 @@ GitrmParticles::GitrmParticles(GitrmMesh* gm, p::Mesh& picparts, long int nPtcls
   mustFindAllPtcls = MUST_FIND_ALL_PTCLS;
 
   auto geomName = gm->getGeometryName();
- 
+
   if(geomName == "pisces")
     geometryId = PISCES_ID;
   else if(geomName == "Iter")
@@ -91,9 +91,9 @@ void GitrmParticles::initRandGenerator(unsigned long int seed) {
   } else {
     // kokkos initialze generators for maximum threads in the device.
     // The seed=0 not accepted since in kokkos it results using a default seed.
-    // No sequence accepted in kokkos. Note that the reusing a seed doesn't 
+    // No sequence accepted in kokkos. Note that the reusing a seed doesn't
     // guarantee that the previous result will be reproduced. Because, a particle
-    // is not certain to be processed by the same thread or set of threads, 
+    // is not certain to be processed by the same thread or set of threads,
     // in order to get the same rand num at all steps even though the threads get
     // the same rand initial states. Any instance of repoduced result could be
     // because the threads keeping the same order; which is not guaranteed.
@@ -101,7 +101,7 @@ void GitrmParticles::initRandGenerator(unsigned long int seed) {
       auto time0 = std::chrono::high_resolution_clock::now();
       seed = time0.time_since_epoch().count();
     }
-    std::mt19937 gen(seed); 
+    std::mt19937 gen(seed);
     unsigned long int seedThis;
     for(int i=0; i <= rank; ++i)
       seedThis = gen();
@@ -201,7 +201,7 @@ void GitrmParticles::assignParticles(const o::LOs& elemIdOfPtclsAll,
     pBegin = rank * totalPtcls/commSize;
   }
 
-  // most of these have no effect in the case of fullMesh with all ptcls read 
+  // most of these have no effect in the case of fullMesh with all ptcls read
   o::Write<o::LO> elemIdOfPtcls_w(nPtcls, -1, "elemIdOfPtcls");
   o::Write<o::LO> ptclDataInds_w(nPtcls, -1, "ptclDataInds");
   o::Write<o::LO> numPtclsInElems_w(picparts.nelems(), 0, "numPtclsInElems");
@@ -226,7 +226,7 @@ void GitrmParticles::assignParticles(const o::LOs& elemIdOfPtclsAll,
   //verify
   if(isFullMesh)
     OMEGA_H_CHECK(numInitPtcls == nPtcls);
-  
+
   const long int nPtcls_ = numInitPtcls;
   long int totalPtcls_ = 0;
   int collectRank = 0;
@@ -501,7 +501,7 @@ void GitrmParticles::findElemIdsOfPtclCoordsByAdjSearch(const o::Reals& data,
   if(parentElem >= 0)
     min = searchPtclsByAdjSearchFromParent(data, parentElem, numPtclsInElemsAll,
       elemIdOfPtclsAll, validPtcls);
-  
+
   std::cout << "min of searchPtclsByAdjSearchFromParent " << min << "\n";
 
   //if not all found, do brute-force search for all
@@ -509,7 +509,7 @@ void GitrmParticles::findElemIdsOfPtclCoordsByAdjSearch(const o::Reals& data,
     min = searchAllPtclsInAllElems(data, elemIdOfPtclsAll, numPtclsInElemsAll, validPtcls);
   if(debug && !rank)
     printf("%d: done adjacency search for particles\n",rank);
-  
+
   if(debug > 3 && min < 0) {
     o::parallel_for(nPtcls, OMEGA_H_LAMBDA(const o::LO& i) {
       if(elemIdOfPtclsAll[i] < 0) {
@@ -530,7 +530,7 @@ void GitrmParticles::findElemIdsOfPtclCoordsByAdjSearch(const o::Reals& data,
   if(debug && !rank)
     printf("%d: done assigning particles \n", rank);
 
-  //TODO handle this 
+  //TODO handle this
   numOfPtclsInElems = o::LOs(numPtclsInElems);
 }
 
@@ -1022,7 +1022,7 @@ o::Write<T> extractDataColumns (const o::Write<T>& data, const int nRows,
     }
   });
   return d;
-} 
+}
 
 template<typename T>
 o::Write<T> sumDataColumns (const o::Write<T>& data, const int nRows,
@@ -1044,12 +1044,12 @@ o::Write<T> sumDataColumns (const o::Write<T>& data, const int nRows,
     //printf("Sum is %f \n",sum[i]);
   });
   return sum;
-} 
+}
 
 template<typename T>
  o::Write<T> interp1D (const o::Write<T>& xdata, const o::Write<T>& ydata, const o::Write<T>& xpoints) {
- 
- 
+
+
   /* EXAMPLE
   Kokkos::parallel_reduce(dataTot_d.size(), OMEGA_H_LAMBDA(const int i, o::LO& lsum) {
     lsum += dataTot_d[i];
@@ -1077,31 +1077,31 @@ template<typename T>
     lsum4 += xdata[i]*ydata[i];
   }, xysum);
 
-  
+
   int n=xdata.size();
   double b=(n*xysum-xsum*ysum)/(n*x2sum-xsum*xsum);
   double a=(ysum/n)-(b/n)*xsum;
-  
-  
+
+
 
   auto sz=xpoints.size();
   o::Write<T> ypoints(sz, 0);
-  o::parallel_for(sz, OMEGA_H_LAMBDA(const int& i) {   
+  o::parallel_for(sz, OMEGA_H_LAMBDA(const int& i) {
     ypoints[i]=a+b*xpoints[i] ;
     //printf("Ypoints %f\n", ypoints[i]);
   });
 
  return ypoints;
- } 
+ }
 }
 
 
 void GitrmParticles::initPtclsOnGeometricBoundarys(const GitrmMesh& gm) {
   std::cout << __FUNCTION__ << "\n";
-  //TODO get from config  
+  //TODO get from config
 
-  
-  // GETTING MAGNETIC FIELD 
+
+  // GETTING MAGNETIC FIELD
   const auto& BField_2d = gm.getBfield2d();
   const auto bX0 = gm.bGridX0;
   const auto bZ0 = gm.bGridZ0;
@@ -1174,16 +1174,16 @@ void GitrmParticles::initPtclsOnGeometricBoundarys(const GitrmMesh& gm) {
       //printf("Sputter Flux:%f \n ",spFlux[i*nSpYld+j]);
     }
   });
-  //std::cout << "got spFlux \n"; 
+  //std::cout << "got spFlux \n";
   auto nSpFlux = spFlux.size();
 
-  
+
   //heTotal = np.sum(spFlux[:,2:4],axis=1)
   //get helium columns
 
   o::HostWrite<o::LO> helCols_h{2,3,4};//{2,3}; //TODO get these from input
   auto helFlux = gitrm::sumDataColumns(spFlux, nRows, helCols_h.write(), "HelTotal");
-  
+
   //beTotal = np.sum(spFlux[:,4:8],axis=1)
   o::HostWrite<o::LO> beCols_h{4,5,6,7};//{4,5,6,7};
   auto beFlux = gitrm::sumDataColumns(spFlux, nRows, beCols_h.write(), "BeTotal");
@@ -1205,13 +1205,13 @@ void GitrmParticles::initPtclsOnGeometricBoundarys(const GitrmMesh& gm) {
   //Interpolation is between zSolps and total flux to find the fitting equation
   //The points at which the y point cordiantes are to be found are the z coordinate centroids
   //Finding the  z-coords of the mesh faces of the geometric face
-  
+
   o::HostWrite<o::LO> ptclInitModelIds{138}; //PISCES
- 
-  MESHDATA(mesh); 
+
+  MESHDATA(mesh);
   const auto f2r_ptr = mesh.ask_up(o::FACE, o::REGION).a2ab;
   const auto f2r_elem = mesh.ask_up(o::FACE, o::REGION).ab2b;
-  
+
   //FInding the total no of bdry faces in the suface used for particle generation
   auto geomIds = o::LOs(ptclInitModelIds);
   o::Write<o::LO> ptclBdries_all(mesh.nfaces(), 0, "ptclInitBdryFaces");
@@ -1219,10 +1219,10 @@ void GitrmParticles::initPtclsOnGeometricBoundarys(const GitrmMesh& gm) {
   printf("Rank %d Ptcl_Bdries_All Size %d \n",rank, size);
   gitrm::markBdryFacesOnGeomModelIds(mesh, geomIds, ptclBdries_all, 1, false);
 
-  
+
   o::Write<o::LO> ptclBdries(mesh.nfaces(), 0, "ptclInitBdryFaces");
   o::parallel_for(mesh.nfaces(), OMEGA_H_LAMBDA(const o::LO& fid) {
-    
+
     if (ptclBdries_all[fid]==1){
       auto elem = p::elem_id_of_bdry_face_of_tet(fid, f2r_ptr, f2r_elem);
         if (rank==owners[elem])
@@ -1230,22 +1230,22 @@ void GitrmParticles::initPtclsOnGeometricBoundarys(const GitrmMesh& gm) {
     }
   });
 
-  auto scan_r_all=o::offset_scan(o::LOs(ptclBdries_all)); 
+  auto scan_r_all=o::offset_scan(o::LOs(ptclBdries_all));
   auto nsrc_all=o::get_sum(o::LOs(ptclBdries_all));
-  auto scan_r=o::offset_scan(o::LOs(ptclBdries)); 
+  auto scan_r=o::offset_scan(o::LOs(ptclBdries));
   auto nsrc=o::get_sum(o::LOs(ptclBdries));
 
 
   printf("RANK %d NSRC_total %d NsRC_picpart %d \n", rank, nsrc_all, nsrc);
 
 
-  
+
 
   o::Write<o::Real> areas_w(mesh.nfaces(), 0, "areasBFaces");
   o::Write<o::Real> z_cent (mesh.nfaces(),0, "z_centroids");
   //FInding areas and z_centroids of the mesh triangular elements. WIll include zerso in between.
   o::parallel_for(mesh.nfaces(), OMEGA_H_LAMBDA(const o::LO& fid) {
-    
+
     if (ptclBdries[fid]==1){
       //printf("nSrc is %d \n", nsrc);
       //printf("nSCAN is %d \n", scan_r.size());
@@ -1272,13 +1272,13 @@ void GitrmParticles::initPtclsOnGeometricBoundarys(const GitrmMesh& gm) {
       z_cent_trimmed[scan_r[fid]] = z_cent[fid];
       area_trimmed[scan_r[fid]] = areas_w[fid];
       particle_surf_track[fid]=fid; //TRACKING====================================1
-    }  
+    }
    });
 
   //printf("Going for 1d linear fit \n");
   //o::Write<o::Real> zSolps{-23, -2, 41}; ///For verification of 1d fit
   auto ypoints=gitrm::interp1D(zSolps, totalFlux, z_cent_trimmed);
-  
+
   o::Write<o::Real> surface_rate_track(mesh.nfaces(),0, "particle_track_id2");
   o::parallel_for(mesh.nfaces(), OMEGA_H_LAMBDA(const o::LO& fid) {
     if (ptclBdries[fid]){
@@ -1291,7 +1291,7 @@ void GitrmParticles::initPtclsOnGeometricBoundarys(const GitrmMesh& gm) {
   });
 
 
-  //Finding the final surfaces 
+  //Finding the final surfaces
     o::Write<o::LO> final_surfaces(mesh.nfaces(),0, "final_surfaces");
     o::parallel_for(mesh.nfaces(), OMEGA_H_LAMBDA(const o::LO& fid) {
     if (surface_rate_track[fid] && particle_surf_track[fid] ){
@@ -1322,14 +1322,14 @@ void GitrmParticles::initPtclsOnGeometricBoundarys(const GitrmMesh& gm) {
 
   auto surface_particle_rate_sum=o::get_sum(o::LOs(surface_particle_rate_trimmed_index));
   auto surface_particle_rate_scan_r=o::offset_scan(o::LOs(surface_particle_rate_trimmed_index));
- 
+
   o::Write<o::Real> surface_particle_rate_trimmed(surface_particle_rate_sum,0, "surface_particle_rate_trimmed");
-  
-  
+
+
   o::parallel_for(nsrc, OMEGA_H_LAMBDA(const o::LO& fid) {
    if (surface_particle_rate_trimmed_index[fid]){
     surface_particle_rate_trimmed[surface_particle_rate_scan_r[fid]] = surface_particle_rate[fid];//IMPORTANT NO 2
-   }  
+   }
   });
 
   //This array above just caluclated is the trimmed (>0) particle_rate array
@@ -1342,7 +1342,7 @@ void GitrmParticles::initPtclsOnGeometricBoundarys(const GitrmMesh& gm) {
 
   o::Write<o::Real> particleCDF(surface_particle_rate_trimmed.size(), 0, "surface_particle_rate_trimmed_offset");
   o::parallel_for(surface_particle_rate_trimmed.size(), OMEGA_H_LAMBDA(const o::LO& fid) {
-    
+
     particleCDF[fid]=out[fid+1]/out[surface_particle_rate_trimmed.size()];
     //printf("particleCDF %f \n", particleCDF[fid]);
 
@@ -1360,7 +1360,7 @@ void GitrmParticles::initPtclsOnGeometricBoundarys(const GitrmMesh& gm) {
   if (rank==comm_size-1)
     np_create=np_create ;
   printf("RANK %d np_create %d \n", rank, np_create);
-  
+
   /*
   o::Write<o::Real> rand_ptcl_gen(np_create, 0,"Random numbers");
   o::Write<o::Real> rand_ptcl_gen2(np_create, 0,"Random numbers");
@@ -1371,7 +1371,7 @@ void GitrmParticles::initPtclsOnGeometricBoundarys(const GitrmMesh& gm) {
   o::Write<o::LO> mins(np_create, 0,"Minimum indices");
 
   /*
-  o::parallel_for(np_create, OMEGA_H_LAMBDA(const o::LO& ptid) { 
+  o::parallel_for(np_create, OMEGA_H_LAMBDA(const o::LO& ptid) {
     auto state=randy_pool.get_state();
     rand_ptcl_gen[ptid]=state.drand();
     rand_ptcl_gen2[ptid]=state.drand();
@@ -1385,14 +1385,14 @@ void GitrmParticles::initPtclsOnGeometricBoundarys(const GitrmMesh& gm) {
 
   o::parallel_for(np_create, OMEGA_H_LAMBDA(const o::LO& ptid) {
   int min;
-  
-    
+
+
     auto state=randy_pool.get_state();
     auto rand_ptcl_gen=state.drand();
     randy_pool.free_state(state);
 
     for (int i=0; i<particleCDF.size();i++){
-       
+
        diff[ptid*particleCDF.size()+i]=particleCDF[i]-rand_ptcl_gen;
           if (diff[ptid*particleCDF.size()+i]<0)
        diff[ptid*particleCDF.size()+i]=100;
@@ -1407,10 +1407,10 @@ void GitrmParticles::initPtclsOnGeometricBoundarys(const GitrmMesh& gm) {
         printf("value is %f \n", diff[ptid*particleCDF.size()+i]);
         printf("Min %d index %d\n", min, i);
       }
-        
+
     }
     mins[ptid]=min-ptid*particleCDF.size(); //Surface id for the particle
-    
+
   });
 
 
@@ -1425,7 +1425,7 @@ void GitrmParticles::initPtclsOnGeometricBoundarys(const GitrmMesh& gm) {
     o::LO n_phi=5;
     o::LO n_theta=5;
     o::LO n_Loc=3;
-    
+
     o::HostWrite<o::Real>phiGrid_h{0.25, 0.45, 0.2, 0.2, 0.6};     //READ THEM FROM FILES is a TODO
     o::HostWrite<o::Real>thetaGrid_h{0.125, 0.445, 0.70, 0.56, 0.908};
     o::HostWrite<o::Real>EGrid_h{0.25, 0.45, 0.25, 0.75, 0.4};
@@ -1452,13 +1452,13 @@ void GitrmParticles::initPtclsOnGeometricBoundarys(const GitrmMesh& gm) {
     o::Write<o::Real> phiDist(phiDist_h.write());
     o::Write<o::Real> EDist(EDist_h.write());
 
-    
+
 
     //LIKE AN INCLUSIVE SCAN OVER THE 2D ARRAY TO FIND 2D CUMSUM
     // eCDF = np.cumsum(Edist,axis=0) Indicates sum over rows for each column
     o::Write<o::Real> thetaCDF(thetaDist.size(), 0, "thetaCDF");
     o::parallel_for(n_Loc, OMEGA_H_LAMBDA(const o::LO& fid) {
-      
+
       for(int i=0; i<n_theta;i++){
 
         if(i==0)
@@ -1476,7 +1476,7 @@ void GitrmParticles::initPtclsOnGeometricBoundarys(const GitrmMesh& gm) {
 
     o::Write<o::Real> phiCDF(phiDist.size(), 0, "phiCDF");
     o::parallel_for(n_Loc, OMEGA_H_LAMBDA(const o::LO& fid) {
-      
+
       for(int i=0; i<n_phi;i++){
 
         if(i==0)
@@ -1494,7 +1494,7 @@ void GitrmParticles::initPtclsOnGeometricBoundarys(const GitrmMesh& gm) {
 
     o::Write<o::Real> ECDF(EDist.size(), 0, "ECDF");
     o::parallel_for(n_Loc, OMEGA_H_LAMBDA(const o::LO& fid) {
-      
+
       for(int i=0; i<n_E;i++){
 
         if(i==0)
@@ -1516,7 +1516,7 @@ void GitrmParticles::initPtclsOnGeometricBoundarys(const GitrmMesh& gm) {
 
   o::Write<o::Real> asd_phi(np_create*n_phi, 0, "asd_phi");
   o::Write<o::Real> diff_2(np_create*n_phi, 0, "diff_2");
-  
+
   o::Write<o::Real> asd_e(np_create*n_E, 0, "asd_e");
   o::Write<o::Real> diff_3(np_create*n_E, 0, "diff_3");
 
@@ -1524,7 +1524,7 @@ void GitrmParticles::initPtclsOnGeometricBoundarys(const GitrmMesh& gm) {
   //o::Write<o::Real> v_final(np_create*3, -1, "v_sampled");
 
   o::parallel_for(np_create, OMEGA_H_LAMBDA(const o::LO& ptid) {
-  
+
     int minsi = mins[ptid];
     const auto fv2v = o::gather_verts<3>(face_verts, final_surfaces_trimmed[minsi]);      //Both do the sme thing
     const auto face = p::gatherVectors3x3(coords, fv2v);
@@ -1566,7 +1566,7 @@ void GitrmParticles::initPtclsOnGeometricBoundarys(const GitrmMesh& gm) {
     samples=-samples+abc_transform1;
     samples= samples+abc_transform2;
     samples=samples+abc[0];
-     
+
     auto normalVec = o::cross(ab, ac);
 
     /*
@@ -1594,7 +1594,7 @@ void GitrmParticles::initPtclsOnGeometricBoundarys(const GitrmMesh& gm) {
 
 
      //The velocities: 2ND PART OF INITIALIZATION
-    
+
     //FInding the z nearest to the initialized point
     double diff_pos[3];
     for (int i=0; i<3; i++){
@@ -1612,7 +1612,7 @@ void GitrmParticles::initPtclsOnGeometricBoundarys(const GitrmMesh& gm) {
 
 
     if (ptid<20 && false){
-     printf("ptid %d rzdiff %d \n",ptid, rzdiff); 
+     printf("ptid %d rzdiff %d \n",ptid, rzdiff);
     }
 
 
@@ -1623,8 +1623,8 @@ void GitrmParticles::initPtclsOnGeometricBoundarys(const GitrmMesh& gm) {
     for (int i=0; i<n_phi;i++){
       auto col = rzdiff;
       asd_phi[ptid*n_phi+i]=phiCDF[i*n_Loc + col];
-      
-      
+
+
       if(ptid==0 && false)
         printf("ptid %d asd_phi is %f \n",ptid, asd_phi[ptid*n_phi+i]);
     }
@@ -1656,16 +1656,16 @@ void GitrmParticles::initPtclsOnGeometricBoundarys(const GitrmMesh& gm) {
 
     for (int i=0; i<n_E-1; i++){
       if (diff_3[ptid*n_E+i+1]<diff_3[min_E])
-        min_E=ptid*n_E+i+1; 
+        min_E=ptid*n_E+i+1;
     }
     double pE=EGrid[min_E-ptid*n_E];
       if (pE>20)
         pE=6;
     double pvel=sqrt(2*pE*1.602e-19/184/1.66e-27);
 
-    
+
     if (ptid<20 && false){
-     printf("ptid %d pvel %f \n",ptid, pvel); 
+     printf("ptid %d pvel %f \n",ptid, pvel);
     }
 
 
@@ -1678,16 +1678,16 @@ void GitrmParticles::initPtclsOnGeometricBoundarys(const GitrmMesh& gm) {
     min_theta=ptid*n_theta;
     for (int i=0; i<n_theta-1; i++){
       if (diff_1[ptid*n_theta+i+1]<diff_1[min_theta])
-        min_theta=ptid*n_theta+i+1; 
+        min_theta=ptid*n_theta+i+1;
     }
     double pTheta=thetaGrid[min_theta-ptid*n_theta];
 
-    
+
     if (ptid<20 && false){
-     printf("ptid %d pTheta %f \n", ptid, pTheta); 
+     printf("ptid %d pTheta %f \n", ptid, pTheta);
     }
 
-    
+
 
     //auto state=randy_pool.get_state();
     auto rand_ptcl_gen3=state.drand();
@@ -1698,15 +1698,15 @@ void GitrmParticles::initPtclsOnGeometricBoundarys(const GitrmMesh& gm) {
     min_phi=ptid*n_phi;
     for (int i=0; i<n_phi-1; i++){
       if (diff_2[ptid*n_phi+i+1]<diff_2[min_phi])
-        min_phi=ptid*n_phi+i+1; 
+        min_phi=ptid*n_phi+i+1;
     }
     double pPhi=phiGrid[min_phi-ptid*n_phi];
 
-    
+
     if (ptid<20 && false){
-     printf("ptid %d min_phi %d, pPhi %f \n", ptid, min_phi-ptid*n_phi, pPhi); 
+     printf("ptid %d min_phi %d, pPhi %f \n", ptid, min_phi-ptid*n_phi, pPhi);
     }
-    
+
     //v_sampled[ptid*3]=pvel*sin(pPhi*3.1415/180)*cos(pTheta*3.1415/180);
     //v_sampled[ptid*3+1]=pvel*sin(pPhi*3.1415/180)*sin(pTheta*3.1415/180);
     //v_sampled[ptid*3+2]=pvel*cos(pPhi*3.1415/180);
@@ -1718,7 +1718,7 @@ void GitrmParticles::initPtclsOnGeometricBoundarys(const GitrmMesh& gm) {
     v_sampled[1]=pvel*sin(pPhi*3.1415/180)*sin(pTheta*3.1415/180);
     v_sampled[2]=pvel*cos(pPhi*3.1415/180);
 
-    
+
     if (ptid<20 && false){
       printf("vsampled 0 is %f \n",v_sampled[0]);
       printf("vsampled 1 is %f \n",v_sampled[1]);
@@ -1729,7 +1729,7 @@ void GitrmParticles::initPtclsOnGeometricBoundarys(const GitrmMesh& gm) {
 
     o::Vector<3> b_field;
     o::Vector<3> pos_b;
-    
+
 
     //pos_b[0]=sqrt(pos_created[ptid*3+0]*pos_created[ptid*3+0] + pos_created[ptid*3+1]*pos_created[ptid*3+1]);
     pos_b[0]=sqrt(ptcl_created_data_w[0*np_create+ptid]*ptcl_created_data_w[0*np_create+ptid] + ptcl_created_data_w[1*np_create+ptid]*ptcl_created_data_w[1*np_create+ptid]);
@@ -1744,7 +1744,7 @@ void GitrmParticles::initPtclsOnGeometricBoundarys(const GitrmMesh& gm) {
       printf("bfield is %f",b_field[0]);
       printf("bfield is %f",b_field[1]);
       printf("bfield is %f \n",b_field[2]);
-      
+
     }
 
     o::Vector<3> surfNorm;
@@ -1782,19 +1782,19 @@ void GitrmParticles::initPtclsOnGeometricBoundarys(const GitrmMesh& gm) {
   printf("ptcl_created_data INSIDE is %d \n", ptcl_created_data_w.size());
   ptcl_created_data=ptcl_created_data_w;
 
-  o::parallel_for(np_create, OMEGA_H_LAMBDA(const o::LO& ind) {    
-      
-      if (ind<10)    
+  o::parallel_for(np_create, OMEGA_H_LAMBDA(const o::LO& ind) {
+
+      if (ind<10)
       for(int i=0; i<3;i++){
         printf("IND %d i %d , PTCL_POSITIONS %f \n ", ind, i, ptcl_created_data_w[i*np_create+ind]);
         printf("IND %d i %d , PTCL_VELOCITIES %f \n ", ind, i, ptcl_created_data_w[(i+3)*np_create+ind]);
       }
 
   });
-  
- 
-  //writeGeneratedParticleDataNc(ptcl_created_data_host, np_create, totalPtcls, "ptcl_gen_file0.nc");  
-  
+
+
+  //writeGeneratedParticleDataNc(ptcl_created_data_host, np_create, totalPtcls, "ptcl_gen_file0.nc");
+
   bool write_output=false;
   if (write_output){
 
@@ -1809,7 +1809,7 @@ void GitrmParticles::initPtclsOnGeometricBoundarys(const GitrmMesh& gm) {
             outfile << ptcl_created_data_host0[i] << std::endl;
         }
         outfile.close();
-    
+
     }
     if (rank==1){
         o::HostWrite<o::Real> ptcl_created_data_host1(ptcl_created_data_w);
@@ -1843,10 +1843,10 @@ void GitrmParticles::initPtclHistoryData(int hstep) {
     ++nThistory;
  // printf("While initialization of data my rank is %d \n",rank);
   nFilledPtclsInHistory = 0;
-  
+
   int size = totalPtcls*dofHistory*nThistory;
   int nph = totalPtcls*nThistory;
-  
+
   if(!rank)
     printf("History: Allocating %d doubles %d + %d ints\n", size, nph, totalPtcls);
   if(debug)
@@ -1921,13 +1921,13 @@ void GitrmParticles::writePtclStepHistoryFile(std::string ncfile, bool debug) co
 
 /*
 void GitrmParticles::writePtclStepHistoryFile(std::string ncfile, bool debug) const {
-  
+
   if(!rank)
     printf("writing Particle history NC file\n");
-  
+
   o::HostWrite<o::Real> histData_in(ptclHistoryData);
   o::HostWrite<o::Real> histData_h(histData_in.size(), "histData_h");
-  
+
   int each_chunk=totalPtcls/commSize;
   if(rank==commSize-1) each_chunk=each_chunk+totalPtcls%commSize;
 
@@ -1935,7 +1935,7 @@ void GitrmParticles::writePtclStepHistoryFile(std::string ncfile, bool debug) co
 
   o::HostWrite<o::LO> lastFilled_in(lastFilledTimeSteps);
   o::HostWrite<o::LO> lastFilled_h(lastFilled_in.size(), "lastFilled_h");
-  
+
   auto dof = dofHistory;
   int numPtcls = each_chunk;
   auto nTh = nThistory;
@@ -1964,7 +1964,7 @@ void GitrmParticles::writePtclStepHistoryFile(std::string ncfile, bool debug) co
     OutputNcFileFieldStruct outStruct({"nP", "nT"}, {"x", "y", "z", "vx", "vy", "vz"},
                                        {numPtcls, nThistory});
     writeOutputNcFile(histData, numPtcls, totalPtcls, nThistory, ncfile);
-  
+
 }
 
 */
@@ -2012,7 +2012,7 @@ void GitrmParticles::updatePtclHistoryData(int iter, int nT, const o::LOs& elem_
       auto vel = p::makeVector3(pid, vel_ps);
       auto pos = p::makeVector3(pid, pos_next);
       auto data_comb={pos,vel};
-      
+
       if(iter < 0)
         pos = p::makeVector3(pid, pos_ps);
       else {
@@ -2032,7 +2032,7 @@ void GitrmParticles::updatePtclHistoryData(int iter, int nT, const o::LOs& elem_
 
         historyData[i*nPtcls*nThistory+ptcl*nThistory+iThistory] = pos[i];
         historyData[(i+3)*nPtcls*nThistory+ptcl*nThistory+iThistory] = vel[i];
-      
+
       }
       if(debug && !rank)
         printf("iter %d ptcl %d pid %d beg %d pos %g %g %g vel %g %g %g\n", iter,
@@ -2050,7 +2050,7 @@ void GitrmParticles::updatePtclHistoryData(int iter, int nT, const o::LOs& elem_
   bool debug = false;
   if(!histInterval || (iter < nT-1 && iter>=0 && iter%histInterval))
     return;
-  
+
   int iThistory = (iter<0) ? 0: (1 + iter/histInterval);
  // printf("iThistory is %d \n", iThistory);
   auto size = ptclIdsOfHistoryData.size();

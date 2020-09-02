@@ -52,6 +52,16 @@ void GitrmMesh::storeOwners(char* fname) {
 void GitrmMesh::initPiscesGeometry() {
   if(!rank)
     std::cout << rank << " Initializing Pisces geometry\n";
+  useConstBField = true;
+  biasedSurface = 1;
+  biasPotential = 250.0;
+  useConstFlowVel = true;
+  impurityAmu = 184;
+  impurityZ = 74;
+  backgroundAmu = 4;
+  backgroundZ = 1;
+  perpDiffCoeft = 1;
+
   //mesh ht 50cm, rad 10cm. Top lid of small sylinder not included
   auto dsIds = o::HostWrite<o::LO>{268, 593, 579, 565, 551, 537, 523, 509,
    495, 481, 467, 453, 439, 154};
@@ -60,32 +70,33 @@ void GitrmMesh::initPiscesGeometry() {
   //source materials model ids = top of inner cylinder
   auto matIds = o::HostWrite<o::LO>{138};
   bdryMaterialModelIds = o::LOs(o::Write<o::LO>(matIds));
-  auto matZs = o::HostWrite<o::LO>{74}; //Tungsten
+  auto matZs = o::HostWrite<o::LO>{impurityZ}; //Tungsten
   bdryMaterialModelIdsZ = o::LOs(o::Write<o::LO>(matZs));
   //top of inner cylinder and top lid of tower included
   auto smIds = o::HostWrite<o::LO>{268, 593, 579, 565, 551, 537, 523,
    509, 495, 481, 467, 453, 439, 154, 150, 138};
   surfaceAndMaterialModelIds = o::LOs(o::Write<o::LO>(smIds));
-
-  useConstBField = true;
-  biasedSurface = 1;
-  biasPotential = 250.0;
-  useConstFlowVel = true;
 }
 
 void GitrmMesh::initIterGeometry() {
   if(!rank)
     std::cout << rank << " Initializing Iter geometry\n";
-  bdryMaterialModelIds = o::LOs(o::Write<o::LO>(o::HostWrite<o::LO>{354}));
-  detectorModelIds = bdryMaterialModelIds;//,581,295};
-  bdryMaterialModelIdsZ = o::LOs(o::Write<o::LO>(o::HostWrite<o::LO>{74})); //W Tungsten
-
-  //TODO verify the ids
-  surfaceAndMaterialModelIds = bdryMaterialModelIds;
   useConstBField = false;
   biasedSurface = 0;
   biasPotential = 0;
   useConstFlowVel = false;
+  impurityAmu = 184;
+  impurityZ = 74; //W
+  backgroundAmu = 4; //2 for D
+  backgroundZ = 2;
+  perpDiffCoeft = 0.1;
+
+  bdryMaterialModelIds = o::LOs(o::Write<o::LO>(o::HostWrite<o::LO>{354}));
+  detectorModelIds = bdryMaterialModelIds;//,581,295};
+  bdryMaterialModelIdsZ = o::LOs(o::Write<o::LO>(o::HostWrite<o::LO>{impurityZ})); //W Tungsten
+
+  //TODO verify the ids
+  surfaceAndMaterialModelIds = bdryMaterialModelIds;
 }
 
 void GitrmMesh::initGeometryAndFields(const std::string& bFile, const std::string& profFile,
@@ -205,7 +216,7 @@ void GitrmMesh::setFaceId2SurfaceAndMaterialIdMap() {
 //Loads only from 2D input field
 void GitrmMesh::load3DFieldOnVtxFromFile(const std::string tagName,
    const std::string &file, Field3StructInput& fs, o::Write<o::Real>& readInData_d) {
-  o::LO debug = 0;
+  bool debug = false;
   int rank = this->rank;
   if(!rank)
     std::cout<< "Loading " << tagName << " from " << file << " on vtx\n" ;
@@ -389,6 +400,7 @@ bool GitrmMesh::addTagsAndLoadProfileData(const std::string &profileFile,
   mesh.add_tag<o::Real>(o::VERT, "ElTempVtx", 1);
   mesh.add_tag<o::Real>(o::VERT, "gradTiVtx", 3);
   mesh.add_tag<o::Real>(o::VERT, "gradTeVtx", 3);
+  mesh.add_tag<o::Real>(o::VERT, "FlowVelocity", 3);
 
   std::string gridRStr = (geomName == "Iter") ? "r" : "gridR";
   std::string gridZStr = (geomName == "Iter") ? "z" : "gridZ";
@@ -474,16 +486,16 @@ bool GitrmMesh::addTagsAndLoadProfileData(const std::string &profileFile,
   tempElDz = fte.getGridDelta(1);
 
   // TODO this is ugly !
-  std::string gridTiRStr = (geomName == "Iter") ? "gradTir" : "gradTiR";
-  std::string gridTiTStr = (geomName == "Iter") ? "gradTiy" : "gradTiT";
-  std::string gridTiZStr = (geomName == "Iter") ? "gradTiz" : "gradTiZ";
-  std::string gxiStr = (geomName == "Iter") ? "r" : "gridx_gradTi";
-  std::string gziStr = (geomName == "Iter") ? "z" : "gridz_gradTi";
-  std::string nriStr = (geomName == "Iter") ? "nR" : "nX_gradTi";
-  std::string nziStr = (geomName == "Iter") ? "nZ" : "nZ_gradTi";
+  std::string gradTiR = (geomName == "Iter") ? "gradTir" : "gradTiR";
+  std::string gradTiT = (geomName == "Iter") ? "gradTiy" : "gradTiT";
+  std::string gradTiZ = (geomName == "Iter") ? "gradTiz" : "gradTiZ";
+  std::string gradGridRti = (geomName == "Iter") ? "r" : "gridx_gradTi";
+  std::string gradGridZti = (geomName == "Iter") ? "z" : "gridz_gradTi";
+  std::string gradNRti = (geomName == "Iter") ? "nR" : "nX_gradTi";
+  std::string gradNZti = (geomName == "Iter") ? "nZ" : "nZ_gradTi";
   //gradTiR
-  Field3StructInput fgTi({gridTiRStr, gridTiTStr, gridTiZStr},
-    {gxiStr, gziStr}, {nriStr, nziStr});
+  Field3StructInput fgTi({gradTiR, gradTiT, gradTiZ},
+    {gradGridRti, gradGridZti}, {gradNRti, gradNZti});
   o::Write<o::Real> gradTi;
   load3DFieldOnVtxFromFile("gradTiVtx", profileGradientFile, fgTi,  gradTi);
   gradTi_d = std::make_shared<o::Reals>(gradTi);
@@ -495,16 +507,16 @@ bool GitrmMesh::addTagsAndLoadProfileData(const std::string &profileFile,
   gradTiDx = fgTi.getGridDelta(0);
   gradTiDz = fgTi.getGridDelta(1);
 
-  std::string gridTeRStr = (geomName == "Iter") ? "gradTer" : "gradTeR";
-  std::string gridTeTStr = (geomName == "Iter") ? "gradTey" : "gradTeT";
-  std::string gridTeZStr = (geomName == "Iter") ? "gradTez" : "gradTeZ";
-  std::string gxeStr = (geomName == "Iter") ? "r" : "gridx_gradTe";
-  std::string gzeStr = (geomName == "Iter") ? "z" : "gridz_gradTe";
-  std::string nreStr = (geomName == "Iter") ? "nR" : "nX_gradTe";
-  std::string nzeStr = (geomName == "Iter") ? "nZ" : "nZ_gradTe";
+  std::string gradTeR = (geomName == "Iter") ? "gradTer" : "gradTeR";
+  std::string gradTeT = (geomName == "Iter") ? "gradTey" : "gradTeT";
+  std::string gradTeZ = (geomName == "Iter") ? "gradTez" : "gradTeZ";
+  std::string gradGridRte = (geomName == "Iter") ? "r" : "gridx_gradTe";
+  std::string gradGridZte = (geomName == "Iter") ? "z" : "gridz_gradTe";
+  std::string gradNRte = (geomName == "Iter") ? "nR" : "nX_gradTe";
+  std::string gradNZte = (geomName == "Iter") ? "nZ" : "nZ_gradTe";
    //gradTeR
-  Field3StructInput fgTe({gridTeRStr, gridTeTStr, gridTeZStr},
-    {gxeStr, gzeStr}, {nreStr, nzeStr});
+  Field3StructInput fgTe({gradTeR, gradTeT, gradTeZ},
+    {gradGridRte, gradGridZte}, {gradNRte, gradNZte});
   o::Write<o::Real> gradTe;
   load3DFieldOnVtxFromFile("gradTeVtx", profileGradientFile, fgTe, gradTe);
   gradTe_d = std::make_shared<o::Reals>(gradTe);
@@ -514,6 +526,20 @@ bool GitrmMesh::addTagsAndLoadProfileData(const std::string &profileFile,
   gradTeNz = fgTe.getNumGrids(1);
   gradTeDx = fgTe.getGridDelta(0);
   gradTeDz = fgTe.getGridDelta(1);
+
+  //flow velocity, move to coulomb collision routine
+  if(geomName == "Iter") {
+    Field3StructInput fvel({"vr", "vt", "vz"}, {"r", "z"}, {"nR", "nZ"});
+    o::Write<o::Real> flowVel;
+    load3DFieldOnVtxFromFile("FlowVelocity", profileFile, fvel, flowVel);
+    flowVel_d = o::Reals(flowVel);
+    flowVX0 = fvel.getGridMin(0);
+    flowVZ0 = fvel.getGridMin(1);
+    flowVNx = fvel.getNumGrids(0);
+    flowVNz = fvel.getNumGrids(1);
+    flowVDx = fvel.getGridDelta(0);
+    flowVDz = fvel.getGridDelta(1);
+  }
   return true;
 }
 

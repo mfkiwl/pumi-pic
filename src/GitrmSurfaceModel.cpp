@@ -3,7 +3,7 @@
 #include "GitrmInputOutput.hpp"
 
 GitrmSurfaceModel::GitrmSurfaceModel(GitrmMesh& gm, std::string ncFile):
-  gm(gm), mesh(gm.mesh),  ncFile(ncFile) { 
+  gm(gm), mesh(gm.mesh),  ncFile(ncFile) {
   initSurfaceModelData(ncFile, true);
 
   numSurfMaterialFaces = gm.nSurfMaterialFaces;
@@ -55,7 +55,7 @@ void GitrmSurfaceModel::initSurfaceModelData(std::string ncFile, bool debug) {
   //mesh.add_tag<o::LO>(o::FACE, "SumParticlesStrike", 1, o::Read<o::Int>(nf,0, "SumParticlesStrike"));
 }
 
-void GitrmSurfaceModel::make2dCDF(const int nX, const int nY, const int nZ, 
+void GitrmSurfaceModel::make2dCDF(const int nX, const int nY, const int nZ,
    const o::HostWrite<o::Real>& distribution, o::HostWrite<o::Real>& cdf) {
   OMEGA_H_CHECK(distribution.size() == nX*nY*nZ);
   OMEGA_H_CHECK(cdf.size() == nX*nY*nZ);
@@ -68,13 +68,13 @@ void GitrmSurfaceModel::make2dCDF(const int nX, const int nY, const int nZ,
           cdf[index] = distribution[index];
         else
           cdf[index] = cdf[index-1] + distribution[index];
-      }  
-    }  
+      }
+    }
   }
   for(int i=0;i<nX;i++) {
     for(int j=0;j<nY;j++) {
       if(cdf[i*nY*nZ + (j+1)*nZ - 1] > 0) {
-        for(int k=0;k<nZ;k++) {  
+        for(int k=0;k<nZ;k++) {
           index = i*nY*nZ + j*nZ + k;
           cdf[index] = cdf[index] / cdf[index-k+nZ-1];
         }
@@ -84,7 +84,7 @@ void GitrmSurfaceModel::make2dCDF(const int nX, const int nY, const int nZ,
 }
 
 //TODO make DEVICE
-o::Real GitrmSurfaceModel::interp1dUnstructured(const o::Real samplePoint, 
+o::Real GitrmSurfaceModel::interp1dUnstructured(const o::Real samplePoint,
   const int nx, const o::Real max_x, const o::Real* data, int& lowInd) {
   int done = 0;
   int low_index = 0;
@@ -94,7 +94,7 @@ o::Real GitrmSurfaceModel::interp1dUnstructured(const o::Real samplePoint,
       if(samplePoint < data[i]) {
         done = 1;
         low_index = i-1;
-      }   
+      }
     }
   }
   value = ((data[low_index+1] - samplePoint)*low_index*max_x/nx
@@ -117,8 +117,8 @@ o::Real GitrmSurfaceModel::interp1dUnstructured(const o::Real samplePoint,
 }
 
 //TODO convert to device function
-void GitrmSurfaceModel::regrid2dCDF(const int nX, const int nY, const int nZ, 
-   const o::HostWrite<o::Real>& xGrid, const int nNew, const o::Real maxNew, 
+void GitrmSurfaceModel::regrid2dCDF(const int nX, const int nY, const int nZ,
+   const o::HostWrite<o::Real>& xGrid, const int nNew, const o::Real maxNew,
    const o::HostWrite<o::Real>& cdf, o::HostWrite<o::Real>& cdf_regrid) {
   int lowInd = 0;
   int index = 0;
@@ -127,12 +127,12 @@ void GitrmSurfaceModel::regrid2dCDF(const int nX, const int nY, const int nZ,
     for(int j=0;j<nY;j++) {
       for(int k=0;k<nZ;k++) {
         index = i*nY*nZ + j*nZ + k;
-        spline = interp1dUnstructured(xGrid[k], nNew, maxNew, 
+        spline = interp1dUnstructured(xGrid[k], nNew, maxNew,
                   &(cdf.data()[index-k]), lowInd);
-        if(isnan(spline) || isinf(spline)) 
+        if(isnan(spline) || isinf(spline))
           spline = 0.0;
-        cdf_regrid[index] = spline;  
-      }  
+        cdf_regrid[index] = spline;
+      }
     }
   }
 }
@@ -152,7 +152,7 @@ void GitrmSurfaceModel::prepareSurfaceModelData() {
   },"kernel_nEnSputtRefDistIn");
   enLogSputtRefDistIn = o::Reals(enLogSputtRefDistIn_w);
   o::HostWrite<o::Real>enLogSputtRefDistIn_h(enLogSputtRefDistIn_w);
-  
+
   o::Write<o::Real> energyDistGrid01_w(nEnSputtRefDistOut, 0, "energyDistGrid01");
   auto nEnSputtRefDOut = nEnSputtRefDistOut;
   o::parallel_for(nEnSputtRefDOut, OMEGA_H_LAMBDA(const o::LO& i) {
@@ -177,7 +177,7 @@ void GitrmSurfaceModel::prepareSurfaceModelData() {
   angleDistGrid01 = o::Reals(angleDistGrid01_w);
   o::HostWrite<o::Real>angleDistGrid01_h(angleDistGrid01_w);
 
-  printf("Making CDFs\n"); 
+  printf("Making CDFs\n");
   o::HostWrite<o::Real>enDist_CDF_Y(enDist_Y.size(), "enDist_CDF_Y");
   o::HostWrite<o::Real>enDist_Y_h(o::deep_copy(enDist_Y));
   make2dCDF(nEnSputtRefDistIn, nAngSputtRefDistIn, nEnSputtRefDistOut,
@@ -207,10 +207,10 @@ void GitrmSurfaceModel::prepareSurfaceModelData() {
   o::HostWrite<o::Real>angThetaDist_CDF_R(angThetaDist_R.size(), "angThetaDist_CDF_R");
   make2dCDF(nEnSputtRefDistIn, nAngSputtRefDistIn, nAngSputtRefDistOut,
    angThetaDist_R_h, angThetaDist_CDF_R);
-  
-  printf("Making regrid CDFs\n"); 
+
+  printf("Making regrid CDFs\n");
   o::HostRead<o::Real> angPhiSputtRefDistOut_h(o::deep_copy(angPhiSputtRefDistOut));
-  o::HostWrite<o::Real>angPhiDist_CDF_Y_regrid_h(angPhiDist_CDF_Y.size(), 
+  o::HostWrite<o::Real>angPhiDist_CDF_Y_regrid_h(angPhiDist_CDF_Y.size(),
       "angPhiDist_CDF_Y_regrid");
   regrid2dCDF(nEnSputtRefDistIn, nAngSputtRefDistIn, nAngSputtRefDistOut,
    angleDistGrid01_h, nAngSputtRefDistOut,
@@ -219,7 +219,7 @@ void GitrmSurfaceModel::prepareSurfaceModelData() {
   angPhiDist_CDF_Y_regrid = o::Reals(o::Write<o::Real>(angPhiDist_CDF_Y_regrid_h));
 
   o::HostRead<o::Real> angThetaSputtRefDistOut_h(o::deep_copy(angThetaSputtRefDistOut));
-  o::HostWrite<o::Real>angThetaDist_CDF_Y_regrid_h(angThetaDist_CDF_Y.size(), 
+  o::HostWrite<o::Real>angThetaDist_CDF_Y_regrid_h(angThetaDist_CDF_Y.size(),
       "angThetaDist_CDF_Y_regrid");
   regrid2dCDF(nEnSputtRefDistIn, nAngSputtRefDistIn, nAngSputtRefDistOut,
    angleDistGrid01_h, nAngSputtRefDistOut, angThetaSputtRefDistOut_h[nAngSputtRefDistOut - 1],
@@ -233,7 +233,7 @@ void GitrmSurfaceModel::prepareSurfaceModelData() {
    enDist_CDF_Y, enDist_CDF_Y_regrid_h);
   enDist_CDF_Y_regrid = o::Reals(enDist_CDF_Y_regrid_h);
 
-  o::HostWrite<o::Real>angPhiDist_CDF_R_regrid_h(angPhiDist_CDF_R.size(), 
+  o::HostWrite<o::Real>angPhiDist_CDF_R_regrid_h(angPhiDist_CDF_R.size(),
       "angPhiDist_CDF_R_regrid");
   regrid2dCDF(nEnSputtRefDistIn, nAngSputtRefDistIn, nAngSputtRefDistOut,
    angleDistGrid01_h, nAngSputtRefDistOut,
@@ -241,7 +241,7 @@ void GitrmSurfaceModel::prepareSurfaceModelData() {
    angPhiDist_CDF_R, angPhiDist_CDF_R_regrid_h);
   angPhiDist_CDF_R_regrid = o::Reals(angPhiDist_CDF_R_regrid_h);
 
-  o::HostWrite<o::Real>angThetaDist_CDF_R_regrid_h(angThetaDist_CDF_R.size(), 
+  o::HostWrite<o::Real>angThetaDist_CDF_R_regrid_h(angThetaDist_CDF_R.size(),
       "angThetaDist_CDF_R_regrid");
   regrid2dCDF(nEnSputtRefDistIn, nAngSputtRefDistIn, nAngSputtRefDistOut,
    angleDistGrid01_h, nAngSputtRefDistOut,
@@ -266,7 +266,7 @@ void GitrmSurfaceModel::getConfigData(std::string ncFileName) {
   enDist = 1000.0;
   nAngDist = 90;
   ang0Dist = 0.0;
-  angDist = 90.0; 
+  angDist = 90.0;
   //from NC file ftridynSelf.nc
   fileString = ncFileName;//"ftridynSelf.nc";
   nEnSputtRefCoeffStr = "nE";
@@ -294,11 +294,11 @@ void GitrmSurfaceModel::getConfigData(std::string ncFileName) {
   angThetaDistRStr = "cosYDistRef";
 
   std::vector<std::string> ds{nEnSputtRefCoeffStr, nAngSputtRefCoeffStr,
-   nEnSputtRefDistInStr, nAngSputtRefDistInStr, nEnSputtRefDistOutStr, 
+   nEnSputtRefDistInStr, nAngSputtRefDistInStr, nEnSputtRefDistOutStr,
    nEnSputtRefDistOutRefStr, nAngSputtRefDistOutStr};
-  std::vector<int> dd{nEnSputtRefCoeff, nAngSputtRefCoeff, nEnSputtRefDistIn, 
+  std::vector<int> dd{nEnSputtRefCoeff, nAngSputtRefCoeff, nEnSputtRefDistIn,
    nAngSputtRefDistIn, nEnSputtRefDistOut, nEnSputtRefDistOutRef, nAngSputtRefDistOut};
-  std::cout << " getSurfaceModelData \n"; 
+  std::cout << " getSurfaceModelData \n";
   //grids are read as separate data, since grid association with data is complex.
   auto f = fileString;
   getSurfaceModelData(f, sputtYldStr, ds, {0,1}, sputtYld);
@@ -326,7 +326,7 @@ void GitrmSurfaceModel::getConfigData(std::string ncFileName) {
     &nEnSputtRefDistOutRef);
   getSurfaceModelData(f, angPhiSputtRefDistOutStr, ds, {6}, angPhiSputtRefDistOut,
     &nAngSputtRefDistOut);
-  getSurfaceModelData(f, angThetaSputtRefDistOutStr, ds, {6}, 
+  getSurfaceModelData(f, angThetaSputtRefDistOutStr, ds, {6},
     angThetaSputtRefDistOut, &nAngSputtRefDistOut);
 }
 
@@ -336,7 +336,7 @@ void GitrmSurfaceModel::getSurfaceModelData(const std::string fileName,
   bool debug = true;
   if(debug)
     std::cout << " reading " << dataName << " \n";
-  std::vector<std::string> shapes; 
+  std::vector<std::string> shapes;
   for(auto j: shapeInds) {
     shapes.push_back(shapeNames[j]);
   }
@@ -346,7 +346,7 @@ void GitrmSurfaceModel::getSurfaceModelData(const std::string fileName,
   data = o::Reals(o::Write<o::Real>(fs.data));
   //only first
   if(size) {
-    *size = fs.getIntValueOf(shapeNames[shapeInds[0]]);//fs.getNumGrids(j); 
+    *size = fs.getIntValueOf(shapeNames[shapeInds[0]]);//fs.getNumGrids(j);
     if(debug)
       std::cout<<" size "<< *size <<" "<<shapeNames[shapeInds[0]]<<"\n";
   }
@@ -380,13 +380,13 @@ void writeData(const o::Write<T>& dd, const std::vector<netCDF::NcDim>& ncd,
     MPI_SUM, 0, MPI_COMM_WORLD);
   if(write) {
     netCDF::NcVar ncv = ncf.addVar(name, utils::NetcdfTypes<T>::datatype(), ncd);
-    ncv.putVar(dh.data());  
+    ncv.putVar(dh.data());
   }
 }
 
 //TODO move to IO file
 //collect data at the end of run, using mpi reduce. This is valid as long as
-//the data collected on each picpart based on seq. num of geometric ids, which 
+//the data collected on each picpart based on seq. num of geometric ids, which
 //are same on every picpart.
 void GitrmSurfaceModel::writeSurfaceDataFile(std::string fileName) const {
   printf("Writing surface model output \n");

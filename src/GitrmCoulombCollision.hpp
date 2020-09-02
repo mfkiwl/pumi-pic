@@ -4,21 +4,18 @@
 
 OMEGA_H_DEVICE void get_drag(const Omega_h::Vector<3> &vel, const Omega_h::Vector<3> &flowVelocity,
 double& nu_friction,double& nu_deflection, double& nu_parallel,double& nu_energy, const double temp,
-const double temp_el, const double dens, const double charge, int ptcl_t, int iTimeStep_t, int debug)
-{
+const double temp_el, const double dens, const double charge, const int background_Z,
+const double background_amu, const double amu, int ptcl_t, int iTimeStep_t, int debug) {
   const double Q    = 1.60217662e-19;
   const double EPS0 = 8.854187e-12;
   const double pi   = 3.14159265;
   const auto MI     = 1.6737236e-27;
   const auto ME     = 9.10938356e-31;
-  const double amu  = 184; 
-  const double background_amu=4;
-  const double background_Z = 1;
-    
+
   auto relvel = vel - flowVelocity;
   auto velocityNorm = Omega_h::norm(relvel);
   //parallel_dir=relvel/velocityNorm;
-  
+
   auto lam_d = sqrt(EPS0*temp_el/(dens*pow(background_Z,2)*Q));
   auto lam = 4*pi*dens*pow(lam_d,3);
   auto gam_electron_background = 0.238762895*pow(charge,2)*log(lam)/(amu*amu);
@@ -30,23 +27,23 @@ const double temp_el, const double dens, const double charge, int ptcl_t, int iT
   if(gam_ion_background < 0.0){
     gam_ion_background=0.0;
   }
-    
-  auto nu_0_i = gam_electron_background*dens/pow(velocityNorm,3);      
+
+  auto nu_0_i = gam_electron_background*dens/pow(velocityNorm,3);
   auto nu_0_e = gam_ion_background*dens/pow(velocityNorm,3);
 
   auto xx_i= pow(velocityNorm,2)*background_amu*MI/(2*temp*Q);
   auto xx_e= pow(velocityNorm,2)*ME/(2*temp_el*Q);
-      
+
   auto psi_i       = 0.75225278*pow(xx_i,1.5);
   auto psi_prime_i = 1.128379*sqrt(xx_i);
   //auto psi_psiprime_i   = psi_i+psi_prime_i;
   auto psi_psiprime_psi2x_i = 1.128379*sqrt(xx_i)*exp(-xx_i);
-    
-  auto psi_e = 0.75225278*pow(xx_e,1.5); 
+
+  auto psi_e = 0.75225278*pow(xx_e,1.5);
   auto psi_prime_e = 1.128379*sqrt(xx_e);
   //auto psi_psiprime_e = psi_e+psi_prime_e;
   auto psi_psiprime_psi2x_e = 1.128379*sqrt(xx_e)*exp(-xx_e);
- 
+
   auto nu_friction_i=((1+amu/background_amu)*psi_i)*nu_0_i;
   auto nu_deflection_i = 2*(psi_psiprime_psi2x_i)*nu_0_i;
   auto nu_parallel_i = psi_i/xx_i*nu_0_i;
@@ -100,11 +97,11 @@ OMEGA_H_DEVICE void get_direc(const Omega_h::Vector<3> &vel, const Omega_h::Vect
   }
   else
     b_unit = b_field/b_mag;
-  
+
   auto relvel1 = vel ;// - flowVelocity;
   auto velocityNorm   = Omega_h::norm(relvel1);
   parallel_dir=relvel1/velocityNorm;
-  
+
   auto s1 = Omega_h::inner_product(parallel_dir, b_unit);
   auto s2 = sqrt(1.0-s1*s1);
   if(abs(s1) >=1.0) s2=0;
@@ -119,7 +116,7 @@ OMEGA_H_DEVICE void get_direc(const Omega_h::Vector<3> &vel, const Omega_h::Vect
     printf("ptcl %d tstep %d b_unit %.15f %.15f %.15f\n",ptcl_t,iTimeStep_t, b_unit[0], b_unit[1],b_unit[2]);
     printf("ptcl %d tstep %d perp1_dir %.15f %.15f %.15f\n",ptcl_t,iTimeStep_t, perp1_dir[0], perp1_dir[1], perp1_dir[2]);
     printf("ptcl %d tstep %d perp2_dir %.15f %.15f %.15f\n",ptcl_t,iTimeStep_t, perp2_dir[0], perp2_dir[1], perp2_dir[2]);
-  }  
+  }
 
   if (p::almost_equal(s2, 0)) {
     perp1_dir[0] =  s1;//why no idea?
@@ -135,7 +132,7 @@ OMEGA_H_DEVICE void get_direc(const Omega_h::Vector<3> &vel, const Omega_h::Vect
 
 inline void gitrm_coulomb_collision(PS* ptcls, int *iteration, const GitrmMesh& gm,
    const GitrmParticles& gp, double dt, const o::LOs& elm_ids, int debug=0) {
-  
+
   auto pid_ps_global=ptcls->get<PTCL_ID_GLOBAL>();
   auto pid_ps = ptcls->get<PTCL_ID>();
   auto x_ps_d = ptcls->get<PTCL_POS>();
@@ -152,17 +149,27 @@ inline void gitrm_coulomb_collision(PS* ptcls, int *iteration, const GitrmMesh& 
   auto use3dField = USE3D_BFIELD;
   bool cylSymm = true;
 
-  std::cout << "COULOMB collision ConstFlowVel " << useConstantFlowVelocity << "\n";
-  OMEGA_H_CHECK(useConstantFlowVelocity);
-
-  o::Reals constFlowVelocity(3); 
+  const double amu = gm.getImpurityAmu();
+  const double background_amu = gm.getBackgroundAmu();
+  const int background_Z = gm.getBackgroundZ();
+  if(debug > 1)
+    std::cout << "COULOMB collision ConstFlowVel " << useConstantFlowVelocity << "\n";
+  o::Reals constFlowVelocity(3);
   if(useConstantFlowVelocity) {
     constFlowVelocity = o::Reals(o::Write<o::Real>(o::HostWrite<o::Real>(
       {CONSTANT_FLOW_VELOCITY0, CONSTANT_FLOW_VELOCITY1, CONSTANT_FLOW_VELOCITY2})));
   }
+  //flow velocity
+  const auto flowVel_2d = gm.getFlowVel2d();
+  const auto flowVX0 = gm.getFlowVelX0();
+  const auto flowVZ0 = gm.getFlowVelZ0();
+  const auto flowVNx = gm.getFlowVelNx();
+  const auto flowVNz = gm.getFlowVelNz();
+  const auto flowVDx = gm.getFlowVelDz();
+  const auto flowVDz = gm.getFlowVelDz();
 
-  //Setting up of 2D magnetic field data 
-  const auto& BField_2d = gm.getBfield2d();
+  //Setting up of 2D magnetic field data
+  const auto BField_2d = gm.getBfield2d();
   const auto bX0 = gm.bGridX0;
   const auto bZ0 = gm.bGridZ0;
   const auto bDx = gm.bGridDx;
@@ -171,7 +178,7 @@ inline void gitrm_coulomb_collision(PS* ptcls, int *iteration, const GitrmMesh& 
   const auto bGridNz = gm.bGridNz;
 
   //Setting up of 2D ion temperature data
-  const auto& temIon_d = gm.getTemIon();
+  const auto temIon_d = gm.getTemIon();
   auto x0Temp = gm.tempIonX0;
   auto z0Temp = gm.tempIonZ0;
   auto nxTemp = gm.tempIonNx;
@@ -180,7 +187,7 @@ inline void gitrm_coulomb_collision(PS* ptcls, int *iteration, const GitrmMesh& 
   auto dzTemp = gm.tempIonDz;
 
   //Setting up of 2D ion density data
-  const auto& densIon_d =gm.getDensIon();
+  const auto densIon_d =gm.getDensIon();
   auto x0Dens = gm.densIonX0;
   auto z0Dens = gm.densIonZ0;
   auto nxDens = gm.densIonNx;
@@ -189,14 +196,14 @@ inline void gitrm_coulomb_collision(PS* ptcls, int *iteration, const GitrmMesh& 
   auto dzDens = gm.densIonDz;
 
   ////Setting up of 2D electron temperature data
-  const auto& temEl_d  = gm.getTemEl();
+  const auto temEl_d  = gm.getTemEl();
   auto x0Temp_el=gm.tempElX0;
   auto z0Temp_el=gm.tempElZ0;
   auto nxTemp_el=gm.tempElNx;
   auto nzTemp_el=gm.tempElNz;
   auto dxTemp_el=gm.tempElDx;
   auto dzTemp_el=gm.tempElDz;
-  
+
   //Data for 3D interpolation
   auto& mesh = gm.mesh;
   const auto coords = mesh.coords();
@@ -223,7 +230,7 @@ inline void gitrm_coulomb_collision(PS* ptcls, int *iteration, const GitrmMesh& 
   const bool useCudaRnd = gp.useCudaRnd;
   auto* cuStates =  gp.cudaRndStates;
 
-  auto updatePtclPos = PS_LAMBDA(const int& e, const int& pid, const bool& mask) { 
+  auto updatePtclPos = PS_LAMBDA(const int& e, const int& pid, const bool& mask) {
     if(mask > 0 && elm_ids[pid] >= 0) {
       o::LO el = elm_ids[pid];
       auto ptcl           = pid_ps(pid);
@@ -231,7 +238,7 @@ inline void gitrm_coulomb_collision(PS* ptcls, int *iteration, const GitrmMesh& 
       auto charge         = charge_ps_d(pid);
       auto fid            = xfaces[pid];
       if(!charge || fid >=0)
-        return; 
+        return;
 
       auto posit          = p::makeVector3(pid, x_ps_d);
       auto posit_next     = p::makeVector3(pid, xtgt_ps_d);
@@ -248,12 +255,14 @@ inline void gitrm_coulomb_collision(PS* ptcls, int *iteration, const GitrmMesh& 
       Omega_h::Vector<3> flowVelocity_radial;
       Omega_h::Vector<3> flowVelocity;
       Omega_h::Vector<3> b_field;
-      
+
       double dens = 0;
       double temp = 0;
       double temp_el = 0;
       auto velIn = vel;
-      if (useConstantFlowVelocity){
+
+      //TODO merge with intrp, simialr to bfield case
+      if (useConstantFlowVelocity) {
         for(auto i=0; i<3; ++i)
         flowVelocity_radial[i] = constFlowVelocity[i];
 
@@ -262,6 +271,9 @@ inline void gitrm_coulomb_collision(PS* ptcls, int *iteration, const GitrmMesh& 
         flowVelocity[0] = cos(theta)*flowVelocity_radial[0] - sin(theta)*flowVelocity_radial[1];
         flowVelocity[1] = sin(theta)*flowVelocity_radial[0] + cos(theta)*flowVelocity_radial[1];
         flowVelocity[2] = flowVelocity_radial[2];
+      } else if (use2dInputFields) {
+        p::interp2dVector(flowVel_2d, flowVX0, flowVZ0, flowVDx, flowVDz, flowVNx, flowVNz,
+         posit_next, flowVelocity, cylSymm);
       }
 
       if (use2dInputFields || useConstantBField) {
@@ -271,11 +283,11 @@ inline void gitrm_coulomb_collision(PS* ptcls, int *iteration, const GitrmMesh& 
       else if (use3dField) {
         auto bcc = o::zero_vector<4>();
         p::findBCCoordsInTet(coords, mesh2verts, posit_next, el, bcc);
-        p::interpolate3dFieldTet(mesh2verts, BField, el, bcc, b_field); 
+        p::interpolate3dFieldTet(mesh2verts, BField, el, bcc, b_field);
       }
 
       if (use2dInputFields){
-        dens = p::interpolate2dField(densIon_d, x0Dens, z0Dens, dxDens, 
+        dens = p::interpolate2dField(densIon_d, x0Dens, z0Dens, dxDens,
                dzDens, nxDens, nzDens, pos2D, true,1,0,false);
         temp = p::interpolate2dField(temIon_d, x0Temp, z0Temp, dxTemp,
                dzTemp, nxTemp, nzTemp, pos2D, true, 1,0,false);
@@ -294,16 +306,17 @@ inline void gitrm_coulomb_collision(PS* ptcls, int *iteration, const GitrmMesh& 
         if(debug > 2)
           printf("ptcl %d tstep %d density %.15f ion_temp %.15f el_temp3D %.15f\n",
            ptcl, iTimeStep, dens, temp, temp_el);
-      }   
+      }
       double nu_friction   = 0;
       double nu_deflection = 0;
       double nu_parallel   = 0;
       double nu_energy     = 0;
+
       get_drag(vel, flowVelocity, nu_friction, nu_deflection, nu_parallel, nu_energy, temp,temp_el,
-              dens,charge, ptcl, iTimeStep, debug);
+              dens,charge, background_Z, background_amu, amu, ptcl, iTimeStep, debug);
 
       get_direc( vel,flowVelocity,b_field, parallel_dir,perp1_dir, perp2_dir,ptcl, iTimeStep, debug);
- 
+
       relvel=vel-flowVelocity;
       auto velocityNorm   = Omega_h::norm(relvel);
       double drag  = -dt*nu_friction*velocityNorm/1.2;
@@ -325,7 +338,7 @@ inline void gitrm_coulomb_collision(PS* ptcls, int *iteration, const GitrmMesh& 
         n2 = curand_normal(&localState);
         xsi = curand_uniform(&localState);
         cuStates[ptcl_global] = localState;
-       
+
         if(debug > 2)
           printf("cudaRndNums-coulomb ptcl %d tstep %d n1 %.15f n2 %.15f xsi %.15f nu_parallel %.15f\n",
            ptcl, iTimeStep,n1,n2,xsi, nu_parallel);
@@ -354,7 +367,7 @@ inline void gitrm_coulomb_collision(PS* ptcls, int *iteration, const GitrmMesh& 
       auto vPerp = abs(n2) * vPerp0;
       vel = vNormEt*(vPar + vPerp) + velColl;
 
-      //vel = Omega_h::norm(vel)*(1-0.5*nuEdt)*((1+coeff_par)*parallel_dir+abs(n2) * 
+      //vel = Omega_h::norm(vel)*(1-0.5*nuEdt)*((1+coeff_par)*parallel_dir+abs(n2) *
       //     (coeff_perp1 * perp1_dir + coeff_perp2 * perp2_dir)) + drag/velocityNorm * relvel;
 
       if(debug > 2){
@@ -379,7 +392,7 @@ inline void gitrm_coulomb_collision(PS* ptcls, int *iteration, const GitrmMesh& 
 
       vel_ps_d(pid,0)=vel[0];
       vel_ps_d(pid,1)=vel[1];
-      vel_ps_d(pid,2)=vel[2];  
+      vel_ps_d(pid,2)=vel[2];
     }
   };
   p::parallel_for(ptcls, updatePtclPos, "coulomb_collision_kernel");

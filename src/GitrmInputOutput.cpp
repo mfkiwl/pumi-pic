@@ -73,7 +73,7 @@ int verifyNetcdfFile(const std::string& ncFileName, int nc_err) {
   if(status)
     Omega_h_fail("Error: invalid NetCDF file %s\n", ncFileName.c_str());
   return status;
-} 
+}
 
 
 bool readParticleSourceNcFile(std::string ncFileName, o::HostWrite<o::Real>& data,
@@ -102,14 +102,14 @@ bool readParticleSourceNcFile(std::string ncFileName, o::HostWrite<o::Real>& dat
         printf("%s\n", nc_strerror(err));
         exit(-1);
       }
-    
+
     err=nc_inq_dimid(ncid, "nP", &np_id);
      if (err!=0){
       printf("The error1 status should be 0 is %d \n" , err);
       printf("%s\n", nc_strerror(err));
       exit(-1);
     }
-  
+
     err=nc_inq_dimlen(ncid, np_id, &np_length);
     if (err!=0){
       printf("The error2 status should be 0 is %d \n" , err);
@@ -130,13 +130,13 @@ bool readParticleSourceNcFile(std::string ncFileName, o::HostWrite<o::Real>& dat
         printf("The error3 status should be 0 is %d \n" , err);
         printf("%s\n", nc_strerror(err));
         exit(-1);
-      } 
+      }
       err = nc_var_par_access(ncid, *(vrs_ind+i), NC_INDEPENDENT);
       if (err!=0){
         printf("The error4 status should be 0 is %d \n" , err);
         printf("%s\n", nc_strerror(err));
         exit(-1);
-      } 
+      }
       err=nc_get_vara_double(ncid, *(vrs_ind+i), start, count, &data[i*each_chunk]);
       if (err!=0){
         printf("The error5 status should be 0 is %d \n" , err);
@@ -153,7 +153,7 @@ bool readParticleSourceNcFile(std::string ncFileName, o::HostWrite<o::Real>& dat
       }
 
     if(replaceNaN) {
-      
+
       long int nans = 0;
         for(auto i=0; i<data.size(); ++i)
           if(std::isnan(data[i])) {
@@ -228,7 +228,7 @@ int readInputDataNcFileFS3(const std::string& ncFileName,
 
 // numInFile updated if > that in file.
 int readInputDataNcFileFS3(const std::string& ncFileName,
-  Field3StructInput& fs, int& numInFile, int& numRead, 
+  Field3StructInput& fs, int& numInFile, int& numRead,
   std::string numStr, bool debug) {
   int ncSizePerComp = 1;
   int status = 0;
@@ -256,11 +256,11 @@ int readInputDataNcFileFS3(const std::string& ncFileName,
           numRead = size;
       }
       if(debug)
-        std::cout << ncFileName << " : " << fs.nGridNames[i] << " : " 
+        std::cout << ncFileName << " : " << fs.nGridNames[i] << " : "
           << fs.nGridVec[i] << "\n";
       ncSizePerComp *= fs.nGridVec[i];
-    }   
-    if(debug) 
+    }
+    if(debug)
       std::cout << " ncSizePerComp: " << ncSizePerComp << " nComp " << fs.nComp << "\n";
 
     for(int i=0; i<fs.nGridRead && i<fs.gridNames.size(); ++i) {
@@ -271,14 +271,14 @@ int readInputDataNcFileFS3(const std::string& ncFileName,
         fs.grid1 = o::HostWrite<o::Real>(o::Write<o::Real>(fs.nGridVec[0], 0, "nGridVec0"));
         ncvar.getVar(&(fs.grid1[0]));
         if(debug)
-          printf("  read: size %d %s %g %g ...\n", fs.nGridVec[0], 
+          printf("  read: size %d %s %g %g ...\n", fs.nGridVec[0],
               fs.gridNames[i].c_str(), fs.grid1[0], fs.grid1[1]);
       }
       if(i==1) {
         fs.grid2 = o::HostWrite<o::Real>(o::Write<o::Real>(fs.nGridVec[1], 0, "nGridVec1"));
         ncvar.getVar(&(fs.grid2[0]));
         if(debug)
-          printf("  read: size %d %s %g %g ...\n", fs.nGridVec[1], 
+          printf("  read: size %d %s %g %g ...\n", fs.nGridVec[1],
               fs.gridNames[i].c_str(), fs.grid2[0], fs.grid2[1]);
       }
       if(i==2) {
@@ -301,7 +301,7 @@ int readInputDataNcFileFS3(const std::string& ncFileName,
           printf("\n");
         }
       }
-    }    
+    }
     for(int i=0; i< fs.nVarNames.size(); ++i) {
       netCDF::NcDim ncVarName(ncf.getDim(fs.nVarNames[i]));
       auto unlimit = ncVarName.isUnlimited();
@@ -313,7 +313,7 @@ int readInputDataNcFileFS3(const std::string& ncFileName,
       if(ncf.getDim(fs.nVarNames[i]).isNull())
         size = -1;
       if(debug)
-        std::cout << " " << fs.nVarNames[i] << " " << ncVarName.getName() 
+        std::cout << " " << fs.nVarNames[i] << " " << ncVarName.getName()
           << " size " << size << " \n";
       fs.nVarVec.push_back(size);
     }
@@ -342,9 +342,9 @@ int readInputDataNcFileFS3(const std::string& ncFileName,
 }
 
 //TODO combine nc write functions
-void writeOutBdryFaceCoordsNcFile(const std::string& fileName, 
-    o::Write<o::Real>& xd, o::Write<o::Real>& yd, o::Write<o::Real>& zd, 
-    const int nf) { 
+void writeOutBdryFaceCoordsNcFile(const std::string& fileName,
+    o::Write<o::Real>& xd, o::Write<o::Real>& yd, o::Write<o::Real>& zd,
+    const int nf) {
   auto xx = o::HostRead<o::Real>(xd);
   auto yy = o::HostRead<o::Real>(yd);
   auto zz = o::HostRead<o::Real>(zd);
@@ -378,7 +378,7 @@ void writeOutBdryFaceCoordsNcFile(const std::string& fileName,
 
 void writeOutputNcFile( o::HostWrite<o::Real>& ptclHistoryData, int numPtcls,
   long int totalPtcls, int nThistory, std::string outNcFileName) {
-  
+
     int myrank, numranks, ncid, err, num_vrs, num_dim, each_chunk;
     char str_char[100];
 
@@ -397,7 +397,7 @@ void writeOutputNcFile( o::HostWrite<o::Real>& ptclHistoryData, int numPtcls,
     vrs_ind=(int *)calloc(num_vrs, sizeof(int));
     dim_ind=(int *)calloc(num_dim, sizeof(int));
     dim_count=(long int *)calloc(num_dim, sizeof(long int));
-    
+
     dim_count[0]=totalPtcls;
     dim_count[1]=nThistory;
 
@@ -478,12 +478,12 @@ void writeOutputNcFile( o::HostWrite<o::Real>& ptclHistoryData, int numPtcls,
     free(vrs_ind);
     free(dim_ind);
     free(dim_count);
-    
+
 }
 
 void writeOutputNcFile( o::HostWrite<o::Real>& ptclHistoryData, int numPtcls,
   int dof, OutputNcFileFieldStruct& st, std::string outNcFileName) {
-  //if ext not nc, 
+  //if ext not nc,
   //outNcFileName = outNcFileName + std::to_string(i) + ".nc";
   OMEGA_H_CHECK(dof == st.fieldNames.size());
   OMEGA_H_CHECK(numPtcls == st.nDims[0]);
@@ -497,7 +497,7 @@ void writeOutputNcFile( o::HostWrite<o::Real>& ptclHistoryData, int numPtcls,
     }
     std::vector<netCDF::NcVar> ncVars;
     for(int i=0; i< st.fieldNames.size(); ++i) {
-      netCDF::NcVar var = ncFile.addVar(st.fieldNames[i], 
+      netCDF::NcVar var = ncFile.addVar(st.fieldNames[i],
         netCDF::NcDouble(), ncDims);
       ncVars.push_back(var);
     }
@@ -520,7 +520,7 @@ void writeOutputNcFile( o::HostWrite<o::Real>& ptclHistoryData, int numPtcls,
       // http://unidata.github.io/netcdf-cxx4/ncVar_8cpp_source.html#l00788 line-1142
       // https://github.com/Unidata/netcdf-c/blob/master/ncdump/ref_ctest.c
       //ncVars[i].putVar(start, count, stridep, &(ptclHistoryData[0]));
-      
+
     }
   } catch (netCDF::exceptions::NcException& e) {
     std::cout << e.what() << "\n";
@@ -539,7 +539,7 @@ int readCsrFile(const std::string& ncFileName, const std::vector<std::string>& v
     netCDF::NcDim ncPtrName(ncf.getDim(vars[0].c_str()));
     auto psize = ncPtrName.getSize();
     std::cout << ncFileName << " : " << vars[0] << " : " << psize << "\n";
- 
+
     ptrs = o::HostWrite<o::LO>(o::Write<o::LO>(psize, 0, "ptrs"));
     netCDF::NcVar ncp(ncf.getVar(datNames[0]));
     ncp.getVar(&(ptrs[0]));
@@ -567,9 +567,9 @@ int readCsrFile(const std::string& ncFileName, const std::vector<std::string>& v
   return status;
 }
 
-void writeOutputCsrFile(const std::string& outFileName, 
-    const std::vector<std::string>& vars, const std::vector<std::string>& datNames, 
-    o::LOs& ptrs_d, o::LOs& data_d, int* valExtra) { 
+void writeOutputCsrFile(const std::string& outFileName,
+    const std::vector<std::string>& vars, const std::vector<std::string>& datNames,
+    o::LOs& ptrs_d, o::LOs& data_d, int* valExtra) {
   auto data = o::HostRead<o::LO>(data_d);
   auto ptrs = o::HostRead<o::LO>(ptrs_d);
   int psize = ptrs.size();
@@ -589,7 +589,7 @@ void writeOutputCsrFile(const std::string& outFileName,
   } catch (netCDF::exceptions::NcException& e) {
     std::cout << e.what() << "\n";
     status = 1;
-  }    
+  }
   if(status)
     Omega_h_fail("Error: writing NC file %s failed\n", outFileName.c_str());
 }

@@ -21,7 +21,7 @@ int GitrmInput::parseConfigFile() {
     return(EXIT_FAILURE);
   } catch(const libconfig::ParseException& ex) {
     if(!myRank)
-      std::cout << "Parse error at " << ex.getFile() << ":" 
+      std::cout << "Parse error at " << ex.getFile() << ":"
         << ex.getLine() << " - " << ex.getError() << std::endl;
     return(EXIT_FAILURE);
   }
@@ -30,7 +30,7 @@ int GitrmInput::parseConfigFile() {
   return 0;
 }
 
-bool readConfigNumsAndGrids3(const std::string& head, std::string& fname, 
+bool readConfigNumsAndGrids3(const std::string& head, std::string& fname,
   std::string& nr, std::string& nz, std::string& gr, std::string& gz,
   std::string& ny, std::string& gy) {
   readConfigNumsAndGrids2(head, fname, nr, nz, gr, gz);
@@ -79,7 +79,7 @@ void GitrmInput::testInputConfig() {
   auto smAphiDistR = readConfigVar(sm+"AphiDist_R");
   auto smAthDistR = readConfigVar(sm+"AthetaDist_R");
   std::cout << ptclSrcNcFile << "\n";
-  
+
   std::string surfFlux{"surfaces.flux."};
   auto surfNE = readConfigVar<int>(surfFlux+"nE");
   auto surfE0 = readConfigVar<double>(surfFlux+"E0");
@@ -87,7 +87,7 @@ void GitrmInput::testInputConfig() {
   auto surfNA = readConfigVar<int>(surfFlux+"nA");
   auto surfA0 = readConfigVar<double>(surfFlux+"A0");
   auto surfA = readConfigVar<double>(surfFlux+"A");
- 
+
   std::string prof{"backgroundPlasmaProfiles."};
   auto profZ = readConfigVar<double>(prof+"Z");
   auto profAmu = readConfigVar<double>(prof+"amu");
@@ -109,9 +109,9 @@ void GitrmInput::testInputConfig() {
   auto profBRStr = readConfigVar(profB+"rString");
   auto profBZStr = readConfigVar(profB+"zString");
   auto profBYStr = readConfigVar(profB+"yString");
-  
+
   std::string profE{prof+"Efield."};
-  auto profErStr = readConfigVar<double>(profE+"Er"); 
+  auto profErStr = readConfigVar<double>(profE+"Er");
   auto profEzStr = readConfigVar<double>(profE+"Ez");
   auto profEtStr = readConfigVar<double>(profE+"Et");
   std::string profEfile{};
@@ -125,7 +125,7 @@ void GitrmInput::testInputConfig() {
   auto profEAxialStr = readConfigVar(profE+"axialComponentString");
   auto profETorStr = readConfigVar(profE+"toroidalComponentString");
 
-  std::string profDtsE{prof+"dtsEfield."}; 
+  std::string profDtsE{prof+"dtsEfield."};
   auto profDtsErStr = readConfigVar<double>(profDtsE+"dtsEr");
   auto profDtsEzStr = readConfigVar<double>(profDtsE+"dtsEz");
   auto profDtsEtStr = readConfigVar<double>(profDtsE+"dtsEt");
@@ -226,7 +226,7 @@ void GitrmInput::testInputConfig() {
   auto profTGrTiRStr = readConfigVar(profTGr+"gradTiRString");
   auto profTGrTiYStr = readConfigVar(profTGr+"gradTiYString");
   auto profTGrTiZStr = readConfigVar(profTGr+"gradTiZString");
-  
+
   std::string profLc{prof+"Lc."};
   auto profLcVal = readConfigVar<double>(profLc+"value");
   std::string profLcFile{};
@@ -237,7 +237,7 @@ void GitrmInput::testInputConfig() {
   readConfigNumsAndGrids2(profLc, profLcFile, profLcNrStr,
      profLcNzStr, profLcGridRStr, profLsGridZStr);
   auto profLcVarStr = readConfigVar<double>(profLc+"variableString");
- 
+
   std::string profS{prof+"s."};
   auto profSVal = readConfigVar<double>(profS+"value");
   std::string profSFile{};
@@ -248,7 +248,7 @@ void GitrmInput::testInputConfig() {
   readConfigNumsAndGrids2(profS, profSFile, profSNrStr,
      profSNzStr, profSGridRStr, profSGridZStr);
   auto profLcVarStr = readConfigVar<double>(profLc+"variableString");
-  
+
   std::string conLen{"connectionLength."};
   auto conLenNTrSteps = readConfigVar<int>(conLen+"nTraceSteps");
   auto conLenDr = readConfigVar<double>(conLen+"dr");
@@ -295,7 +295,7 @@ void GitrmInput::testInputConfig() {
   auto ptclSrcInitEV = readConfigVar<double>(ptclSrcInit+"energy_eV");
   auto ptclSrcInitPhi = readConfigVar<double>(ptclSrcInit+"phi");
   auto ptclSrcInitTheta = readConfigVar<double>(ptclSrcInit+"theta");
-  
+
   std::string ptclSrcIoni{ptclSrc+"ionization."};
   auto ptclSrcIoniFile = readConfigVar(ptclSrcIoni+"fileString");
   auto ptclSrcIoniTGridStr = readConfigVar(ptclSrcIoni+"TempGridString");
