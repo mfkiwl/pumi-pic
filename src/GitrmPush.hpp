@@ -22,14 +22,18 @@ inline void gitrm_calculateE(GitrmParticles* gp, GitrmMesh* gm, int debug=0) {
   if(debug)
     printf("CalculateE \n");
   int rank = gm->picparts->comm()->rank();
-
+  /*
   o::Mesh* mesh = gm->picparts->mesh();
   const auto& f2rPtr = mesh->ask_up(o::FACE, o::REGION).a2ab;
   const auto& f2rElem = mesh->ask_up(o::FACE, o::REGION).ab2b;
   const auto coords = mesh->coords();
   const auto face_verts = mesh->ask_verts_of(2);
-
+  */
   auto* bdry = gm->getBdryPtr();
+  const auto bdryFaceVerts = bdry->getBdryFaceVertsPic(); 
+  const auto bdryFaceVertCoords = bdry->getBdryFaceVertCoordsPic();
+  const auto bdryFaceOrderedIds = gm->getBdryFaceOrderedIds();
+
   const auto biasedSurface = bdry->isBiasedSurface();
   const auto biasPot = bdry->getBiasPotential();
   const auto angles = bdry->getBxSurfNormAngle();
@@ -40,7 +44,7 @@ inline void gitrm_calculateE(GitrmParticles* gp, GitrmMesh* gm, int debug=0) {
   const auto elDensity = bdry->getElDensity();
   const auto elTemp = bdry->getElTemp();
 
-  //NOTE arrays is based on pid, which is reset upon each rebuild
+  //NOTE arrays based on pid, which is reset upon each rebuild
   const auto& closestPoints =  gp->closestPoints;
   const auto& faceIds = gp->closestBdryFaceIds;
 
@@ -54,26 +58,31 @@ inline void gitrm_calculateE(GitrmParticles* gp, GitrmMesh* gm, int debug=0) {
   auto run = PS_LAMBDA(const int& elem, const int& pid, const int& mask) {
     if(mask >0) {
       auto ptcl = pid_ps(pid);
-      auto faceId = faceIds[pid];
-      //if(faceId < 0) faceId = 0;
-      if(faceId < 0) {
+      auto fid = faceIds[pid];
+      if(fid < 0) {
         efield_ps(pid, 0) = 0;
         efield_ps(pid, 1) = 0;
         efield_ps(pid, 2) = 0;
       } else {
         // TODO angle is between surface normal and magnetic field at center of face
         // If  face is long, BField is not accurate. Calculate at closest point ?
-        auto angle = angles[faceId];
-        auto pot = potentials[faceId];
+        auto angle = angles[fid];
+        auto pot = potentials[fid];
         //use direct potential to test
         //pot = biasPot;
-        auto debyeLength = debyeLengths[faceId];
-        auto larmorRadius = larmorRadii[faceId];
-        auto childLangmuirDist = childLangmuirDists[faceId];
+        auto debyeLength = debyeLengths[fid];
+        auto larmorRadius = larmorRadii[fid];
+        auto childLangmuirDist = childLangmuirDists[fid];
         auto pos = p::makeVector3(pid, pos_ps);
-        if(debug > 2)
-          printf("%d CALC-E: ptcl %d tstep %d fid %d angle %g pot %g DL %g LR %g CLD %g\n",
-            rank, ptcl, iTimeStep, faceId, angle, pot, debyeLength, larmorRadius, childLangmuirDist);
+        if(debug > 2) {
+          printf("CALC-E: ptcl %d tstep %d fid %d angle %g pot %g DL %g LR %g CLD %g\n",
+            ptcl, iTimeStep, fid, angle, pot, debyeLength, larmorRadius, childLangmuirDist);
+          o::Matrix<3,3> f = p::get_face_coords_of_tet(bdryFaceVerts, bdryFaceVertCoords, fid);
+          auto ordId = bdryFaceOrderedIds[fid];
+          printf("dist: ptcl %d tstep %d pos %.15e %.15e %.15e \n fid %d ordId %d  %g %g %g :"
+            " %g %g %g : %g %g %g\n", ptcl, iTimeStep, pos[0], pos[1], pos[2], fid, ordId,
+            f[0][0], f[0][1], f[0][2], f[1][0],f[1][1], f[1][2],f[2][0],f[2][1],f[2][2]);
+        }
 
         o::Vector<3> closest;
         for(o::LO i=0; i<3; ++i)
@@ -104,14 +113,15 @@ inline void gitrm_calculateE(GitrmParticles* gp, GitrmMesh* gm, int debug=0) {
           efield_ps(pid, i) = exd[i];
 
         if(debug > 2) {
-          printf(" calcE: ptcl %d emag %.15e distVec %g %g %.15e dirUnitVec %g %g %g \n",
-            ptcl, emag, distVector[0], distVector[1], distVector[2], dirUnitVector[0],
-            dirUnitVector[1], dirUnitVector[2]);
+          printf(" calcE: ptcl %d tstep %d emag %.15e distVec %g %g %.15e \n"
+            " ptcl %d dirUnitVec %g %g %g \n", ptcl, iTimeStep, emag, distVector[0],
+            distVector[1], distVector[2], ptcl, dirUnitVector[0], dirUnitVector[1],
+            dirUnitVector[2]);
 
-          auto nelMesh = elDensity[faceId];
-          auto telMesh = elTemp[faceId];
+          auto nelMesh = elDensity[fid];
+          auto telMesh = elTemp[fid];
           printf(" calcE_this:gitr ptcl %d timestep %d charge %d  dist2bdry %.15e"
-             " efield %.15e  %.15e  %.15e  CLD %.15e  Nel %.15e Tel %.15e biased %d\n",
+             " efield %.15e  %.15e  %.15e \n CLD %.15e  Nel %.15e Tel %.15e biased %d\n",
             ptcl, iTimeStep, charge_ps(pid), d2bdry, efield_ps(pid, 0),
             efield_ps(pid, 1), efield_ps(pid, 2), childLangmuirDist, nelMesh,
             telMesh, biasedSurface);
@@ -123,7 +133,7 @@ inline void gitrm_calculateE(GitrmParticles* gp, GitrmMesh* gm, int debug=0) {
           printf("%d: ptcl %d tstep %d pos %g %g %g vel %g %g %g\n", rank, ptcl, iTimeStep,
            pos[0], pos[1], pos[2], vel[0], vel[1], vel[2]);
         }
-      } //faceId
+      } //fid
     } //mask
   };
   p::parallel_for(ptcls, run, "CalculateE");
@@ -144,14 +154,15 @@ inline void gitrm_borisMove(PS* ptcls, const GitrmMesh &gm, const o::Real dTime,
 
   int iTimeStep = iTimePlusOne - 1;
   const auto BField = o::Reals(); // get tag "BField"
-  const auto bX0 = gm.bGridX0;
-  const auto bZ0 = gm.bGridZ0;
-  const auto bDx = gm.bGridDx;
-  const auto bDz = gm.bGridDz;
-  const auto bGridNx = gm.bGridNx;
-  const auto bGridNz = gm.bGridNz;
-  const auto BField_2d = gm.getBfield2d();
+  const auto bField2d = gm.getBfield2d();
+  const auto bGrid1 = gm.getBfield2dGrid(1);
+  const auto bGrid2 = gm.getBfield2dGrid(2);
   const auto eFieldConst_d = utils::getConstEField();
+  const auto usePreSheathE = gm.isUsingPreSheathEField();
+  const auto preSheathEField = gm.getPreSheathEField();
+  const auto psGridX = gm.getPreSheathEFieldGridX();
+  const auto psGridZ = gm.getPreSheathEFieldGridZ();
+
   //TODO crash using these variables
   //const o::Real eQ = gitrm::ELECTRON_CHARGE;//1.60217662e-19;
   //const o::Real pMass = gitrm::PROTON_MASS;//1.6737236e-27;
@@ -167,21 +178,24 @@ inline void gitrm_borisMove(PS* ptcls, const GitrmMesh &gm, const o::Real dTime,
       auto vel = p::makeVector3(pid, vel_ps);
       auto pos = p::makeVector3(pid, pos_ps);
       auto charge = charge_ps(pid);
-      auto bField_radial= o::zero_vector<3>();
       auto bField = o::zero_vector<3>();
       auto eField = p::makeVector3(pid, efield_ps);
 
       auto eField0 = o::zero_vector<3>();
       bool cylSymm = true;
-      p::interp2dVector(eFieldConst_d, 0, 0, 0, 0, 1, 1, pos, eField0, cylSymm);
+      //TODO handle in fields class
+      if(usePreSheathE)
+        p::interp2dVector_wgrid(preSheathEField, psGridX, psGridZ, pos, eField0, cylSymm); 
+      else
+        p::interp2dVector(eFieldConst_d, 0, 0, 0, 0, 1, 1, pos, eField0, cylSymm);
+
       eField += eField0;
       if(use3dField) {
         auto bcc = o::zero_vector<4>();
         p::findBCCoordsInTet(coords, mesh2verts, pos, elem, bcc);
         p::interpolate3dFieldTet(mesh2verts, BField, elem, bcc, bField);
       } else {
-        p::interp2dVector(BField_2d, bX0, bZ0, bDx, bDz, bGridNx, bGridNz, pos,
-          bField, cylSymm);
+        p::interp2dVector_wgrid(bField2d, bGrid1, bGrid2, pos, bField, cylSymm);
       }
       auto vel0 = vel;
       OMEGA_H_CHECK((amu >0) && (dTime>0));

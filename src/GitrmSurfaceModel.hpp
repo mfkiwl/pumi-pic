@@ -238,8 +238,6 @@ inline void gitrm_surfaceReflection(PS* ptcls, GitrmSurfaceModel& sm,
   auto elCharge = gitrm::ELECTRON_CHARGE;
   auto protonMass = gitrm::PROTON_MASS;
   //input data
-  const auto nEnSputtRefCoeff = sm.nEnSputtRefCoeff; // nE_sputtRefCoeff
-  const auto nAngSputtRefCoeff = sm.nAngSputtRefCoeff; // nA_sputtRefCoeff
   const auto& angSputtRefCoeff = sm.angSputtRefCoeff;  // A_sputtRefCoeff
   const auto& enLogSputtRefCoef = sm.enLogSputtRefCoef; //Elog_sputtRefCoeff
   const auto& sputtYld = sm.sputtYld; //spyl_surfaceModel
@@ -394,9 +392,9 @@ inline void gitrm_surfaceReflection(PS* ptcls, GitrmSurfaceModel& sm,
 
       if(materialZ > 0) {
         Y0 = p::interpolate2d_wgrid(sputtYld, angSputtRefCoeff, enLogSputtRefCoef,
-           nAngSputtRefCoeff, nEnSputtRefCoeff, thetaImpact, log10(E0), true,1,0);
+           thetaImpact, log10(E0), true,1,0);
         R0 = p::interpolate2d_wgrid(reflYld, angSputtRefCoeff, enLogSputtRefCoef,
-          nAngSputtRefCoeff, nEnSputtRefCoeff, thetaImpact, log10(E0), true,1,0);
+           thetaImpact, log10(E0), true,1,0);
       }
       if(debug>1)
         printf(" surf4 timestep %d ptcl %d interpolated Y0 %g R0 %g\n", iTimeStep,

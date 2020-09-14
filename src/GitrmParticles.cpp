@@ -38,7 +38,7 @@ GitrmParticles::GitrmParticles(GitrmMesh* gm, p::Mesh& picparts, long int nPtcls
   ptclSplitRead = PTCLS_SPLIT_READ;
   if(!useGitrRndNums)
     initRandGenerator(seed);
-  mustFindAllPtcls = MUST_FIND_ALL_PTCLS;
+  mustFindAllPtcls = MUST_FIND_ALL_PTCLS_INIT;
 
   auto geomName = gm->getGeometryName();
 
@@ -2279,3 +2279,4 @@ void GitrmParticles::storePtclDataInGridsRZ(o::LO iter, o::Write<o::LO>& data_d,
   };
   p::parallel_for(ptcls, lamb);
 }
+

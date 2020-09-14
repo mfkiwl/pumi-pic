@@ -333,7 +333,7 @@ void GitrmSurfaceModel::getConfigData(std::string ncFileName) {
 void GitrmSurfaceModel::getSurfaceModelData(const std::string fileName,
    const std::string dataName, const std::vector<std::string>& shapeNames,
    const std::vector<int> shapeInds, o::Reals& data, int* size) {
-  bool debug = true;
+  bool debug = false;
   if(debug)
     std::cout << " reading " << dataName << " \n";
   std::vector<std::string> shapes;

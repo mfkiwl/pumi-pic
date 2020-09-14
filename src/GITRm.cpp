@@ -192,7 +192,7 @@ int main(int argc, char** argv) {
     geomName = "Iter";
 
   bool debug = false; //search
-  int debug2 = 0;  //routines
+  int debug2 = 1;  //routines
   bool useCudaRnd = false; //replace kokkos rnd
 
   bool surfacemodel = true;
