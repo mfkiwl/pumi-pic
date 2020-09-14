@@ -5,8 +5,11 @@
 #include <Kokkos_Core.hpp>
 #include <Omega_h_mesh.hpp>
 
-#include <pumipic_mesh.hpp>
-#include <pumipic_adjacency.hpp>
+#include "pumipic_kktypes.hpp"
+#include "pumipic_adjacency.hpp"
+#include "pumipic_ptcl_ops.hpp"
+#include "particle_structs.hpp"
+#include "pumipic_mesh.hpp"
 
 #include "GitrmParticles.hpp"
 #include "GitrmPush.hpp"
@@ -47,41 +50,46 @@ void updatePtclPositions(PS* ptcls) {
 void rebuild(p::Mesh& picparts, PS* ptcls, o::LOs elem_ids,
     const bool output=false) {
   updatePtclPositions(ptcls);
-  const int ps_capacity = ptcls->capacity();
-  PS::kkLidView ps_elem_ids("ps_elem_ids", ps_capacity);
-  PS::kkLidView ps_process_ids("ps_process_ids", ps_capacity);
-  Omega_h::LOs is_safe = picparts.safeTag();
-  Omega_h::LOs elm_owners = picparts.entOwners(picparts.dim());
+  bool useLoadBalancer = true;
+  if(!useLoadBalancer) {
+    const int ps_capacity = ptcls->capacity();
+    PS::kkLidView ps_elem_ids("ps_elem_ids", ps_capacity);
+    PS::kkLidView ps_process_ids("ps_process_ids", ps_capacity);
+    Omega_h::LOs is_safe = picparts.safeTag();
+    Omega_h::LOs elm_owners = picparts.entOwners(picparts.dim());
 
-  int comm_rank;
-  MPI_Comm_rank(MPI_COMM_WORLD, &comm_rank);
+    int comm_rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &comm_rank);
 
-  //Added to check particle migration
-  auto pid_ps = ptcls->get<PTCL_ID>();
-  auto pid_ps_global = ptcls->get<PTCL_ID_GLOBAL>();
-  //delete later
-  //
-  auto lamb = PS_LAMBDA(const int& e, const int& pid, const int& mask) {
-    if (mask) {
-      int new_elem = elem_ids[pid];
-      ps_elem_ids(pid) = new_elem;
-      ps_process_ids(pid) = comm_rank;
+    //Added to check particle migration
+    auto pid_ps = ptcls->get<PTCL_ID>();
+    auto pid_ps_global = ptcls->get<PTCL_ID_GLOBAL>();
+    //delete later
+    //
+    auto lamb = PS_LAMBDA(const int& e, const int& pid, const int& mask) {
+      if (mask) {
+        int new_elem = elem_ids[pid];
+        ps_elem_ids(pid) = new_elem;
+        ps_process_ids(pid) = comm_rank;
 
-      //Added to check migration
-      auto ptcl = pid_ps(pid);
-      auto ptcl_global=pid_ps_global(pid);
-      if(output)
-        printf("Rank:%d ptcl:%d global_particle:%d \n",ps_process_ids(pid), ptcl, ptcl_global);
+        //Added to check migration
+        auto ptcl = pid_ps(pid);
+        auto ptcl_global=pid_ps_global(pid);
+        if(output)
+          printf("Rank:%d ptcl:%d global_particle:%d \n",ps_process_ids(pid), ptcl, ptcl_global);
 
-      if (new_elem != -1 && is_safe[new_elem] == 0) {
-        ps_process_ids(pid) = elm_owners[new_elem];
+        if (new_elem != -1 && is_safe[new_elem] == 0) {
+          ps_process_ids(pid) = elm_owners[new_elem];
+        }
+        if(output)
+          printf("New rank:%d ptcl:%d global_particle:%d \n",ps_process_ids(pid), ptcl, ptcl_global);
       }
-      if(output)
-        printf("New rank:%d ptcl:%d global_particle:%d \n",ps_process_ids(pid), ptcl, ptcl_global);
-    }
-  };
-  ps::parallel_for(ptcls, lamb,"lamda_within rebuild");
-  ptcls->migrate(ps_elem_ids, ps_process_ids); //migrate /  rebuild
+    };
+    ps::parallel_for(ptcls, lamb,"lamda_within rebuild");
+    ptcls->migrate(ps_elem_ids, ps_process_ids); //migrate /  rebuild
+  }
+  p::migrate_lb_ptcls(picparts, ptcls, elem_ids, 1.05);
+  p::printPtclImb(ptcls);
 }
 
 
