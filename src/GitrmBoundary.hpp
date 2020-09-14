@@ -33,6 +33,7 @@ public:
   o::Mesh* getMesh() const { return mesh; }
   o::Mesh* getFullMesh() const { return fullMesh; }
 
+  bool checkBdryDataUse();
   bool selectMeshData(o::Reals* coords, o::LOs* face_verts,
    o::Read<o::I8>* exposed, o::LO& nf);
 
@@ -64,6 +65,7 @@ public:
   o::Reals getElTemp() const;
   o::Reals getIonTemp() const;
 
+  void setAllBdryFacesOfModelIds();
   o::Reals getBdryFaceVertCoordsPic() const;
   o::LOs getBdryFaceVertsPic() const;
   o::LOs getBdryFaceIdsPic() const;
@@ -76,7 +78,7 @@ public:
   bool isAddingTag(FaceFieldFillCoverage);
 
   bool isUsingOrigBdryData() const { return useOrigBdryData; }
-
+  bool isAllMatBdryData() const {return useAllMatBdryFaces; }
   o::GOs getOrigGlobalIds() const;
   void testDistanceToBdry(int debug=0);
 
@@ -92,6 +94,8 @@ private:
   o::LOs bdryFaceVertsPic;
   o::LOs bdryFaceIdsPic;
   o::LOs bdryFaceIdPtrsPic;
+  o::LOs allMaterialBdryFids;
+  o::LOs allMaterialBdryFidPtrs;
 
   o::Reals angleBdryBfield;
   o::Reals potential;
@@ -106,7 +110,7 @@ private:
   o::Reals ionDensity;
   o::Reals ionTemp;
 
-  bool stored = false;
+  bool initData = false;
 
   /** Original bdry data means that loaded from the file. This is set in the case
    * where the picpart has all the elements of the original fullMesh, since
@@ -123,7 +127,7 @@ private:
   //bool calcEfieldUsingD2Bdry = false;
   /** If bdry field data added as tags on all faces of all elements */
   bool useBdryTagFields = false;
-  
+  bool useAllMatBdryFaces = false;
   /** original global ids for picpart nelems, over fullMesh elems. Rest are -1 */
   o::GOs origGlobalIds;
 };
