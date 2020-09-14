@@ -19,13 +19,13 @@ public:
   // 2. PICPART: On the whole picpart mesh face as tags; data on non-boundary
   //    faces not used. This case may be used for full-buffer mesh.
   // In either case the data is stored per element of the picpart.
-  enum FaceFieldFillTarget {
+  enum FaceFieldFillCoverage {
     INVALID = 0,
     BDRY = 1,
     PICPART = 2
   };
 
-  GitrmBoundary(GitrmMesh*, FaceFieldFillTarget);
+  GitrmBoundary(GitrmMesh*, FaceFieldFillCoverage);
 
   GitrmMesh* getGitrmMesh() const { return gm; }
   p::Mesh* getPicparts() const { return picparts; }
@@ -33,6 +33,7 @@ public:
   o::Mesh* getMesh() const { return mesh; }
   o::Mesh* getFullMesh() const { return fullMesh; }
 
+  bool checkBdryDataUse();
   bool selectMeshData(o::Reals* coords, o::LOs* face_verts,
    o::Read<o::I8>* exposed, o::LO& nf);
 
@@ -50,6 +51,7 @@ public:
 
   void initBoundaries();
   void storeBdryData();
+  void setBoundaryInput();
 
   void storeBdryFaceFieldsForPicpart(bool pre, int debug=0);
 
@@ -63,6 +65,7 @@ public:
   o::Reals getElTemp() const;
   o::Reals getIonTemp() const;
 
+  void setAllBdryFacesOfModelIds();
   o::Reals getBdryFaceVertCoordsPic() const;
   o::LOs getBdryFaceVertsPic() const;
   o::LOs getBdryFaceIdsPic() const;
@@ -72,10 +75,10 @@ public:
 
   bool isBiasedSurface() const { return isBiasedSurf;}
   bool usingStoredBdryData() const { return useStoredBdryData; }
-  bool isAddingTag(FaceFieldFillTarget);
+  bool isAddingTag(FaceFieldFillCoverage);
 
   bool isUsingOrigBdryData() const { return useOrigBdryData; }
-
+  bool isAllMatBdryData() const {return useAllMatBdryFaces; }
   o::GOs getOrigGlobalIds() const;
   void testDistanceToBdry(int debug=0);
 
@@ -84,13 +87,15 @@ private:
   p::Mesh* picparts;
   o::Mesh* mesh;
   o::Mesh* fullMesh;
-  FaceFieldFillTarget target;
+  FaceFieldFillCoverage coverage;
 
   //on picpart 
   o::Reals bdryFaceVertCoordsPic;
   o::LOs bdryFaceVertsPic;
   o::LOs bdryFaceIdsPic;
   o::LOs bdryFaceIdPtrsPic;
+  o::LOs allMaterialBdryFids;
+  o::LOs allMaterialBdryFidPtrs;
 
   o::Reals angleBdryBfield;
   o::Reals potential;
@@ -105,7 +110,7 @@ private:
   o::Reals ionDensity;
   o::Reals ionTemp;
 
-  bool stored = false;
+  bool initData = false;
 
   /** Original bdry data means that loaded from the file. This is set in the case
    * where the picpart has all the elements of the original fullMesh, since
@@ -122,7 +127,7 @@ private:
   //bool calcEfieldUsingD2Bdry = false;
   /** If bdry field data added as tags on all faces of all elements */
   bool useBdryTagFields = false;
-  
+  bool useAllMatBdryFaces = false;
   /** original global ids for picpart nelems, over fullMesh elems. Rest are -1 */
   o::GOs origGlobalIds;
 };

@@ -32,32 +32,27 @@ namespace gitrm {
 
 //TODO put in config class
 
-
-const bool CREATE_GITR_MESH = false;
+const bool CREATE_GITR_MESH = true;
 const int USE_READIN_CSR_BDRYFACES = 1;
-const int STORE_BDRYDATA_PIC_SAFE = 1;
-const bool REQUIRE_FINDING_ALL_PTCLS = false;
+const int STORE_BDRYDATA_PIC = 1;
+const int USE_ALL_BDRY_FACES = 1;
+const bool MUST_FIND_ALL_PTCLS_INIT = false;
 const int PTCLS_SPLIT_READ = 0;
 
+const o::LO D2BDRY_GRIDS_PER_TET = 10; // if csr bdry not re-used
 const int D2BDRY_MIN_SELECT = 10; //that many instead of the least one
 const int D2BDRY_MEM_FACTOR = 1; //per 8G memory
 const bool WRITE_TEXT_D2BDRY_FACES = false;
 const bool WRITE_BDRY_FACE_COORDS_NC = false;
 const bool WRITE_MESH_FACE_COORDS_NC = false;
-const o::LO D2BDRY_GRIDS_PER_TET = 15; // if csr bdry not re-used
 
 const int USE_2DREADIN_IONI_REC_RATES = 1;
 const int USE3D_BFIELD = 0;
 const int USE2D_INPUTFIELDS = 1;
+const int USE_CYL_SYMMETRY = 1;
+const int USE_PRESHEATH_EFIELD = 1;
 
 // in GITR only constant EField is used.
-const int USE_CONSTANT_FLOW_VELOCITY=1;
-const int USE_CONSTANT_BFIELD = 1; //used for pisces
-const int USE_CYL_SYMMETRY = 1;
-const o::LO BACKGROUND_Z = 1;
-const o::Real BACKGROUND_AMU = 4.0; //for pisces
-const o::Real BIAS_POTENTIAL = 250.0;
-const o::LO BIASED_SURFACE = 1;
 const o::Real CONSTANT_EFIELD0 = 0;
 const o::Real CONSTANT_EFIELD1 = 0;
 const o::Real CONSTANT_EFIELD2 = 0;
@@ -132,14 +127,20 @@ public:
   void preprocessStoreBdryFacesBfs(o::Write<o::LO>& numBdryFaceIdsInElems,
     o::Write<o::LO>& bdryFacesCsrW, int csrSize);
 
+  /** if dist2bdry pointers are local element ids of picpart then convert
+   * it to original global elements id based
+   */
+  void convertDist2BdryDataToGlobal(const o::LOs bfPtrs, const o::LOs bFaces,
+    o::LOs bdryFacePtrs, o::LOs bdryFaces);
   void writeDist2BdryFacesData(const std::string outFileName="d2bdryFaces.nc",
     int nD2BdryTetSubDiv=0);
   o::LOs getBdryFacesCsrBFS() const {return *bdryFacesCsrBFS;}
   o::LOs getBdryFacePtrsBFS() const {return *bdryFacePtrsBFS;}
 
   /** Store closest boundary faces in each element in the domain.
-   * onlyMaterialSheath skip others consistent with GITR sheath hash creation. 
+   * onlyMaterialSheath skip others consistent with GITR sheath hash creation.
    */
+  o::LOs selectBdryFacesOfModelIds(o::LO nFaces, bool onlyMaterialSheath=true);
   void preprocessSelectBdryFacesFromAll(bool onlyMaterialSheath=true);
   void preprocessSelectBdryFacesOnPicpart( bool onlyMaterialSheath=true);
 
@@ -153,46 +154,23 @@ public:
 
   o::LOs getBdryCsrReadInPtrs() { return bdryCsrReadInDataPtrs;}
   o::LOs getBdryCsrReadInFids() { return bdryCsrReadInData;}
-  
-  /** create ordered ids starting 0 for given geometric bdry ids. 
-   */
-  o::LOs setOrderedBdryIds(const o::LOs& gFaceIds, int& nSurfaces,
-    const o::LOs& gFaceValues, bool fill = false);
 
   void markBdryFacesOnGeomModelIds(const o::LOs& gFaces,
      o::Write<o::LO>& mark_d, o::LO newVal, bool init);
-  
-  template<typename T>
-  void createBdryFaceClassArray(const o::LOs& gFaceIds, o::Write<T>& bdryArray,
-     const o::Read<T>& gFaceValues, bool fill = false) {
-    const auto side_is_exposed = o::mark_exposed_sides(&mesh);
-    auto faceClassIds = mesh.get_array<o::ClassId>(2, "class_id");
-    auto size = gFaceIds.size();
-    o::parallel_for(mesh.nfaces(), OMEGA_H_LAMBDA(const o::LO& fid) {
-      if(side_is_exposed[fid]) {
-        for(auto id=0; id < size; ++id) {
-          if(gFaceIds[id] == faceClassIds[fid]) {
-            auto v = (fill) ? gFaceValues[id] : 1;
-            bdryArray[fid] = v;
-          }
-        }
-      }
-    },"kernel_createBdryFaceClassArray");
-  }
 
   void setFaceId2BdryFaceIdMap();
-  o::LOs getBdryFaceOrderedIds() const {return *bdryFaceOrderedIds; }
+  o::LOs getBdryFaceOrderedIds() const {return bdryFaceOrderedIds; }
   int nbdryFaces = 0;
 
   void setFaceId2SurfaceAndMaterialIdMap();
   int nSurfMaterialFaces = 0;
-  o::LOs getSurfaceAndMaterialOrderedIds() const { return *surfaceAndMaterialOrderedIds; }
+  o::LOs getSurfaceAndMaterialOrderedIds() const { return surfaceAndMaterialOrderedIds; }
 
   int nDetectSurfaces = 0;
-  o::LOs getDetectorSurfaceOrderedIds() const {return *detectorSurfaceOrderedIds;}
+  o::LOs getDetectorMeshFaceOrderedIds() const {return detectorMeshFaceOrderedIds;}
 
   void setFaceId2BdryFaceMaterialsZmap();
-  o::LOs getBdryFaceMaterialZs() const {return *bdryFaceMaterialZs;}
+  o::LOs getBdryFaceMaterialZs() const {return bdryFaceMaterialZs;}
 
   void initBField(const std::string &f="bFile");
   void load3DFieldOnVtxFromFile(const std::string tagName,
@@ -228,6 +206,9 @@ public:
   o::Reals getTemIon() const {return *temIon_d;}
   o::Reals getTemEl() const {return *temEl_d;}
 
+  o::Reals getBfield2dGrid(int i) const {
+    return (i==1) ? bField2dGridX : bField2dGridZ;
+  }
   o::Reals getGradTi() const {return *gradTi_d;}
   o::Reals getGradTe() const {return *gradTe_d;}
 
@@ -238,18 +219,16 @@ public:
   o::Reals getGradTiVtx() const{ return *gradTi_vtx_d;}
   o::Reals getGradTeVtx() const{ return *gradTe_vtx_d;}
 
-  o::HostWrite<o::LO> getDetectorSurfaceModelIds() const {
-    return detectorSurfaceModelIds;
-  }
-  o::HostWrite<o::LO> getBdryMaterialModelIds() const {
-    return bdryMaterialModelIds;
-  }
-  o::HostWrite<o::LO> getBdryMaterialModelIdsZ() const {
-    return bdryMaterialModelIdsZ;
-  }
-  o::HostWrite<o::LO> getSurfaceAndMaterialModelIds() const {
-    return surfaceAndMaterialModelIds;
-  }
+  /** geometric model ids of detector segments */
+  o::LOs getDetectorModelIds() const {return detectorModelIds; }
+  int getNumDetectorModelIds() const { return detectorModelIds.size(); }
+  /** geometric model ids of */
+  o::LOs getBdryMaterialModelIds() const { return bdryMaterialModelIds;}
+  o::LOs getBdryMaterialModelIdsZ() const { return bdryMaterialModelIdsZ; }
+  o::LOs getSurfaceAndMaterialModelIds() const { return surfaceAndMaterialModelIds;}
+  int getNumSurfaceAndMaterialModelIds() const { return surfaceAndMaterialModelIds.size(); }
+  o::LOs getSurfMatGModelSeqNums() const { return surfMatGModelSeqNums;}
+
   // Used in boundary init and if 2D field is used for particles
   o::Real bGridX0 = 0;
   o::Real bGridZ0 = 0;
@@ -307,7 +286,32 @@ public:
 
   int numDetectorSurfaceFaces = 0;
   std::string getGeometryName() const { return geomName; }
-  bool isUsingConstBField() const {return useConstBField; }
+  bool isUsingConstBField() const { return useConstBField; }
+  bool isUsingPreSheathEField() const { return usePreSheathEField; }
+  bool isBiasedSurface() const { return biasedSurface; }
+  double getBiasPotential() const { return biasPotential; }
+  bool isUsingConstFlowVel() const { return useConstFlowVel; }
+  bool isUsingAllBdryFaces() const { return useAllBdryFaces; }
+
+  void loadPreSheathEField(const std::string& psFile);
+  o::Reals getPreSheathEField() const { return preSheathEField; }
+  o::Reals getPreSheathEFieldGridX() const { return preSheathEFieldGridX; }
+  o::Reals getPreSheathEFieldGridZ() const { return preSheathEFieldGridZ; }
+
+  double getImpurityAmu() const { return impurityAmu; }
+  double getBackgroundAmu() const { return backgroundAmu; }
+  int getBackgroundZ() const { return backgroundZ;}
+  int getImpurityZ() const { return impurityZ; }
+
+  o::Reals getFlowVel2d() const { return flowVel_d; }
+  o::Real getFlowVelX0() const { return flowVX0; }
+  o::Real getFlowVelZ0() const { return flowVZ0; }
+  o::LO getFlowVelNx() const { return flowVNx; }
+  o::LO getFlowVelNz() const { return flowVNz; }
+  o::Real getFlowVelDx() const { return flowVDx; }
+  o::Real getFlowVelDz() const { return flowVDz; }
+
+  o::Real getPerpDiffusionCoeft() const { return perpDiffCoeft; }
 
 private:
 
@@ -316,6 +320,11 @@ private:
   o::LO numAddedBdryFaces = 0;
   std::string geomName{};
   bool useConstBField = false;
+  bool usePreSheathEField = false;
+  bool biasedSurface = false;
+  double biasPotential = 0;
+  bool useConstFlowVel = false;
+  bool useAllBdryFaces = false;
 
   std::shared_ptr<o::LOs> bdryFacesCsrBFS;
   std::shared_ptr<o::LOs> bdryFacePtrsBFS;
@@ -323,11 +332,12 @@ private:
   o::LOs bdryFacesSelectedCsr;
   o::LOs bdryCsrReadInDataPtrs;
   o::LOs bdryCsrReadInData;
-  std::shared_ptr<o::LOs> bdryFaceOrderedIds;
 
-  std::shared_ptr<o::LOs> surfaceAndMaterialOrderedIds;
-  std::shared_ptr<o::LOs> detectorSurfaceOrderedIds;
-  std::shared_ptr<o::LOs> bdryFaceMaterialZs;
+  o::LOs bdryFaceOrderedIds;
+  o::LOs surfMatGModelSeqNums;
+  o::LOs surfaceAndMaterialOrderedIds;
+  o::LOs detectorMeshFaceOrderedIds;
+  o::LOs bdryFaceMaterialZs;
   std::string profileNcFile = "profile.nc";
   //D3D_major rad =1.6955m; https://github.com/SCOREC/Fusion_Public/blob/master/
   // samples/D-g096333.03337/g096333.03337#L1033
@@ -348,11 +358,35 @@ private:
   std::shared_ptr<o::Reals> gradTi_vtx_d;
   std::shared_ptr<o::Reals> gradTe_vtx_d;
 
+  //floc velocity
+  o::Reals flowVel_d;
+  o::Real flowVX0 = 0;
+  o::Real flowVZ0 = 0;
+  o::LO flowVNx = 0;
+  o::LO flowVNz = 0;
+  o::Real flowVDx = 0;
+  o::Real flowVDz = 0;
+  o::Reals flowVelGridX;
+  o::Reals flowVelGridZ;
+  o::Reals bField2dGridX;
+  o::Reals bField2dGridZ;
+
+  o::Reals preSheathEField;
+  o::Reals preSheathEFieldGridX;
+  o::Reals preSheathEFieldGridZ;
+
   //get model Ids by opening mesh/model in Simmodeler
-  o::HostWrite<o::LO> detectorSurfaceModelIds;
-  o::HostWrite<o::LO> bdryMaterialModelIds;
-  o::HostWrite<o::LO> bdryMaterialModelIdsZ;
-  o::HostWrite<o::LO> surfaceAndMaterialModelIds;
+  o::LOs detectorModelIds;
+  o::LOs bdryMaterialModelIds;
+  o::LOs bdryMaterialModelIdsZ;
+  o::LOs surfaceAndMaterialModelIds;
+
+  o::Real backgroundAmu = 0;
+  o::LO backgroundZ = 0;
+  o::Real impurityAmu = 0;
+  o::LO impurityZ = 0;
+  o::Real perpDiffCoeft = 0;
+
   int rank = -1;
   bool exists = false;
 };
@@ -367,6 +401,51 @@ inline o::Write<o::LO> makeCsrPtrs(o::Write<o::LO>& nums_d, int tot, int& sum) {
   return o::deep_copy(o::offset_scan(o::LOs(nums_d)));
 }
 
+template<typename T = o::LO>
+o::Read<T> createBdryFaceClassArray(o::Mesh& mesh, const o::LOs& gFaceIds,
+   const o::Read<T>& gFaceValues, T initVal, const std::string& name="",
+   bool allBdry = false, bool replace = false) {
+  auto nf = mesh.nfaces();
+  o::Write<T> bdryArray(nf, initVal, name);
+  const auto side_is_exposed = o::mark_exposed_sides(&mesh);
+  auto faceClassIds = mesh.get_array<o::ClassId>(2, "class_id");
+  auto size = gFaceIds.size();
+  o::parallel_for(nf, OMEGA_H_LAMBDA(const T& fid) {
+    if(side_is_exposed[fid]) {
+      for(auto id=0; id < size; ++id) {
+        if(gFaceIds[id] == faceClassIds[fid]) {
+          auto v = (replace) ? gFaceValues[id] : 1;
+          bdryArray[fid] = v;
+        }
+      }
+      bdryArray[fid] = (allBdry) ? 1 : bdryArray[fid];
+    }
+  },"createBdryFaceClassArray");
+  return o::Read<T>(bdryArray);
+}
+
+//create ordered ids starting 0 for given geometric bdry ids.
+//copy associated values if fill is true.
+template<typename T = o::LO>
+o::Read<T> createOrderedBdryIds(o::Mesh& mesh, const o::LOs& gFaceIds, int& nSurfaces,
+    const o::LOs& gFaceValues, bool allBdry, bool replace) {
+  auto nf = mesh.nfaces();
+  o::LO initVal = 0;
+  auto isSurface_d = utils::createBdryFaceClassArray(mesh, gFaceIds, gFaceValues,
+    initVal, "isSelectBdryFace", allBdry, replace);
+  nSurfaces = o::get_sum(o::Read<T>(isSurface_d));
+  auto scanIds_r = o::offset_scan(o::Read<T>(isSurface_d));
+  auto scanIds_w = o::deep_copy(scanIds_r);
+  //set non-surface, ie, repeating numbers, to -1
+  o::parallel_for(nf, OMEGA_H_LAMBDA(const T& fid) {
+    if(!isSurface_d[fid])
+      scanIds_w[fid]= -1;
+  },"createOrderedBdryIds");
+  //last index of scanned is cumulative sum
+  OMEGA_H_CHECK(nSurfaces == (o::HostRead<T>(scanIds_r))[nf-1]);
+  return o::Read<T>(scanIds_w);
+}
+
 //map from global(over full-mesh) to local. Output has size of global.
 //For large mesh, arrays of size of full mesh entities may be problem
 //Pass value of invalid entries of the return array if != -1
@@ -375,7 +454,7 @@ o::LOs makeLocalIdMap(const o::Read<T>& data, T val, int& nums,
    std::string name="", T invalid=-1) {
   OMEGA_H_CHECK(val != invalid);
   auto n = data.size();
-  auto flags = o::LOs(data); //TODO fix LO vs T 
+  auto flags = o::LOs(data); //TODO fix LO vs T
   o::Write<o::LO> localIdFlags(n, 0, "localIds");
   auto setSelect = OMEGA_H_LAMBDA(const T& e) {
     if(data[e] == val)
@@ -384,7 +463,7 @@ o::LOs makeLocalIdMap(const o::Read<T>& data, T val, int& nums,
   //to pass -1, change the default
   o::parallel_for(n, setSelect, "setLocalFlags");
   flags = o::LOs(localIdFlags);
-  
+
   if(name.empty())
     name = "localCoreIds";
   auto scan_r = o::offset_scan(flags, name);
@@ -398,7 +477,7 @@ o::LOs makeLocalIdMap(const o::Read<T>& data, T val, int& nums,
   return localIds;
 }
 
-//temporary 
+//temporary
 inline o::Reals getConstEField() {
   o::HostWrite<o::Real> ef(3);
   ef[0] = CONSTANT_EFIELD0;
@@ -420,9 +499,9 @@ inline o::Reals getConstBField() {
 
 namespace gitrm {
 /** @brief Function to mark (to newVal) bdry faces on the classified model ids.
- * Also if init is true, the passed in array is initialized to 1 if the 
+ * Also if init is true, the passed in array is initialized to 1 if the
  * corresponding element is on the classified model ids. If newVal=1 then
- * the default is expected to be 0 and init should be false, ie, only 
+ * the default is expected to be 0 and init should be false, ie, only
  * matching entries should be 1. Otherwise the initialized values won't be
  * different from that of matching class ids.
 */

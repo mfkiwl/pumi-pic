@@ -5,8 +5,11 @@
 #include <Kokkos_Core.hpp>
 #include <Omega_h_mesh.hpp>
 
-#include <pumipic_mesh.hpp>
-#include <pumipic_adjacency.hpp>
+#include "pumipic_kktypes.hpp"
+#include "pumipic_adjacency.hpp"
+#include "pumipic_ptcl_ops.hpp"
+#include "particle_structs.hpp"
+#include "pumipic_mesh.hpp"
 
 #include "GitrmParticles.hpp"
 #include "GitrmPush.hpp"
@@ -47,41 +50,46 @@ void updatePtclPositions(PS* ptcls) {
 void rebuild(p::Mesh& picparts, PS* ptcls, o::LOs elem_ids,
     const bool output=false) {
   updatePtclPositions(ptcls);
-  const int ps_capacity = ptcls->capacity();
-  PS::kkLidView ps_elem_ids("ps_elem_ids", ps_capacity);
-  PS::kkLidView ps_process_ids("ps_process_ids", ps_capacity);
-  Omega_h::LOs is_safe = picparts.safeTag();
-  Omega_h::LOs elm_owners = picparts.entOwners(picparts.dim());
+  bool useLoadBalancer = true;
+  if(!useLoadBalancer) {
+    const int ps_capacity = ptcls->capacity();
+    PS::kkLidView ps_elem_ids("ps_elem_ids", ps_capacity);
+    PS::kkLidView ps_process_ids("ps_process_ids", ps_capacity);
+    Omega_h::LOs is_safe = picparts.safeTag();
+    Omega_h::LOs elm_owners = picparts.entOwners(picparts.dim());
 
-  int comm_rank;
-  MPI_Comm_rank(MPI_COMM_WORLD, &comm_rank);
+    int comm_rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &comm_rank);
 
-  //Added to check particle migration
-  auto pid_ps = ptcls->get<PTCL_ID>();
-  auto pid_ps_global = ptcls->get<PTCL_ID_GLOBAL>(); 
-  //delete later
-  //
-  auto lamb = PS_LAMBDA(const int& e, const int& pid, const int& mask) {
-    if (mask) {
-      int new_elem = elem_ids[pid];
-      ps_elem_ids(pid) = new_elem;
-      ps_process_ids(pid) = comm_rank;
-     
-      //Added to check migration
-      auto ptcl = pid_ps(pid);
-      auto ptcl_global=pid_ps_global(pid);
-      if(output)
-        printf("Rank:%d ptcl:%d global_particle:%d \n",ps_process_ids(pid), ptcl, ptcl_global);
+    //Added to check particle migration
+    auto pid_ps = ptcls->get<PTCL_ID>();
+    auto pid_ps_global = ptcls->get<PTCL_ID_GLOBAL>();
+    //delete later
+    //
+    auto lamb = PS_LAMBDA(const int& e, const int& pid, const int& mask) {
+      if (mask) {
+        int new_elem = elem_ids[pid];
+        ps_elem_ids(pid) = new_elem;
+        ps_process_ids(pid) = comm_rank;
 
-      if (new_elem != -1 && is_safe[new_elem] == 0) {
-        ps_process_ids(pid) = elm_owners[new_elem];
+        //Added to check migration
+        auto ptcl = pid_ps(pid);
+        auto ptcl_global=pid_ps_global(pid);
+        if(output)
+          printf("Rank:%d ptcl:%d global_particle:%d \n",ps_process_ids(pid), ptcl, ptcl_global);
+
+        if (new_elem != -1 && is_safe[new_elem] == 0) {
+          ps_process_ids(pid) = elm_owners[new_elem];
+        }
+        if(output)
+          printf("New rank:%d ptcl:%d global_particle:%d \n",ps_process_ids(pid), ptcl, ptcl_global);
       }
-      if(output)
-        printf("New rank:%d ptcl:%d global_particle:%d \n",ps_process_ids(pid), ptcl, ptcl_global);
-    }
-  };
-  ps::parallel_for(ptcls, lamb,"lamda_within rebuild");
-  ptcls->migrate(ps_elem_ids, ps_process_ids); //migrate /  rebuild
+    };
+    ps::parallel_for(ptcls, lamb,"lamda_within rebuild");
+    ptcls->migrate(ps_elem_ids, ps_process_ids); //migrate /  rebuild
+  }
+  p::migrate_lb_ptcls(picparts, ptcls, elem_ids, 1.05);
+  p::printPtclImb(ptcls);
 }
 
 
@@ -125,12 +133,16 @@ void writeParallelVtkMesh(o::Mesh* mesh, o::Mesh* fullMesh, const std::string& o
     int rnum = (rank) ? 1: 0;
     nstr = npstr + "_" + std::to_string(rnum);
     o::HostWrite<o::GO> owners_h(fullMesh->nelems(),"owners");
-    std::ifstream ifs(ownFile);
-    int own;
-    int nel = 0;
-    while(ifs >> own)
-      owners_h[nel++] = own;
-    OMEGA_H_CHECK(fullMesh->nelems() == nel);
+    if(nranks > 1) {
+      std::ifstream ifs(ownFile);
+      int own;
+      int nel = 0;
+      while(ifs >> own)
+        owners_h[nel++] = own;
+      std::cout << " rendering: n nonzero owners " << nel << "\n";
+    } else {
+      owners_h = o::HostWrite<o::GO>(o::Write<o::GO>(fullMesh->nelems(),0, "owners"));
+    }
     fullMesh->add_tag(o::REGION, "owners", 1, o::GOs(owners_h.write()));
     Omega_h::vtk::write_parallel("meshvtkFull" + nstr, fullMesh);
   }
@@ -178,43 +190,32 @@ int main(int argc, char** argv) {
     if(comm_rank == 0)
       std::cout << "Usage: " << argv[0]
         << " <mesh> <owners_file> <ptcls_file> <prof_file> <rate_file><surf_file>"
-        << " <thermal_gradient_file> [ <nPtcls><nIter> "
+        << " <thermal_gradient_file> <bField.nc> [ <nPtcls><nIter> "
         << " <histInterval> <gitrDataInFileName> iter/pisces ]\n";
     exit(1);
   }
   bool chargedTracking = true; //false for neutral tracking
   std::string geomName = "pisces" ;// "Iter";
-  if(argc > 12 && std::string(argv[12]) == "iter")
+  if(argc > 13 && std::string(argv[13]) == "iter")
     geomName = "Iter";
-    
-  //TODO set USE_CONSTANT_BFIELD to false
-  
-  bool printNumPtclsInElems = true;
 
   bool debug = false; //search
   int debug2 = 1;  //routines
   bool useCudaRnd = false; //replace kokkos rnd
-  
+
   bool surfacemodel = true;
   bool spectroscopy = true;
-  bool thermal_force = false; //false in pisces conf
-  
-  if(geomName == "pisces")
-    OMEGA_H_CHECK(!thermal_force);
-
+  bool thermal_force = (geomName == "pisces") ? false : true;
   bool coulomb_collision = true;
   bool diffusion = true; //not for diffusion>1
-  
+
+  bool printNumPtclsInElems = false;
   //GitrmInput inp("gitrInput.cfg", true);
   // inp.testInputConfig();
- 
-  auto deviceCount = 0;
-  cudaGetDeviceCount(&deviceCount);
-  size_t free, total;
-  cudaMemGetInfo(&free, &total);
 
   if(comm_rank == 0) {
-    std::cout << "free " << free/(1024.0*1024.0) << " total " << total/(1024.0*1024.0) << " MB\n";
+    auto deviceCount = 0;
+    cudaGetDeviceCount(&deviceCount);
     printf("device count per process %d\n", deviceCount);
     printf("world ranks %d\n", comm_size);
     printf("particle_structs floating point value size (bits): %zu\n", sizeof(fp_t));
@@ -251,9 +252,9 @@ int main(int argc, char** argv) {
   std::string ptclSource = argv[3];
   std::string profFile = argv[4];
   std::string ionizeRecombFile = argv[5];
-  std::string bFile = "bField_iter2d.nc"; //TODO
   std::string surfModelFile = argv[6];
   std::string thermGradientFile = argv[7];
+  std::string bFile = argv[8];
   if (!comm_rank) {
     if(!chargedTracking)
       printf("WARNING: neutral particle tracking is ON \n");
@@ -264,22 +265,23 @@ int main(int argc, char** argv) {
     printf(" Gradient profile File %s\n", thermGradientFile.c_str());
     printf(" SurfModel File %s\n", surfModelFile.c_str());
     printf(" Gradient profile File %s\n", thermGradientFile.c_str());
+    printf(" Bfile %s\n", bFile.c_str());
   }
   long int totalNumPtcls = 1;
   int histInterval = 0;
   double dTime = 5e-9; //pisces:5e-9 for 100,000 iterations
   int numIterations = 1; //higher beads needs >10K
-  if(argc > 8)
-    totalNumPtcls = atol(argv[8]);
   if(argc > 9)
-    numIterations = atoi(argv[9]);
-  if(argc > 10 && std::string(argv[10]) != "-")
-    histInterval = atoi(argv[10]);
+    totalNumPtcls = atol(argv[9]);
+  if(argc > 10)
+    numIterations = atoi(argv[10]);
+  if(argc > 11 && std::string(argv[11]) != "-")
+    histInterval = atoi(argv[11]);
 
   std::string gitrDataFileName;
   bool useGitrRndNums = 0;
-  if(argc > 11 && std::string(argv[11]) != "-") {
-    gitrDataFileName = argv[11];
+  if(argc > 12 && std::string(argv[12]) != "-") {
+    gitrDataFileName = argv[12];
     useGitrRndNums = true;
     if(!comm_rank)
       printf(" gitr rand num DataFile %s\n", gitrDataFileName.c_str());
@@ -288,12 +290,12 @@ int main(int argc, char** argv) {
   //TODO get mesh from picparts inside gm
   GitrmMesh gm(&picparts, &full_mesh, *mesh, owners);
   gm.initGeometryAndFields(bFile, profFile, thermGradientFile, geomName, debug2);
-  
+
   //TODO move to unit tests
   //gm.getBdryPtr()->testDistanceToBdry(2);
 
 
-  unsigned long int seed = 0; // zero value for seed not considered !
+  unsigned long int seed = 2; // zero value for seed not considered !
   GitrmParticles gp(&gm, picparts, totalNumPtcls, numIterations, dTime, useCudaRnd,
     seed, 0, useGitrRndNums);
   if(histInterval > 0)
@@ -338,9 +340,9 @@ int main(int argc, char** argv) {
       break;
     }
     if(comm_rank == 0) {
-      fprintf(stderr, "=================iter %d===============\n", iter);
+      fprintf(stderr, "=================step %d===============\n", iter);
       if(debug2)
-        printf("=================iter %d===============\n", iter);
+        printf("=================step %d===============\n", iter);
     }
     Kokkos::Profiling::pushRegion("dist2bdry");
     gitrm_findDistanceToBdry(gp, gm, debug2);
@@ -364,13 +366,13 @@ int main(int argc, char** argv) {
     if(spectroscopy)
       gitrm_spectroscopy(ptcls, sp, elem_ids_r, debug2);
     Kokkos::Profiling::popRegion();
-    
+
     Kokkos::Profiling::pushRegion("ionize");
     gitrm_ionize(ptcls, gir, gp, gm, elem_ids_r, debug2);
     Kokkos::Profiling::popRegion();
 
     Kokkos::Profiling::pushRegion("recombine");
-    gitrm_recombine(ptcls, gir, gp, gm, elem_ids_r, debug2);  
+    gitrm_recombine(ptcls, gir, gp, gm, elem_ids_r, debug2);
     Kokkos::Profiling::popRegion();
 
     if(diffusion) {
@@ -420,23 +422,23 @@ int main(int argc, char** argv) {
 
   //gp.writeOutPtclEndPoints();
   std::string npStr = "_np-" + std::to_string(comm_size);
-  if(geomName == "pisces") {
-    std::string fname("piscesCounts" + npStr + ".txt");
-    gp.writeDetectedParticles(fname, "piscesDetected");
-    //gm.writeResultAsMeshTag(gp.collectedPtcls);
-  }
-  //if(histInterval >0)
-  //  gp.writePtclStepHistoryFile("gitrm-history" + npStr + ".nc");
+  std::string fname(geomName + "Counts" + npStr + ".txt");
+  gp.writeDetectedParticles(fname, geomName+"Detected");
+  gm.writeResultAsMeshTag(gp.collectedPtcls);
 
-  //if(surfacemodel)
-  //  sm.writeSurfaceDataFile("gitrm-surface" + npStr + ".nc");
-  //if(spectroscopy)
-  //  sp.writeSpectroscopyFile("gitrm-spec" + npStr + ".nc");
+  if(histInterval >0)
+    gp.writePtclStepHistoryFile("gitrm-history" + npStr + ".nc");
+
+  if(surfacemodel)
+    sm.writeSurfaceDataFile("gitrm-surface" + npStr + ".nc");
+  if(false && spectroscopy)
+    sp.writeSpectroscopyFile("gitrm-spec" + npStr + ".nc");
 
   bool renderPicpMesh = false;
   bool renderFullMesh = true;
   writeParallelVtkMesh(mesh, &full_mesh, owners, renderPicpMesh, renderFullMesh);
 
+  size_t free, total;
   cudaMemGetInfo(&free, &total);
   double mtotal = 1.0/(1024*1024) * (double)total;
   double mfree = 1.0/(1024*1024) * (double)free;

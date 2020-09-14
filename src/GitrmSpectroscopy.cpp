@@ -9,7 +9,7 @@ GitrmSpectroscopy::GitrmSpectroscopy(int rnk) {
   rank = rnk;
 }
 
-void makeSpectroscopyGrid(const double net0, const double range, const int netN, 
+void makeSpectroscopyGrid(const double net0, const double range, const int netN,
    o::Write<o::Real>& gridBins) {
   o::parallel_for(netN, OMEGA_H_LAMBDA(const int& i) {
     gridBins[i] = net0 + 1.0/(netN-1) *i*range;   //netN-1 in gitr ?
@@ -29,12 +29,12 @@ void GitrmSpectroscopy::initSpectroscopy() {
   nY = 220;
   nZ = 60;
   nBins = 6;
-  
+
   nSpec = (nBins+1)*nX*nY*nZ;
   netBins = o::Write<o::Real>(nSpec,0);
   gridX0 = netX0;
   gridY0 = netY0;
-  gridZ0 = netZ0;        
+  gridZ0 = netZ0;
   dX = (netXn - netX0)/(nX-1); // nX-1 in gitr ?
   gridXn = netX0 + (nX-1)*dX;  //?
   dY = (netYn - netY0)/(nY- 1);
@@ -44,13 +44,13 @@ void GitrmSpectroscopy::initSpectroscopy() {
   //grids not stored
 }
 
-//This won't work for partitioned mesh of non-full-buffer
+
 //TODO move to IO file
 //Call at the end of simulation
 void GitrmSpectroscopy::writeSpectroscopyFile(const std::string& file) {
   o::HostWrite<o::Real> netBins_in(netBins);
   o::HostWrite<o::Real> netBins_h(netBins.size(), "netBins_h");
-  //FIXME this is only for full buffer partitioning.
+  //NOTE: this is based on the same grid on all picparts.
   MPI_Reduce(netBins_in.data(), netBins_h.data(),
     netBins_h.size(), MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
   if(rank) {

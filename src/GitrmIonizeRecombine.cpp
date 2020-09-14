@@ -13,11 +13,11 @@ void GitrmIonizeRecombine::initIonizeRecombRateData( const std::string &fName, i
   std::cout<< "Loading Ionization data from " << fName << "\n" ;
   // not reading: gridChargeState_Ionization
   // unread grids should appear last in gridnames. Grid and its names in same order.
-  Field3StructInput ioni({"IonizationRateCoeff"}, 
-    {"gridTemperature_Ionization", "gridDensity_Ionization", 
-    "gridChargeState_Ionization"}, {"n_Temperatures_Ionize", 
+  Field3StructInput ioni({"IonizationRateCoeff"},
+    {"gridTemperature_Ionization", "gridDensity_Ionization",
+    "gridChargeState_Ionization"}, {"n_Temperatures_Ionize",
     "n_Densities_Ionize", "n_ChargeStates_Ionize"}, 2);
-  
+
   readInputDataNcFileFS3(fName, ioni, debug);
   ionizeTempGridMin = ioni.getGridMin(0);
   ionizeDensGridMin = ioni.getGridMin(1);
@@ -31,7 +31,7 @@ void GitrmIonizeRecombine::initIonizeRecombRateData( const std::string &fName, i
   std::cout<< "Loading Recombination data from " << fName << "\n" ;
   // not reading: , gridChargeState_Recombination
   Field3StructInput rec({"RecombinationRateCoeff"},
-    {"gridTemperature_Recombination", "gridDensity_Recombination", 
+    {"gridTemperature_Recombination", "gridDensity_Recombination",
     "gridChargeState_Recombination"}, {"n_Temperatures_Recombine",
     "n_Densities_Recombine", "n_ChargeStates_Recombine"}, 2);
   readInputDataNcFileFS3(fName, rec, debug);
