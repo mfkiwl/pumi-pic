@@ -248,7 +248,7 @@ inline void printCudaMemInfo() {
 /** @brief Calculate distance of particles to domain boundary.
  * Not yet clear if a pre-determined depth can be used
 */
-inline void gitrm_findDistanceToBdry(GitrmParticles& gp,
+inline void _gitrm_findDistanceToBdry(GitrmParticles& gp,
    GitrmMesh& gm, int debug=0) {
   if(debug)
     printf("gitrm_findDistanceToBdry \n");

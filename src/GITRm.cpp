@@ -1,10 +1,12 @@
 #include <vector>
 #include <fstream>
 #include <iostream>
+
 #include <Omega_h_file.hpp>
 #include <Kokkos_Core.hpp>
 #include <Omega_h_mesh.hpp>
 
+#include "pumipic_library.hpp"
 #include "pumipic_kktypes.hpp"
 #include "pumipic_adjacency.hpp"
 #include "pumipic_ptcl_ops.hpp"
@@ -12,6 +14,7 @@
 #include "pumipic_mesh.hpp"
 
 #include "GitrmParticles.hpp"
+#include "GitrmDistance2Bdry.hpp"
 #include "GitrmPush.hpp"
 #include "GitrmIonizeRecombine.hpp"
 #include "GitrmSurfaceModel.hpp"
@@ -182,6 +185,7 @@ o::Mesh readMesh(char* meshFile, o::Library& lib) {
 int main(int argc, char** argv) {
   auto start_sim = std::chrono::system_clock::now();
   pumipic::Library pic_lib(&argc, &argv);
+  std::cout << "init pumipic Library\n";
   Omega_h::Library& lib = pic_lib.omega_h_lib();
   const auto comm_rank = lib.world()->rank();
   int comm_size;
@@ -195,13 +199,17 @@ int main(int argc, char** argv) {
     exit(1);
   }
   bool chargedTracking = true; //false for neutral tracking
-  std::string geomName = "pisces" ;// "Iter";
+  std::string geomName = "pisces";
   if(argc > 13 && std::string(argv[13]) == "iter")
     geomName = "Iter";
 
+  double dTime = (geomName == "Iter") ? 1e-8 : 5e-9; //pisces:5e-9 for 100,000 iterations
+
   bool debug = false; //search
-  int debug2 = 1;  //routines
+  int debug2 = 3;  //routines
+  bool useGITRdist2bdry = true;
   bool useCudaRnd = false; //replace kokkos rnd
+
 
   bool surfacemodel = true;
   bool spectroscopy = true;
@@ -269,7 +277,6 @@ int main(int argc, char** argv) {
   }
   long int totalNumPtcls = 1;
   int histInterval = 0;
-  double dTime = 5e-9; //pisces:5e-9 for 100,000 iterations
   int numIterations = 1; //higher beads needs >10K
   if(argc > 9)
     totalNumPtcls = atol(argv[9]);
@@ -345,7 +352,10 @@ int main(int argc, char** argv) {
         printf("=================step %d===============\n", iter);
     }
     Kokkos::Profiling::pushRegion("dist2bdry");
-    gitrm_findDistanceToBdry(gp, gm, debug2);
+    if(useGITRdist2bdry)
+      GITR_findDistanceToBdry(gp, gm, debug2);
+    else
+      gitrm_findDistanceToBdry(gp, gm, debug2);
     Kokkos::Profiling::popRegion();
 
     Kokkos::Profiling::pushRegion("calculateE");

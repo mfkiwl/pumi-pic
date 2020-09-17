@@ -421,12 +421,14 @@ bool GitrmMesh::addTagsAndLoadProfileData(const std::string &profileFile,
     densIon, densIonVtx);
   densIon_d = std::make_shared<o::Reals>(densIon);
   densIonVtx_d = std::make_shared<o::Reals>(densIonVtx);
-  densIonX0 = fdv.getGridMin(0);
-  densIonZ0 = fdv.getGridMin(1);
-  densIonNx = fdv.getNumGrids(0);
-  densIonNz = fdv.getNumGrids(1);
-  densIonDx = fdv.getGridDelta(0);
-  densIonDz = fdv.getGridDelta(1);
+  ionDens2dGridX = o::Reals(fd.grid1);
+  ionDens2dGridZ = o::Reals(fd.grid2);
+  densIonX0 = fd.getGridMin(0);
+  densIonZ0 = fd.getGridMin(1);
+  densIonNx = fd.getNumGrids(0);
+  densIonNz = fd.getNumGrids(1);
+  densIonDx = fd.getGridDelta(0);
+  densIonDz = fd.getGridDelta(1);
 
   Field3StructInput fne({"ne"}, {gridRStr, gridZStr}, {"nR", "nZ"});
   auto elDensTag = gbdry->calculateScalarFieldOnBdryFacesFromFile("ElDensity",
@@ -440,6 +442,8 @@ bool GitrmMesh::addTagsAndLoadProfileData(const std::string &profileFile,
   load1DFieldOnVtxFromFile("ElDensityVtx", profileFile, fnev, densEl, densElVtx);
   densEl_d = std::make_shared<o::Reals>(densEl);
   densElVtx_d = std::make_shared<o::Reals>(densElVtx);
+  elDens2dGridX = o::Reals(fne.grid1);
+  elDens2dGridZ = o::Reals(fne.grid2);
   densElX0 = fne.getGridMin(0);
   densElZ0 = fne.getGridMin(1);
   densElNx = fne.getNumGrids(0);
@@ -459,12 +463,14 @@ bool GitrmMesh::addTagsAndLoadProfileData(const std::string &profileFile,
   load1DFieldOnVtxFromFile("IonTempVtx", profileFile, ftiv, temIon, tempIonVtx);
   temIon_d = std::make_shared<o::Reals>(temIon);
   tempIonVtx_d = std::make_shared<o::Reals>(tempIonVtx);
-  tempIonX0 = ftiv.getGridMin(0);
-  tempIonZ0 = ftiv.getGridMin(1);
-  tempIonNx = ftiv.getNumGrids(0);
-  tempIonNz = ftiv.getNumGrids(1);
-  tempIonDx = ftiv.getGridDelta(0);
-  tempIonDz = ftiv.getGridDelta(1);
+  ionTemp2dGridX = o::Reals(fti.grid1);
+  ionTemp2dGridZ = o::Reals(fti.grid2);
+  tempIonX0 = fti.getGridMin(0);
+  tempIonZ0 = fti.getGridMin(1);
+  tempIonNx = fti.getNumGrids(0);
+  tempIonNz = fti.getNumGrids(1);
+  tempIonDx = fti.getGridDelta(0);
+  tempIonDz = fti.getGridDelta(1);
 
   // electron Temperature
   Field3StructInput fte({"te"}, {gridRStr, gridZStr}, {"nR", "nZ"});
@@ -479,6 +485,8 @@ bool GitrmMesh::addTagsAndLoadProfileData(const std::string &profileFile,
   load1DFieldOnVtxFromFile("ElTempVtx", profileFile, ftev, temEl, tempElVtx);
   temEl_d = std::make_shared<o::Reals>(temEl);
   tempElVtx_d = std::make_shared<o::Reals>(tempElVtx);
+  elTemp2dGridX = o::Reals(fte.grid1);
+  elTemp2dGridZ = o::Reals(fte.grid2);
   tempElX0 = fte.getGridMin(0);
   tempElZ0 = fte.getGridMin(1);
   tempElNx = fte.getNumGrids(0);
@@ -501,6 +509,8 @@ bool GitrmMesh::addTagsAndLoadProfileData(const std::string &profileFile,
   load3DFieldOnVtxFromFile("gradTiVtx", profileGradientFile, fgTi,  gradTi);
   gradTi_d = std::make_shared<o::Reals>(gradTi);
 
+  ionTempGrad2dGridX = o::Reals(fgTi.grid1);
+  ionTempGrad2dGridZ = o::Reals(fgTi.grid2);
   gradTiX0 = fgTi.getGridMin(0);
   gradTiZ0 = fgTi.getGridMin(1);
   gradTiNx = fgTi.getNumGrids(0);
@@ -521,6 +531,8 @@ bool GitrmMesh::addTagsAndLoadProfileData(const std::string &profileFile,
   o::Write<o::Real> gradTe;
   load3DFieldOnVtxFromFile("gradTeVtx", profileGradientFile, fgTe, gradTe);
   gradTe_d = std::make_shared<o::Reals>(gradTe);
+  elTempGrad2dGridX = o::Reals(fgTe.grid1);
+  elTempGrad2dGridZ = o::Reals(fgTe.grid2);
   gradTeX0 = fgTe.getGridMin(0);
   gradTeZ0 = fgTe.getGridMin(1);
   gradTeNx = fgTe.getNumGrids(0);

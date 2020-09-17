@@ -205,7 +205,22 @@ public:
   o::Reals getDensEl() const {return *densEl_d;}
   o::Reals getTemIon() const {return *temIon_d;}
   o::Reals getTemEl() const {return *temEl_d;}
-
+  
+  o::Reals getIonDens2dGrid(int i) const {
+    return (i==1) ? ionDens2dGridX : ionDens2dGridZ;
+  }
+  o::Reals getElDens2dGrid(int i) const {
+    return (i==1) ? elDens2dGridX : elDens2dGridZ;
+  }
+  o::Reals getIonTemp2dGrid(int i) const {
+    return (i==1) ? ionTemp2dGridX : ionTemp2dGridZ;
+  }
+  o::Reals getElTemp2dGrid(int i) const {
+    return (i==1) ? elTemp2dGridX : elTemp2dGridZ;
+  }
+  o::Reals getIonTempGrad2dGrid(int i) const {
+    return (i==1) ? ionTempGrad2dGridX : ionTempGrad2dGridZ;
+  }
   o::Reals getBfield2dGrid(int i) const {
     return (i==1) ? bField2dGridX : bField2dGridZ;
   }
@@ -350,6 +365,19 @@ private:
   std::shared_ptr<o::Reals> temEl_d;
   std::shared_ptr<o::Reals> gradTi_d;
   std::shared_ptr<o::Reals> gradTe_d;
+  o::Reals ionDens2dGridX;
+  o::Reals ionDens2dGridZ;
+  o::Reals elDens2dGridX;
+  o::Reals elDens2dGridZ;
+  o::Reals ionTemp2dGridX;
+  o::Reals ionTemp2dGridZ;
+  o::Reals elTemp2dGridX;
+  o::Reals elTemp2dGridZ;
+  o::Reals ionTempGrad2dGridX;
+  o::Reals ionTempGrad2dGridZ;
+  o::Reals elTempGrad2dGridX;
+  o::Reals elTempGrad2dGridZ;
+
   // to replace tag
   std::shared_ptr<o::Reals> densIonVtx_d;
   std::shared_ptr<o::Reals> tempIonVtx_d;

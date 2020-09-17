@@ -17,14 +17,12 @@ pkg_check_modules(NetCDF REQUIRED IMPORTED_TARGET netcdf>=4.6.3)
 pkg_check_modules(NetCDF-CXX4 REQUIRED IMPORTED_TARGET netcdf-cxx4>=4.3.1)
 #pkg_check_modules(libConfig REQUIRED IMPORTED_TARGET libconfig++>=1.7.2)
 
-find_package(pumipic REQUIRED)
 set(gitrm_USE_pumipic_DEFAULT ON)
-message(STATUS "Found PUMIpic: ${pumipic_VERSION}")
 bob_public_dep(pumipic)
+message(STATUS "Found PUMIpic: ${pumipic_VERSION}")
 
-find_package(EnGPar REQUIRED)
 set(gitrm_USE_EnGPar_DEFAULT ON)
-#set(ENGPAR_ENABLED true)
+bob_public_dep(EnGPar)
 message(STATUS "Found EnGPar: ${EnGPar_VERSION}")
 
 add_subdirectory(src)

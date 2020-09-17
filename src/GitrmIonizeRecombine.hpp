@@ -98,20 +98,25 @@ inline void gitrm_ionize(PS* ptcls, const GitrmIonizeRecombine& gir,
   }
   auto& mesh = gm.mesh;
   auto use2DRatesData = USE_2DREADIN_IONI_REC_RATES;
-  auto densIon_d = gm.getDensIon();
-  auto temIon_d = gm.getTemIon();
-  auto x0Dens = gm.densIonX0;
-  auto z0Dens = gm.densIonZ0;
-  auto nxDens = gm.densIonNx;
-  auto nzDens = gm.densIonNz;
-  auto dxDens = gm.densIonDx;
-  auto dzDens = gm.densIonDz;
-  auto x0Temp = gm.tempIonX0;
-  auto z0Temp = gm.tempIonZ0;
-  auto nxTemp = gm.tempIonNx;
-  auto nzTemp = gm.tempIonNz;
-  auto dxTemp = gm.tempIonDx;
-  auto dzTemp = gm.tempIonDz;
+  auto densEl_d = gm.getDensEl();
+  auto temEl_d = gm.getTemEl();
+  auto densElGridX = gm.getElDens2dGrid(1);
+  auto densElGridZ = gm.getElDens2dGrid(2);
+  auto tempElGridX = gm.getElTemp2dGrid(1);
+  auto tempElGridZ = gm.getElTemp2dGrid(2);
+
+  auto x0Dens = gm.densElX0;
+  auto z0Dens = gm.densElZ0;
+  auto nxDens = gm.densElNx;
+  auto nzDens = gm.densElNz;
+  auto dxDens = gm.densElDx;
+  auto dzDens = gm.densElDz;
+  auto x0Temp = gm.tempElX0;
+  auto z0Temp = gm.tempElZ0;
+  auto nxTemp = gm.tempElNx;
+  auto nzTemp = gm.tempElNz;
+  auto dxTemp = gm.tempElDx;
+  auto dzTemp = gm.tempElDz;
 
   const bool useCudaRnd = gp.useCudaRnd;
   auto* cuStates =  gp.cudaRndStates;
@@ -145,8 +150,8 @@ inline void gitrm_ionize(PS* ptcls, const GitrmIonizeRecombine& gir,
   const auto maxCharge = gitrm::maxCharge;
   const auto coords = mesh.coords();
   const auto mesh2verts = mesh.ask_elem_verts();
-  const auto tIonVtx = mesh.get_array<o::Real>(o::VERT, "IonTempVtx");
-  const auto densVtx = mesh.get_array<o::Real>(o::VERT, "IonDensityVtx"); 
+  const auto tElVtx = mesh.get_array<o::Real>(o::VERT, "ElTempVtx");
+  const auto densVtx = mesh.get_array<o::Real>(o::VERT, "ElDensityVtx"); 
 
   auto pid_ps = ptcls->get<PTCL_ID>();
   auto pid_ps_global = ptcls->get<PTCL_ID_GLOBAL>();
@@ -170,16 +175,12 @@ inline void gitrm_ionize(PS* ptcls, const GitrmIonizeRecombine& gir,
       auto pos = p::makeVector3(pid, new_pos);
       auto charge = charge_ps(pid);
       auto pos_previous = p::makeVector3(pid, pos_prev);
-      if(debug>1) {
-        printf(" IONIZE ptcl %d timestep %d pos %.15e, %.15e, %.15e\n", 
-          ptcl, iTimeStep, pos_previous[0], pos_previous[1], pos_previous[2]);
-      }
       o::Real tlocal = 0;
       o::Real nlocal = 0;
       if(!use2DRatesData) {
         auto bcc = o::zero_vector<4>();
         p::findBCCoordsInTet(coords, mesh2verts, pos, el, bcc);
-        tlocal = p::interpolateTetVtx(mesh2verts, tIonVtx, el, bcc, 1);
+        tlocal = p::interpolateTetVtx(mesh2verts, tElVtx, el, bcc, 1);
         nlocal = p::interpolateTetVtx(mesh2verts, densVtx, el, bcc, 1);
       }
       if(charge > maxCharge)
@@ -187,16 +188,19 @@ inline void gitrm_ionize(PS* ptcls, const GitrmIonizeRecombine& gir,
       // from data array
       if(use2DRatesData) {
         bool cylSymm = true;
-        auto dens = p::interpolate2dField(densIon_d, x0Dens, z0Dens, dxDens, 
-          dzDens, nxDens, nzDens, pos, cylSymm, 1,0,false);
-        auto temp = p::interpolate2dField(temIon_d, x0Temp, z0Temp, dxTemp,
-          dzTemp, nxTemp, nzTemp, pos, cylSymm, 1,0,false);
-        
+   //     auto dens = p::interpolate2dField(densEl_d, x0Dens, z0Dens, dxDens, 
+   //       dzDens, nxDens, nzDens, pos, cylSymm, 1,0,false);
+   //     auto temp = p::interpolate2dField(temEl_d, x0Temp, z0Temp, dxTemp,
+   //       dzTemp, nxTemp, nzTemp, pos, cylSymm, 1,0,false);
+
+        auto dens = p::interpolate2d_wgrid(densEl_d, densElGridX, densElGridZ,
+          pos, cylSymm, 1, 0, debug);
+        auto temp = p::interpolate2d_wgrid(temEl_d, tempElGridX, tempElGridZ,
+          pos, cylSymm, 1, 0, debug);
         if(debug > 2)
           printf(" Ionization point: ptcl %d timestep %d position %g"
-            " %g %g dens2D %g temp2D %g  tlocal %g nlocal %g  nxTemp %d nzTemp %d\n", 
-            ptcl, iTimeStep, pos[0], pos[1], pos[2], dens, temp, tlocal, 
-            nlocal, nxTemp, nzTemp);
+            " %g %g dens2D %g temp2D %g nxTemp %d nzTemp %d\n", 
+            ptcl, iTimeStep, pos[0], pos[1], pos[2], dens, temp, nxTemp, nzTemp);
         
         nlocal = dens;
         tlocal = temp;
@@ -253,20 +257,24 @@ inline void gitrm_recombine(PS* ptcls, const GitrmIonizeRecombine& gir,
     printf("Recombination \n");
   }
   auto& mesh = gm.mesh;
-  auto densIon_d = gm.getDensIon();
-  auto temIon_d = gm.getTemIon();
-  const auto x0Dens = gm.densIonX0;
-  const auto z0Dens = gm.densIonZ0;
-  const auto nxDens = gm.densIonNx;
-  const auto nzDens = gm.densIonNz;
-  const auto dxDens = gm.densIonDx;
-  const auto dzDens = gm.densIonDz;
-  const auto x0Temp = gm.tempIonX0;
-  const auto z0Temp = gm.tempIonZ0;
-  const auto nxTemp = gm.tempIonNx;
-  const auto nzTemp = gm.tempIonNz;
-  const auto dxTemp = gm.tempIonDx;
-  const auto dzTemp = gm.tempIonDz;
+  auto densEl_d = gm.getDensEl();
+  auto temEl_d = gm.getTemEl();
+  auto densElGridX = gm.getElDens2dGrid(1);
+  auto densElGridZ = gm.getElDens2dGrid(2);
+  auto tempElGridX = gm.getElTemp2dGrid(1);
+  auto tempElGridZ = gm.getElTemp2dGrid(2);
+  const auto x0Dens = gm.densElX0;
+  const auto z0Dens = gm.densElZ0;
+  const auto nxDens = gm.densElNx;
+  const auto nzDens = gm.densElNz;
+  const auto dxDens = gm.densElDx;
+  const auto dzDens = gm.densElDz;
+  const auto x0Temp = gm.tempElX0;
+  const auto z0Temp = gm.tempElZ0;
+  const auto nxTemp = gm.tempElNx;
+  const auto nzTemp = gm.tempElNz;
+  const auto dxTemp = gm.tempElDx;
+  const auto dzTemp = gm.tempElDz;
 
   const bool useCudaRnd = gp.useCudaRnd;
   auto* cuStates =  gp.cudaRndStates;
@@ -300,8 +308,8 @@ inline void gitrm_recombine(PS* ptcls, const GitrmIonizeRecombine& gir,
   const auto& gridDens = gir.gridDensRec; 
   const auto coords = mesh.coords();
   const auto mesh2verts = mesh.ask_elem_verts();
-  const auto tIonVtx = mesh.get_array<o::Real>(o::VERT, "IonTempVtx");
-  const auto densVtx = mesh.get_array<o::Real>(o::VERT, "IonDensityVtx");
+  const auto tElVtx = mesh.get_array<o::Real>(o::VERT, "ElTempVtx");
+  const auto densVtx = mesh.get_array<o::Real>(o::VERT, "ElDensityVtx");
   //const auto& tIonVtx = gm.densElVtx_d;
   //const auto& densVtx = gm.tempElVtx_d;
   auto pid_ps_global = ptcls->get<PTCL_ID_GLOBAL>(); //NELY ADDED
@@ -331,7 +339,7 @@ inline void gitrm_recombine(PS* ptcls, const GitrmIonizeRecombine& gir,
           auto bcc = o::zero_vector<4>();
           p::findBCCoordsInTet(coords, mesh2verts, pos, el, bcc);
           // from tags
-          tlocal = p::interpolateTetVtx(mesh2verts, tIonVtx, el, bcc, 1);
+          tlocal = p::interpolateTetVtx(mesh2verts, tElVtx, el, bcc, 1);
           nlocal = p::interpolateTetVtx(mesh2verts, densVtx, el, bcc, 1);
         }
         // from data array
@@ -339,10 +347,14 @@ inline void gitrm_recombine(PS* ptcls, const GitrmIonizeRecombine& gir,
           //cylindrical symmetry, height (z) is same.
           // projecting point to y=0 plane, since 2D data is on const-y plane.
           bool cylSymm = true;
-          auto dens = p::interpolate2dField(densIon_d, x0Dens, z0Dens, dxDens, 
-            dzDens, nxDens, nzDens, pos, cylSymm,1,0,false);
-          auto temp = p::interpolate2dField(temIon_d, x0Temp, z0Temp, dxTemp,
-            dzTemp, nxTemp, nzTemp, pos, cylSymm,1,0,false);
+          //auto dens = p::interpolate2dField(densEl_d, x0Dens, z0Dens, dxDens, 
+          //  dzDens, nxDens, nzDens, pos, cylSymm,1,0,false);
+          //auto temp = p::interpolate2dField(temEl_d, x0Temp, z0Temp, dxTemp,
+          //  dzTemp, nxTemp, nzTemp, pos, cylSymm,1,0,false);
+          auto dens = p::interpolate2d_wgrid(densEl_d, densElGridX, densElGridZ,
+            pos, cylSymm, 1, 0);
+          auto temp = p::interpolate2d_wgrid(temEl_d, tempElGridX, tempElGridZ,
+            pos, cylSymm, 1, 0);
           
           if(debug > 2)
             printf(" Recomb Dens: ptcl %d x0 %g z0 %g dx %g dz %g nx %d " 

@@ -331,7 +331,7 @@ bool GitrmBoundary::calculateBdryFaceFields(GitrmMeshFaceFields& ff, int debug) 
 
       }
 
-      if(fid == 6586 || debug > 1)
+      if(debug > 1)
         printf("%d: fid %d DL %g LR %g flux %g impact %g CLD %g pot %g\n",
         rank, fid, dlen, larmorRadius_d[fid], flux_d[fid], impacts_d[fid],
         childLangmuirDist_d[fid], pot);
