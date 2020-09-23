@@ -21,10 +21,6 @@ set(gitrm_USE_pumipic_DEFAULT ON)
 bob_public_dep(pumipic)
 message(STATUS "Found PUMIpic: ${pumipic_VERSION}")
 
-set(gitrm_USE_EnGPar_DEFAULT ON)
-bob_public_dep(EnGPar)
-message(STATUS "Found EnGPar: ${EnGPar_VERSION}")
-
 add_subdirectory(src)
 add_executable(GITRm src/GITRm.cpp ${SOURCES})
 target_link_libraries(GITRm

@@ -200,7 +200,7 @@ public:
 
 
   o::Reals getEfield2d() const {return *Efield_2d;}
-  o::Reals getBfield2d() const {return *Bfield_2d;}
+  o::Reals getBfield2d() const {return bField_2d;}
   o::Reals getDensIon() const {return *densIon_d;}
   o::Reals getDensEl() const {return *densEl_d;}
   o::Reals getTemIon() const {return *temIon_d;}
@@ -233,6 +233,17 @@ public:
   o::Reals getTempElVtx() const{ return *tempElVtx_d;}
   o::Reals getGradTiVtx() const{ return *gradTi_vtx_d;}
   o::Reals getGradTeVtx() const{ return *gradTe_vtx_d;}
+
+  o::Reals getFlowVel2d() const { return flowVel_d; }
+  o::Reals getFlowVel2dGrid(int i) const {
+    return (i==1) ? flowVel2dGridX : flowVel2dGridZ;
+  }
+  o::Real getFlowVelX0() const { return flowVX0; }
+  o::Real getFlowVelZ0() const { return flowVZ0; }
+  o::LO getFlowVelNx() const { return flowVNx; }
+  o::LO getFlowVelNz() const { return flowVNz; }
+  o::Real getFlowVelDx() const { return flowVDx; }
+  o::Real getFlowVelDz() const { return flowVDz; }
 
   /** geometric model ids of detector segments */
   o::LOs getDetectorModelIds() const {return detectorModelIds; }
@@ -318,13 +329,6 @@ public:
   int getBackgroundZ() const { return backgroundZ;}
   int getImpurityZ() const { return impurityZ; }
 
-  o::Reals getFlowVel2d() const { return flowVel_d; }
-  o::Real getFlowVelX0() const { return flowVX0; }
-  o::Real getFlowVelZ0() const { return flowVZ0; }
-  o::LO getFlowVelNx() const { return flowVNx; }
-  o::LO getFlowVelNz() const { return flowVNz; }
-  o::Real getFlowVelDx() const { return flowVDx; }
-  o::Real getFlowVelDz() const { return flowVDz; }
 
   o::Real getPerpDiffusionCoeft() const { return perpDiffCoeft; }
 
@@ -358,7 +362,7 @@ private:
   // samples/D-g096333.03337/g096333.03337#L1033
   // field2D center may not coincide with mesh center
   std::shared_ptr<o::Reals> Efield_2d;
-  std::shared_ptr<o::Reals> Bfield_2d;
+  o::Reals bField_2d;
   std::shared_ptr<o::Reals> densIon_d;
   std::shared_ptr<o::Reals> densEl_d;
   std::shared_ptr<o::Reals> temIon_d;
@@ -394,8 +398,8 @@ private:
   o::LO flowVNz = 0;
   o::Real flowVDx = 0;
   o::Real flowVDz = 0;
-  o::Reals flowVelGridX;
-  o::Reals flowVelGridZ;
+  o::Reals flowVel2dGridX;
+  o::Reals flowVel2dGridZ;
   o::Reals bField2dGridX;
   o::Reals bField2dGridZ;
 

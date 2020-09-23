@@ -9,7 +9,7 @@
 #include "pumipic_library.hpp"
 #include "pumipic_kktypes.hpp"
 #include "pumipic_adjacency.hpp"
-#include "pumipic_ptcl_ops.hpp"
+//#include "pumipic_ptcl_ops.hpp"
 #include "particle_structs.hpp"
 #include "pumipic_mesh.hpp"
 
@@ -53,7 +53,7 @@ void updatePtclPositions(PS* ptcls) {
 void rebuild(p::Mesh& picparts, PS* ptcls, o::LOs elem_ids,
     const bool output=false) {
   updatePtclPositions(ptcls);
-  bool useLoadBalancer = true;
+  bool useLoadBalancer = false;
   if(!useLoadBalancer) {
     const int ps_capacity = ptcls->capacity();
     PS::kkLidView ps_elem_ids("ps_elem_ids", ps_capacity);
@@ -90,9 +90,10 @@ void rebuild(p::Mesh& picparts, PS* ptcls, o::LOs elem_ids,
     };
     ps::parallel_for(ptcls, lamb,"lamda_within rebuild");
     ptcls->migrate(ps_elem_ids, ps_process_ids); //migrate /  rebuild
+  } else {
+ //   p::migrate_lb_ptcls(picparts, ptcls, elem_ids, 1.05);
+ //   p::printPtclImb(ptcls);
   }
-  p::migrate_lb_ptcls(picparts, ptcls, elem_ids, 1.05);
-  p::printPtclImb(ptcls);
 }
 
 
@@ -208,14 +209,14 @@ int main(int argc, char** argv) {
   bool debug = false; //search
   int debug2 = 3;  //routines
   bool useGITRdist2bdry = true;
-  bool useCudaRnd = false; //replace kokkos rnd
+  bool useCudaRnd = true; //replace kokkos rnd
 
 
   bool surfacemodel = true;
   bool spectroscopy = true;
   bool thermal_force = (geomName == "pisces") ? false : true;
   bool coulomb_collision = true;
-  bool diffusion = true; //not for diffusion>1
+  bool diffusion = true; //not handling diffusion>1
 
   bool printNumPtclsInElems = false;
   //GitrmInput inp("gitrInput.cfg", true);
@@ -339,6 +340,10 @@ int main(int argc, char** argv) {
   int ps_np;
 
   gp.updatePtclHistoryData(-1, numIterations, o::LOs(1,-1, "history-dummy"));
+
+  if(useCudaRnd)
+    printf("\n\n****WARNING **** CUDA rnd turned on\n\n");
+
   for(int iter=0; iter<numIterations; iter++) {
     ps_np = ptcls->nPtcls();
     MPI_Allreduce(&ps_np, &np, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);

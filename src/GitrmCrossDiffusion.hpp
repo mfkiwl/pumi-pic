@@ -17,14 +17,9 @@ inline void gitrm_cross_diffusion(PS* ptcls, const GitrmMesh& gm,
     printf("Cross field Diffusion\n");
 
   //Setting up of 2D magnetic field data
-  const auto& BField_2d = gm.getBfield2d();
-  const auto bX0 = gm.bGridX0;
-  const auto bZ0 = gm.bGridZ0;
-  const auto bDx = gm.bGridDx;
-  const auto bDz = gm.bGridDz;
-  const auto bGridNx = gm.bGridNx;
-  const auto bGridNz = gm.bGridNz;
-
+  const auto& bField_2d = gm.getBfield2d();
+  const auto& bGridX = gm.getBfield2dGrid(1);
+  const auto& bGridZ = gm.getBfield2dGrid(2);
   const int USEPERPDIFFUSION = 1;
   OMEGA_H_CHECK(PERPDIFF == 1);
   OMEGA_H_CHECK((USEPERPDIFFUSION == 1));
@@ -68,7 +63,7 @@ inline void gitrm_cross_diffusion(PS* ptcls, const GitrmMesh& gm,
       auto bField_deriv   = o::zero_vector<3>();
       o::Real phi_random;
       if (use2dInputFields || useConstantBField){
-        p::interp2dVector(BField_2d, bX0, bZ0, bDx, bDz, bGridNx, bGridNz, posit_next, bField, cylSymm);
+          p::interp2dVector_wgrid(bField_2d, bGridX, bGridZ, posit_next, bField, cylSymm);
       }
       else if (use3dField){
           auto bcc = o::zero_vector<4>();
@@ -157,19 +152,16 @@ inline void gitrm_cross_diffusion(PS* ptcls, const GitrmMesh& gm,
 
         if(useGitrRnd){
           r3  = testGitrPtclStepData[ptcl_global*testGNT*testGDof + iTimeStep*testGDof + diff_rnd1];
-          if(debug > 2)
-            printf("gitrRndNums-diff %d tstep %d %g\n", ptcl, iTimeStep, r3);
         } else if (useCudaRnd) {
           auto localState = cuStates[ptcl_global];
           r3 = curand_uniform(&localState);
           cuStates[ptcl_global] = localState;
-          if(debug > 2)
-            printf("cudaRndNums-diff %d tstep %d %g\n", ptcl, iTimeStep, r3);
         } else{
           auto rnd = rpool.get_state();
           r3 = rnd.drand();
           rpool.free_state(rnd);
         }
+
         phi_random = 2*3.14159265*r3;
         perpVector[0] =  cos(phi_random);
         perpVector[1] =  sin(phi_random);
@@ -196,6 +188,9 @@ inline void gitrm_cross_diffusion(PS* ptcls, const GitrmMesh& gm,
           p::almost_equal(b_unit[1], 0) && p::almost_equal(b_unit[2], -1.0))) {
           perpVector[2] = 0;
         }
+        if (debug > 2)
+          printf("Diff: ptcl %d perpVec %.15f %0.15f %0.15f \n", ptcl, perpVector[0],
+              perpVector[1],perpVector[2]);
         perpVector = perpVector/Omega_h::norm(perpVector);
         xtgt_ps_d(pid,0) = posit_next[0]+step*perpVector[0];
         xtgt_ps_d(pid,1) = posit_next[1]+step*perpVector[1];
@@ -208,10 +203,11 @@ inline void gitrm_cross_diffusion(PS* ptcls, const GitrmMesh& gm,
           xtgt_ps_d(pid,1), xtgt_ps_d(pid,2));
       }
       if(debug > 2) {
-        printf("Diff: perpVectors %.15f %0.15f %0.15f \n",perpVector[0],perpVector[1],perpVector[2]);
-        printf("Diff: ptcl %d tstep %d rand %.15f numbers %d  %d  %d  %d  %d\n",ptcl, iTimeStep,
+        printf("Diff: ptcl %d perpVector-norm : %.15f %0.15f %0.15f phi_rand %.15f \n", ptcl,
+            perpVector[0],perpVector[1],perpVector[2], phi_random);
+        printf("Diff: gitrRnd ptcl %d tstep %d r3 %g numbers %d  %d  %d  %d  %d\n",ptcl, iTimeStep,
             r3, testGNT, testGDof, testGDof, diff_rnd1);
-        printf("Diff: coefficient and step %.15f,%.15f \n",diffusionCoefficient,step);
+        printf("Diff: coefficient and ptcl %d : cft %.15f step %.15f \n", ptcl, diffusionCoefficient, step);
       }
     }
   };

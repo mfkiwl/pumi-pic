@@ -299,7 +299,9 @@ void GitrmMesh::initBField(const std::string &bFile) {
     if(!rank)
       printf("Setting constant BField\n");
     auto bField = utils::getConstBField();
-    Bfield_2d = std::make_shared<o::Reals>(bField);
+    bField_2d = o::Reals(bField);
+    bField2dGridX = o::Reals(o::HostWrite<o::Real>({0}));
+    bField2dGridZ = o::Reals(o::HostWrite<o::Real>({0}));
     bGridNx = 1;
     bGridNz = 1;
     bGridX0 = 0;
@@ -312,7 +314,7 @@ void GitrmMesh::initBField(const std::string &bFile) {
     Field3StructInput fb({"br", "bt", "bz"}, {"r", "z"}, {"nR", "nZ"});
     o::Write<o::Real> bField;
     load3DFieldOnVtxFromFile("BField", bFile, fb, bField);
-    Bfield_2d = std::make_shared<o::Reals>(bField);
+    bField_2d = o::Reals(bField);
     bField2dGridX = o::Reals(fb.grid1);
     bField2dGridZ = o::Reals(fb.grid2);
     bGridX0 = fb.getGridMin(0);
@@ -323,7 +325,7 @@ void GitrmMesh::initBField(const std::string &bFile) {
     bGridDz = fb.getGridDelta(1);
     if(testInterp) {
       std::cout << "testInterpolation Bfield\n";
-      testInterpolationNPoints(bField2dGridX, bField2dGridZ, *Bfield_2d, false);
+      testInterpolationNPoints(bField2dGridX, bField2dGridZ, bField_2d, false);
     }
   }
 }
@@ -547,8 +549,8 @@ bool GitrmMesh::addTagsAndLoadProfileData(const std::string &profileFile,
     load3DFieldOnVtxFromFile("FlowVelocity", profileFile, fvel, flowVel);
     flowVel_d = o::Reals(flowVel);
     //NOTE: delta of grid not sufficient in the case of flowvel
-    flowVelGridX = o::Reals(fvel.grid1);
-    flowVelGridZ = o::Reals(fvel.grid2);
+    flowVel2dGridX = o::Reals(fvel.grid1);
+    flowVel2dGridZ = o::Reals(fvel.grid2);
     flowVX0 = fvel.getGridMin(0);
     flowVZ0 = fvel.getGridMin(1);
     flowVNx = fvel.getNumGrids(0);
@@ -557,7 +559,7 @@ bool GitrmMesh::addTagsAndLoadProfileData(const std::string &profileFile,
     flowVDz = fvel.getGridDelta(1);
     if(testInterp) {
       std::cout << "testInterpolation flowVel\n";
-      testInterpolationNPoints(flowVelGridX, flowVelGridZ, flowVel_d);
+      testInterpolationNPoints(flowVel2dGridX, flowVel2dGridZ, flowVel_d);
     }
   }
   return true;
