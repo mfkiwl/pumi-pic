@@ -21,7 +21,7 @@ GitrmMesh::GitrmMesh(p::Mesh* picparts, o::Mesh* fullMesh, o::Mesh& ppMesh, char
   rank = picparts->comm()->rank();
 
   //brute-force dist2bdry calculation
-  useAllBdryFaces = USE_ALL_BDRY_FACES;
+  useAllBdryFaces = USE_ALL_BDRY_FACES_BRUTE_FORCE;
 
   GitrmBoundary::FaceFieldFillCoverage target;
   if(STORE_BDRYDATA_PIC) //only on bdry
@@ -129,10 +129,11 @@ void GitrmMesh::initGeometryAndFields(const std::string& bFile, const std::strin
   printf("%d: Preprocessing: dist-to-boundary faces\n", rank);
   int nD2BdryTetSubDiv = D2BDRY_GRIDS_PER_TET;
   int readInCsrBdryData = USE_READIN_CSR_BDRYFACES;
+  bool calculated = false;
   if(readInCsrBdryData) {
     readDist2BdryFacesData("bdryFaces_in.nc");
-  } else {
-    //preprocessSelectBdryFacesFromAll();
+  } else if(!useAllBdryFaces) {
+    calculated = true;
     preprocessSelectBdryFacesOnPicpart();
   }
   auto initFields = addTagsAndLoadProfileData(profFile, profFile, thermGradientFile);
@@ -141,16 +142,16 @@ void GitrmMesh::initGeometryAndFields(const std::string& bFile, const std::strin
   initBdry = calculateBdryFaceFields(initFields);
 
   bool writeTextBdryFaces = WRITE_TEXT_D2BDRY_FACES;
-  if(writeTextBdryFaces)
+  if(writeTextBdryFaces && calculated)
     writeBdryFacesDataText(nD2BdryTetSubDiv);
   bool writeBdryFaceCoords = WRITE_BDRY_FACE_COORDS_NC;
-  if(writeBdryFaceCoords)
+  if(writeBdryFaceCoords && calculated)
     writeBdryFaceCoordsNcFile(2); //selected
   bool writeMeshFaceCoords = WRITE_MESH_FACE_COORDS_NC;
   if(writeMeshFaceCoords)
     writeBdryFaceCoordsNcFile(1); //all
   int writeBdryFacesFile = !readInCsrBdryData;
-  if(writeBdryFacesFile && !readInCsrBdryData) {
+  if(writeBdryFacesFile && calculated) {
     std::string bdryOutName = "bdryFaces_" +
       std::to_string(nD2BdryTetSubDiv) + "div.nc";
     //TODO
@@ -1009,17 +1010,15 @@ void GitrmMesh::convertDist2BdryDataToGlobal(const o::LOs bfPtrs,
 //loaded from file 
 void GitrmMesh::writeDist2BdryFacesData(const std::string outFileName, int ndiv) {
   //convert bdry data to that based on original gids
-  o::LOs bdryFacePtrs;
-  o::LOs bdryFaces;
-  convertDist2BdryDataToGlobal(bdryFacePtrsSelected, bdryFacesSelectedCsr,
-    bdryFacePtrs, bdryFaces);
+  std::cout << __FUNCTION__ << "\n";
   int nel = bdryFacePtrsSelected.size() - 1;
   int extra[3];
   extra[0] = nel;
   extra[1] = ndiv; //ordered with those after 2 entries in vars
   std::vector<std::string> vars{"nindices", "nfaces", "nelems", "nsub_div"};
   std::vector<std::string> datNames{"indices", "bdryfaces"};
-  writeOutputCsrFile(outFileName, vars, datNames, bdryFacePtrs, bdryFaces, extra);
+  writeOutputCsrFile(outFileName, vars, datNames, bdryFacePtrsSelected,
+    bdryFacesSelectedCsr, extra);
 }
 
 

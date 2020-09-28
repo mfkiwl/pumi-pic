@@ -570,6 +570,7 @@ int readCsrFile(const std::string& ncFileName, const std::vector<std::string>& v
 void writeOutputCsrFile(const std::string& outFileName,
     const std::vector<std::string>& vars, const std::vector<std::string>& datNames,
     o::LOs& ptrs_d, o::LOs& data_d, int* valExtra) {
+  std::cout << "writeOutputCsrFile\n";
   auto data = o::HostRead<o::LO>(data_d);
   auto ptrs = o::HostRead<o::LO>(ptrs_d);
   int psize = ptrs.size();

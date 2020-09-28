@@ -20,7 +20,7 @@ namespace p = pumipic;
 
 class GitrmBoundary;
 
-//presheath efield is always used. Since it is const, set CONSTANT_EBFIELDS.
+//presheath efield is always used ??
 // sheath efield is calcualted efield, it is always used. Skip calling
 // gitrm_calculateE for neutrals.
 
@@ -30,18 +30,18 @@ namespace gitrm {
   const double surfaceAndMaterialModelZ = 74;
 }
 
-//TODO put in config class
+//TODO put in config class, and get from input class
 
-const bool CREATE_GITR_MESH = true;
+const bool CREATE_GITR_MESH = false;
 const int USE_READIN_CSR_BDRYFACES = 1;
 const int STORE_BDRYDATA_PIC = 1;
-const int USE_ALL_BDRY_FACES = 1;
+const int USE_ALL_BDRY_FACES_BRUTE_FORCE = 0; //TODO check compatibility with calculation of bdries
 const bool MUST_FIND_ALL_PTCLS_INIT = false;
 const int PTCLS_SPLIT_READ = 0;
 
-const o::LO D2BDRY_GRIDS_PER_TET = 10; // if csr bdry not re-used
-const int D2BDRY_MIN_SELECT = 10; //that many instead of the least one
-const int D2BDRY_MEM_FACTOR = 1; //per 8G memory
+const o::LO D2BDRY_GRIDS_PER_TET =1;// 10; // if csr bdry not re-used
+const int D2BDRY_MIN_SELECT = 1;//10; //that many instead of the closest one
+const int D2BDRY_MEM_FACTOR = 1;
 const bool WRITE_TEXT_D2BDRY_FACES = false;
 const bool WRITE_BDRY_FACE_COORDS_NC = false;
 const bool WRITE_MESH_FACE_COORDS_NC = false;
@@ -87,7 +87,6 @@ const int CALC_EFIELD_USING_D2BDRY = 1; //true unless hpic provides it
 
 class GitrmMesh {
 public:
-  //TODO remove the picpart mesh and use it as ptr in the class
   GitrmMesh(p::Mesh* pp, o::Mesh* full, o::Mesh& mesh, char* owners);
   ~GitrmMesh();
 
@@ -256,6 +255,7 @@ public:
   o::LOs getSurfMatGModelSeqNums() const { return surfMatGModelSeqNums;}
 
   // Used in boundary init and if 2D field is used for particles
+  //TODO move to private, delete unsued
   o::Real bGridX0 = 0;
   o::Real bGridZ0 = 0;
   o::Real bGridDx = 0;
@@ -360,7 +360,7 @@ private:
   std::string profileNcFile = "profile.nc";
   //D3D_major rad =1.6955m; https://github.com/SCOREC/Fusion_Public/blob/master/
   // samples/D-g096333.03337/g096333.03337#L1033
-  // field2D center may not coincide with mesh center
+  //TODO shared_ptr introduced to solve error replacing o::Reals by filled Reals
   std::shared_ptr<o::Reals> Efield_2d;
   o::Reals bField_2d;
   std::shared_ptr<o::Reals> densIon_d;

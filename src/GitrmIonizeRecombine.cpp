@@ -11,7 +11,6 @@ GitrmIonizeRecombine::GitrmIonizeRecombine(const std::string &fName,
 // ADAS_Rates_W_structure for Tungsten W(z=74)
 void GitrmIonizeRecombine::initIonizeRecombRateData( const std::string &fName, int debug) {
   std::cout<< "Loading Ionization data from " << fName << "\n" ;
-  // not reading: gridChargeState_Ionization
   // unread grids should appear last in gridnames. Grid and its names in same order.
   Field3StructInput ioni({"IonizationRateCoeff"},
     {"gridTemperature_Ionization", "gridDensity_Ionization",
@@ -45,6 +44,7 @@ void GitrmIonizeRecombine::initIonizeRecombRateData( const std::string &fName, i
   recombinationRates = o::Reals(rec.data);
   gridTempRec = o::Reals(rec.grid1);
   gridDensRec = o::Reals(rec.grid2);
-  printf("recombDensGridN %d \n", recombDensGridN);
+  if(debug)
+    printf("recombDensGridN %d \n", recombDensGridN);
 }
 

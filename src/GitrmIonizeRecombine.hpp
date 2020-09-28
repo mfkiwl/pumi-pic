@@ -105,19 +105,6 @@ inline void gitrm_ionize(PS* ptcls, const GitrmIonizeRecombine& gir,
   auto tempElGridX = gm.getElTemp2dGrid(1);
   auto tempElGridZ = gm.getElTemp2dGrid(2);
 
-  auto x0Dens = gm.densElX0;
-  auto z0Dens = gm.densElZ0;
-  auto nxDens = gm.densElNx;
-  auto nzDens = gm.densElNz;
-  auto dxDens = gm.densElDx;
-  auto dzDens = gm.densElDz;
-  auto x0Temp = gm.tempElX0;
-  auto z0Temp = gm.tempElZ0;
-  auto nxTemp = gm.tempElNx;
-  auto nzTemp = gm.tempElNz;
-  auto dxTemp = gm.tempElDx;
-  auto dzTemp = gm.tempElDz;
-
   const bool useCudaRnd = gp.useCudaRnd;
   auto* cuStates =  gp.cudaRndStates;
   
@@ -161,8 +148,6 @@ inline void gitrm_ionize(PS* ptcls, const GitrmIonizeRecombine& gir,
   auto prev_ionize_ps = ptcls->get<PTCL_PREV_IONIZE>();
   auto first_ionizeT_ps = ptcls->get<PTCL_FIRST_IONIZET>();
   auto psCapacity = ptcls->capacity();
-  //delete later
-  auto pos_prev=ptcls->get<0>();
   //kokkos random
   auto& rpool = gp.rand_pool; 
   auto lambda = PS_LAMBDA(const int &elem, const int &pid, const int &mask) {
@@ -174,7 +159,6 @@ inline void gitrm_ionize(PS* ptcls, const GitrmIonizeRecombine& gir,
       auto ptcl_global=pid_ps_global(pid);
       auto pos = p::makeVector3(pid, new_pos);
       auto charge = charge_ps(pid);
-      auto pos_previous = p::makeVector3(pid, pos_prev);
       o::Real tlocal = 0;
       o::Real nlocal = 0;
       if(!use2DRatesData) {
@@ -188,19 +172,14 @@ inline void gitrm_ionize(PS* ptcls, const GitrmIonizeRecombine& gir,
       // from data array
       if(use2DRatesData) {
         bool cylSymm = true;
-   //     auto dens = p::interpolate2dField(densEl_d, x0Dens, z0Dens, dxDens, 
-   //       dzDens, nxDens, nzDens, pos, cylSymm, 1,0,false);
-   //     auto temp = p::interpolate2dField(temEl_d, x0Temp, z0Temp, dxTemp,
-   //       dzTemp, nxTemp, nzTemp, pos, cylSymm, 1,0,false);
-
         auto dens = p::interpolate2d_wgrid(densEl_d, densElGridX, densElGridZ,
-          pos, cylSymm, 1, 0, debug);
+          pos, cylSymm, 1, 0, debug>2);
         auto temp = p::interpolate2d_wgrid(temEl_d, tempElGridX, tempElGridZ,
-          pos, cylSymm, 1, 0, debug);
+          pos, cylSymm, 1, 0, debug>2);
         if(debug > 2)
           printf(" Ionization point: ptcl %d timestep %d position %g"
-            " %g %g dens2D %g temp2D %g nxTemp %d nzTemp %d\n", 
-            ptcl, iTimeStep, pos[0], pos[1], pos[2], dens, temp, nxTemp, nzTemp);
+            " %g %g dens2D %g temp2D %g\n", 
+            ptcl, iTimeStep, pos[0], pos[1], pos[2], dens, temp);
         
         nlocal = dens;
         tlocal = temp;
@@ -216,7 +195,7 @@ inline void gitrm_ionize(PS* ptcls, const GitrmIonizeRecombine& gir,
           printf("gitrRnd:ioni ptcl %d  ptcl_global %ld t %d rand %g\n",
            ptcl, ptcl_global, iTimeStep, randn);
       } else if (useCudaRnd) {
-        //NOTE : states for all particles to be initialized in all ranks
+        //states for all particles to be initialized in all ranks
         auto localState = cuStates[ptcl_global];
         randn = curand_uniform(&localState);
         cuStates[ptcl_global] = localState;
@@ -224,8 +203,7 @@ inline void gitrm_ionize(PS* ptcls, const GitrmIonizeRecombine& gir,
           printf("cudaRndNums-ioni ptcl %d ptcl_global %ld tstep %d rand %g\n",
            ptcl, ptcl_global, iTimeStep, randn);
       } else {
-        //TODO use state index ? 
-        auto rnd = rpool.get_state(); //rpool.get_state(pid)  ?
+        auto rnd = rpool.get_state();
         randn = rnd.drand();
         rpool.free_state(rnd);
       }
@@ -263,18 +241,6 @@ inline void gitrm_recombine(PS* ptcls, const GitrmIonizeRecombine& gir,
   auto densElGridZ = gm.getElDens2dGrid(2);
   auto tempElGridX = gm.getElTemp2dGrid(1);
   auto tempElGridZ = gm.getElTemp2dGrid(2);
-  const auto x0Dens = gm.densElX0;
-  const auto z0Dens = gm.densElZ0;
-  const auto nxDens = gm.densElNx;
-  const auto nzDens = gm.densElNz;
-  const auto dxDens = gm.densElDx;
-  const auto dzDens = gm.densElDz;
-  const auto x0Temp = gm.tempElX0;
-  const auto z0Temp = gm.tempElZ0;
-  const auto nxTemp = gm.tempElNx;
-  const auto nzTemp = gm.tempElNz;
-  const auto dxTemp = gm.tempElDx;
-  const auto dzTemp = gm.tempElDz;
 
   const bool useCudaRnd = gp.useCudaRnd;
   auto* cuStates =  gp.cudaRndStates;
@@ -310,9 +276,7 @@ inline void gitrm_recombine(PS* ptcls, const GitrmIonizeRecombine& gir,
   const auto mesh2verts = mesh.ask_elem_verts();
   const auto tElVtx = mesh.get_array<o::Real>(o::VERT, "ElTempVtx");
   const auto densVtx = mesh.get_array<o::Real>(o::VERT, "ElDensityVtx");
-  //const auto& tIonVtx = gm.densElVtx_d;
-  //const auto& densVtx = gm.tempElVtx_d;
-  auto pid_ps_global = ptcls->get<PTCL_ID_GLOBAL>(); //NELY ADDED
+  auto pid_ps_global = ptcls->get<PTCL_ID_GLOBAL>();
   auto pid_ps = ptcls->get<PTCL_ID>();
   auto new_pos = ptcls->get<PTCL_NEXT_POS>();
   auto charge_ps = ptcls->get<PTCL_CHARGE>();
@@ -322,7 +286,6 @@ inline void gitrm_recombine(PS* ptcls, const GitrmIonizeRecombine& gir,
   auto vel_ps = ptcls->get<PTCL_VEL>();
 
   auto& rpool = gp.rand_pool; 
-  // is elm_ids[pid] >= 0 make sure ptcl not intersected bdry
   auto lambda = PS_LAMBDA(const int &elem, const int &pid, const int &mask) {
     if(mask > 0 && elm_ids[pid] >= 0) {
       auto el = elm_ids[pid];
@@ -347,21 +310,11 @@ inline void gitrm_recombine(PS* ptcls, const GitrmIonizeRecombine& gir,
           //cylindrical symmetry, height (z) is same.
           // projecting point to y=0 plane, since 2D data is on const-y plane.
           bool cylSymm = true;
-          //auto dens = p::interpolate2dField(densEl_d, x0Dens, z0Dens, dxDens, 
-          //  dzDens, nxDens, nzDens, pos, cylSymm,1,0,false);
-          //auto temp = p::interpolate2dField(temEl_d, x0Temp, z0Temp, dxTemp,
-          //  dzTemp, nxTemp, nzTemp, pos, cylSymm,1,0,false);
           auto dens = p::interpolate2d_wgrid(densEl_d, densElGridX, densElGridZ,
             pos, cylSymm, 1, 0);
           auto temp = p::interpolate2d_wgrid(temEl_d, tempElGridX, tempElGridZ,
             pos, cylSymm, 1, 0);
           
-          if(debug > 2)
-            printf(" Recomb Dens: ptcl %d x0 %g z0 %g dx %g dz %g nx %d " 
-            " nz %d \n", ptcl, x0Dens, z0Dens, dxDens, dzDens, nxDens, nzDens);
-          if(debug > 2)
-            printf(" Recomb Temp: ptcl %d x0 %g z0 %g dx %g dz %g nx %d " 
-            " nz %d \n", ptcl, x0Temp, z0Temp, dxTemp,dzTemp, nxTemp, nzTemp);  
           nlocal = dens;
           tlocal = temp;
         }

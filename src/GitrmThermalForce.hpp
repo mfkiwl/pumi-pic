@@ -12,39 +12,20 @@ const GitrmParticles& gp, double dt, const o::LOs& elm_ids, int debug=0) {
   auto vel_ps_d = ptcls->get<PTCL_VEL>();
   auto charge_ps_d = ptcls->get<PTCL_CHARGE>();
   if(debug)
-      printf("Entering Thermal Force Routine\n");
+      printf("Thermal Force\n");
   
   //Mesh data regarding the gradient of temperatures
   const auto& gradTi_d = gm.getGradTi();
-  auto grTiX0 = gm.gradTiX0;   
-  auto grTiZ0 = gm.gradTiZ0; 
-  auto grTiNX = gm.gradTiNx; 
-  auto grTiNZ = gm.gradTiNz;
-  auto grTiDX = gm.gradTiDx;
-  auto grTiDZ = gm.gradTiDz;
-
-  const auto& gradTe_d = gm.getGradTe();
-  auto grTeX0 = gm.gradTeX0;   
-  auto grTeZ0 = gm.gradTeZ0; 
-  auto grTeNX = gm.gradTeNx; 
-  auto grTeNZ = gm.gradTeNz;
-  auto grTeDX = gm.gradTeDx;
-  auto grTeDZ = gm.gradTeDz;
-
+  const auto& gradTiGridX = gm.getIonTempGrad2dGrid(1);
+  const auto& gradTiGridZ = gm.getIonTempGrad2dGrid(2);
   //Setting up of 2D magnetic field data 
   const auto& BField_2d = gm.getBfield2d();
-  const auto bX0 = gm.bGridX0;
-  const auto bZ0 = gm.bGridZ0;
-  const auto bDx = gm.bGridDx;
-  const auto bDz = gm.bGridDz;
-  const auto bGridNx = gm.bGridNx;
-  const auto bGridNz = gm.bGridNz;
-
+  const auto& bGridX = gm.getBfield2dGrid(1);
+  const auto& bGridZ = gm.getBfield2dGrid(2);
   auto& mesh = gm.mesh;
   const auto coords = mesh.coords();
   const auto mesh2verts = mesh.ask_elem_verts();
   const auto gradTionVtx = mesh.get_array<o::Real>(o::VERT, "gradTiVtx");
-  const auto gradTelVtx   = mesh.get_array<o::Real>(o::VERT, "gradTeVtx");
   const auto BField = o::Reals(); //o::Reals(mesh.get_array<o::Real>(o::VERT, "BField"));
 
   auto useConstantBField = gm.isUsingConstBField();
@@ -75,15 +56,12 @@ const GitrmParticles& gp, double dt, const o::LOs& elm_ids, int debug=0) {
       auto bField         = o::zero_vector<3>();
 
       if (use2dInputFields || useConstantBField){
-        p::interp2dVector(BField_2d, bX0, bZ0, bDx, bDz, bGridNx, bGridNz, posit_next, bField, cylSymm);
-      }
-
-      else if (use3dField){
+        p::interp2dVector_wgrid(BField_2d, bGridX, bGridZ, posit_next, bField, cylSymm);
+      } else if (use3dField){
         auto bcc = o::zero_vector<4>();
         p::findBCCoordsInTet(coords, mesh2verts, posit_next, el, bcc);
         p::interpolate3dFieldTet(mesh2verts, BField, el, bcc, bField); 
       }
-
       auto b_mag  = Omega_h::norm(bField);
       Omega_h::Vector<3> b_unit = bField/b_mag;
 
@@ -93,49 +71,41 @@ const GitrmParticles& gp, double dt, const o::LOs& elm_ids, int debug=0) {
       pos2D[2]            = posit_next[2];
 
       auto gradti         = o::zero_vector<3>();
-      auto gradte         = o::zero_vector<3>();
 
       //find out the gradients of the electron and ion temperatures at that particle poin
-      if (use2dInputFields){
-      p::interp2dVector(gradTi_d, grTiX0, grTiZ0, grTiDX, grTiDZ, grTiNX, grTiNZ, posit_next, gradti, true);
-      p::interp2dVector(gradTe_d, grTeX0, grTeZ0, grTeDX, grTeDZ, grTeNX, grTeNZ, posit_next, gradte, true);
-      }
-
-      else if (use3dField){
+      if (use2dInputFields) {
+        p::interp2dVector_wgrid(gradTi_d, gradTiGridX, gradTiGridZ, posit_next, gradti, true);
+      } else if (use3dField){
         auto bcc = o::zero_vector<4>();
         p::findBCCoordsInTet(coords, mesh2verts, posit_next, el, bcc);
         p::interpolate3dFieldTet(mesh2verts, gradTionVtx, el, bcc, gradti);
-        p::interpolate3dFieldTet(mesh2verts, gradTelVtx, el, bcc, gradte);
-      }  
+      }
       
       o::Real mu = amu /(background_amu+amu);
-      //o::Real alpha = 0.71*charge*charge;
       o::Real beta = 3 * (mu + 5*sqrt(2.0)*charge*charge*(1.1*pow(mu, (5 / 2))-0.35*pow(mu,(3/2)))-1)/
-      (2.6 - 2*mu + 5.4*pow(mu, 2));
-      auto dv_ITG= o::zero_vector<3>();
-      dv_ITG[0] =1.602e-19*dt/(amu*MI)*beta*gradti[0]*b_unit[0];
-      dv_ITG[1] =1.602e-19*dt/(amu*MI)*beta*gradti[1]*b_unit[1];
-      dv_ITG[2] =1.602e-19*dt/(amu*MI)*beta*gradti[2]*b_unit[2];
-
-      if (debug>1){
-        printf("Ion_temp_grad particle %d timestep %d: %.16e %.16e %.16e \n",ptcl,iTimeStep, gradti[0], gradti[1], gradti[2]);
-        printf("El_temp_grad particle %d timestep %.d: %.16e %.16e %.16e \n",ptcl,iTimeStep,gradte[0], gradte[1], gradte[2] );
-        printf("Deltavs particle %d timestep %d: %.16e %.16e %.16e \n", ptcl,iTimeStep, dv_ITG[0], dv_ITG[1], dv_ITG[2]);
-        printf("Positions particle %d timestep %d: %1.16e %.16e %.16e \n", ptcl,iTimeStep, posit[0], posit[1], posit[2]);
-        printf("Mu Beta Magnetic_fields particle %d timestep %d: %.16e %.16e %.16e %.16e %.16e\n", ptcl,iTimeStep, mu, beta, b_unit[0], b_unit[1],b_unit[2]);
-        printf("amu background_amu particle %d timestep %d: %.16e %.16e \n",ptcl,iTimeStep, amu, background_amu);
-        printf("Charge particle %d timestep %d: %d \n", ptcl,iTimeStep, charge);
-        printf("Position partcle %d timestep %d is %.15e %.15e %.15e \n",ptcl, iTimeStep, posit_next[0],posit_next[1],posit_next[2]);
-        printf("The velocities partcle %d timestep %dare %.15f %.15f %.15f \n", iTimeStep, ptcl, vel[0],vel[1],vel[2]); 
-      }
-
-      vel_ps_d(pid,0)=vel[0]+dv_ITG[0];
-      vel_ps_d(pid,1)=vel[1]+dv_ITG[1];
-      vel_ps_d(pid,2)=vel[2]+dv_ITG[2];
+                     (2.6 - 2*mu + 5.4*pow(mu, 2));
+      auto dv_ITG = o::zero_vector<3>();
+      for(int i=0; i<3; ++i)
+        dv_ITG[i] = 1.602e-19*dt/(amu*MI)*beta* gradti[i]*b_unit[i];
       
-      if (debug>1){
-        printf("The velocities after updation THERMAL_COLSN partcle %d timestep %d"
-          " are %.15f %.15f %.15f \n", ptcl, iTimeStep, vel_ps_d(pid,0),vel_ps_d(pid,1),vel_ps_d(pid,2));
+      if (debug > 2) {
+        printf("ptcl %d t %d B %g %g %g \n", ptcl, iTimeStep, bField[0], bField[1], bField[2]);
+        printf("ptcl %d t %d GradTi %g %g %g \n", ptcl, iTimeStep, gradti[0], gradti[1], gradti[2]);
+        printf("ptcl  %d timestep %d ITG %.16e %.16e %.16e \n",
+          ptcl, iTimeStep, dv_ITG[0], dv_ITG[1], dv_ITG[2]);
+        printf(" ptcl %d timestep %d charge %d amu %g background_amu %g \n", 
+          ptcl,iTimeStep, charge, amu, background_amu);
+        printf("Position partcle %d timestep %d is %.15e %.15e %.15e \n", ptcl,
+          iTimeStep, posit_next[0],posit_next[1],posit_next[2]);
+      }
+      auto vf = vel + dv_ITG;
+      for(int i=0; i<3; ++i)
+        vel_ps_d(pid,i) = vf[i];
+      
+      if(debug > 1) {
+        printf("thermalforce: ptcl %d timestep %d vel %.15f %.15f %.15f  => "
+          "  %.15f %.15f %.15f \n", ptcl, iTimeStep, vel[0],vel[1],vel[2], 
+          vf[0],vf[1],vf[2]);
       } 
     }
   };

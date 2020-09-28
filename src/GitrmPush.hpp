@@ -113,8 +113,8 @@ inline void gitrm_calculateE(GitrmParticles* gp, GitrmMesh* gm, int debug=0) {
           efield_ps(pid, i) = exd[i];
 
         if(debug > 2) {
-          printf(" calcE2 ptcl %d tstep %d emag %.15e dirUnitVec %g %g %g \n", ptcl,
-            iTimeStep, emag, ptcl, dirUnitVector[0], dirUnitVector[1], dirUnitVector[2]);
+          printf(" calcE2 ptcl %d tstep %d emag %.15e dirUnitVec %.15f %.15f %.15f \n", ptcl,
+            iTimeStep, emag, dirUnitVector[0], dirUnitVector[1], dirUnitVector[2]);
 
           auto nelMesh = elDensity[fid];
           auto telMesh = elTemp[fid];

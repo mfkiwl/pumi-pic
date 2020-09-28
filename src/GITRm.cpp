@@ -9,7 +9,7 @@
 #include "pumipic_library.hpp"
 #include "pumipic_kktypes.hpp"
 #include "pumipic_adjacency.hpp"
-//#include "pumipic_ptcl_ops.hpp"
+#include "pumipic_ptcl_ops.hpp"
 #include "particle_structs.hpp"
 #include "pumipic_mesh.hpp"
 
@@ -53,7 +53,7 @@ void updatePtclPositions(PS* ptcls) {
 void rebuild(p::Mesh& picparts, PS* ptcls, o::LOs elem_ids,
     const bool output=false) {
   updatePtclPositions(ptcls);
-  bool useLoadBalancer = false;
+  bool useLoadBalancer = true;
   if(!useLoadBalancer) {
     const int ps_capacity = ptcls->capacity();
     PS::kkLidView ps_elem_ids("ps_elem_ids", ps_capacity);
@@ -91,8 +91,8 @@ void rebuild(p::Mesh& picparts, PS* ptcls, o::LOs elem_ids,
     ps::parallel_for(ptcls, lamb,"lamda_within rebuild");
     ptcls->migrate(ps_elem_ids, ps_process_ids); //migrate /  rebuild
   } else {
- //   p::migrate_lb_ptcls(picparts, ptcls, elem_ids, 1.05);
- //   p::printPtclImb(ptcls);
+    p::migrate_lb_ptcls(picparts, ptcls, elem_ids, 1.05);
+    p::printPtclImb(ptcls);
   }
 }
 
@@ -207,7 +207,7 @@ int main(int argc, char** argv) {
   double dTime = (geomName == "Iter") ? 1e-8 : 5e-9; //pisces:5e-9 for 100,000 iterations
 
   bool debug = false; //search
-  int debug2 = 3;  //routines
+  int debug2 = 0;  //routines
   bool useGITRdist2bdry = true;
   bool useCudaRnd = true; //replace kokkos rnd
 

@@ -180,7 +180,7 @@ inline void GITR_findDistanceToBdry(GitrmParticles& gp, GitrmMesh& gm, int debug
       end = (end == -1) ? bdryFaceIdsPic.size(): end;
       nFaces = end - beg;
 
-      if(!nFaces || debug > 3)
+      if(!nFaces || debug > 2)
         printf("%d: ptcl %d tstep %d elem %d gid %ld nFaces %d beg %d end %d\n",
          rank, ptcl, tstep, elem, origGlobalIds[elem],  nFaces, beg, end);
       OMEGA_H_CHECK(nFaces);
@@ -322,7 +322,7 @@ inline void GITR_findDistanceToBdry(GitrmParticles& gp, GitrmMesh& gm, int debug
             auto perpDist = abs(pt2PlaneDist); 
             normalVec = pt - p0;
             auto normVec = o::normalize(normalVec);
-            distances[0] = perpDist;   
+            distances[0] = perpDist; 
             for(int i=0; i<3; ++i)
               normals[i] = normVec[i];
             if(debug > 3)
@@ -362,8 +362,8 @@ inline void GITR_findDistanceToBdry(GitrmParticles& gp, GitrmMesh& gm, int debug
         closestPoints[pid*3+j] = point[j];
 
       if(debug > 2) { 
-        auto face = p::get_face_coords_of_tet(bdryFaceVertsPic, bdryFaceVertCoordsPic, minIndex);
-        auto ordId = bdryFaceOrderedIds[minIndex];
+        auto face = p::get_face_coords_of_tet(bdryFaceVertsPic, bdryFaceVertCoordsPic, minFid);
+        auto ordId = bdryFaceOrderedIds[minFid];
         printf("\nd2bdry::minDist %.15f ptcl %d tstep %d ordId %d minind %d minFid %d"
           " face %g %g %g : %g %g %g : %g %g %g\n", minDistance, ptcl, tstep,
           ordId, minIndex, minFid, face[0][0], face[0][1], face[0][2], face[1][0], face[1][1],
