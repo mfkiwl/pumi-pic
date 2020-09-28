@@ -209,7 +209,7 @@ int main(int argc, char** argv) {
   bool debug = false; //search
   int debug2 = 0;  //routines
   bool useGITRdist2bdry = true;
-  bool useCudaRnd = true; //replace kokkos rnd
+  bool useCudaRnd = false; //replace kokkos rnd
 
 
   bool surfacemodel = true;
