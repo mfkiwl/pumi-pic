@@ -1,6 +1,6 @@
 module load gcc
 module load mpich
-module load cmake
+module load cmake/3.15.4-kgiql7d
 module load netcdf
 module load cuda/10.1-k3n6svu
 
