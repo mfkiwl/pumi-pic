@@ -153,8 +153,6 @@ inline void gitrm_borisMove(PS* ptcls, const GitrmMesh &gm, const o::Real dTime,
   const auto bField2d = gm.getBfield2d();
   const auto bGrid1 = gm.getBfield2dGrid(1);
   const auto bGrid2 = gm.getBfield2dGrid(2);
-  const auto eFieldConst_d = utils::getConstEField();
-  const auto usePreSheathE = gm.isUsingPreSheathEField();
   const auto preSheathEField = gm.getPreSheathEField();
   const auto psGridX = gm.getPreSheathEFieldGridX();
   const auto psGridZ = gm.getPreSheathEFieldGridZ();
@@ -179,19 +177,15 @@ inline void gitrm_borisMove(PS* ptcls, const GitrmMesh &gm, const o::Real dTime,
 
       auto eField0 = o::zero_vector<3>();
       bool cylSymm = true;
-      //TODO handle in fields class
-      if(usePreSheathE)
-        p::interp2dVector_wgrid(preSheathEField, psGridX, psGridZ, pos, eField0, cylSymm); 
-      else
-        p::interp2dVector(eFieldConst_d, 0, 0, 0, 0, 1, 1, pos, eField0, cylSymm);
-
+      p::interp2dVector_wgrid(preSheathEField, psGridX, psGridZ, pos, eField0,
+        cylSymm, debug>2); 
       eField += eField0;
       if(use3dField) {
         auto bcc = o::zero_vector<4>();
         p::findBCCoordsInTet(coords, mesh2verts, pos, elem, bcc);
         p::interpolate3dFieldTet(mesh2verts, BField, elem, bcc, bField);
       } else {
-        p::interp2dVector_wgrid(bField2d, bGrid1, bGrid2, pos, bField, cylSymm);
+        p::interp2dVector_wgrid(bField2d, bGrid1, bGrid2, pos, bField, cylSymm, debug>2);
       }
       auto vel0 = vel;
       OMEGA_H_CHECK((amu >0) && (dTime>0));

@@ -332,8 +332,13 @@ void GitrmMesh::initBField(const std::string &bFile) {
 }
 
 void GitrmMesh::loadPreSheathEField(const std::string &psFile) {
-  if(!usePreSheathEField)
+  if(!usePreSheathEField) {
+    auto eField = utils::getConstEField();
+    preSheathEField = o::Reals(eField);
+    preSheathEFieldGridX = o::Reals(o::HostWrite<o::Real>({0}));
+    preSheathEFieldGridZ = o::Reals(o::HostWrite<o::Real>({0}));
     return;
+  }
   mesh.add_tag<o::Real>(o::VERT, "PreSheathEField", 3);
   Field3StructInput fe({"Er", "Et", "Ez"}, {"r", "z"}, {"nR", "nZ"});
   o::Write<o::Real> psField;
