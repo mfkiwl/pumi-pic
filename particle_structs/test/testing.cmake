@@ -27,9 +27,9 @@ add_test(NAME migrateNothing COMMAND ./migrateTest)
 add_test(NAME migrate4 COMMAND mpirun -np 4 ./migrateTest)
 
 add_test(NAME write_ptcl_small COMMAND ./write_particles 5 25 0 0 small_ptcls_e5_p25_r0)
-add_test(NAME write_ptcl_medium COMMAND  ./write_particles 500 100000 2 0 medium_ptcls_e500_p10e5_r0)
-add_test(NAME write_ptcl_large COMMAND  ./write_particles 2500 1000000 2 0 large_ptcls_e2500_p10e6_r0)
-add_test(NAME write_ptcl_xlarge COMMAND  ./write_particles 2500 1000000 2 0 xlarge_ptcls_e10e4_p10e7_r0)
+add_test(NAME write_ptcl_medium COMMAND  ./write_particles 500 100000 0 2 medium_ptcls_e500_p10e5_r0)
+add_test(NAME write_ptcl_large COMMAND  ./write_particles 2500 1000000 0 2 large_ptcls_e2500_p10e6_r0)
+add_test(NAME write_ptcl_xlarge COMMAND  ./write_particles 2500 1000000 0 2 xlarge_ptcls_e10e4_p10e7_r0)
 add_test(NAME write_ptcl_small_4 COMMAND mpirun -np 4 ./write_particles 5 25 0 2
   small_ptcls_e5_p25_r4)
 add_test(NAME write_ptcl_4 COMMAND mpirun -np 4 ./write_particles 100 10000 0 2
