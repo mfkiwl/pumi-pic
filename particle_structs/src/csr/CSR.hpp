@@ -206,6 +206,8 @@ namespace pumipic {
     const lid_t team_size = 32;  //hack
     const PolicyType policy(league_size, team_size);
     auto offsets_cpy = offsets;
+    const lid_t numPtcls = getLastValue(offsets_cpy);
+    printf("numPtcls: %d\n", numPtcls);
     const lid_t mask = 1; //all particles are active
     //New implementation for csr_flat_for not using a nested parallel strucutre
     //Kokkos::parallel_for(name, policy,
@@ -220,15 +222,19 @@ namespace pumipic {
     //    });
     //});
 
-    Kokkos::parallel_for(name, num_ptcls, KOKKOS_LAMBDA(const lid_t& i){
+    Kokkos::parallel_for(name, numPtcls, KOKKOS_LAMBDA(const lid_t& i){
       //find elem (may be necessary)
-      printf("ptcl_id : %d\n", i);
+     // printf("ptcl_id : %d\n", i);
       lid_t elm = 0;
-      printf("elm : %d\n", elm);
+      //printf("elm : %d\n", elm);
       while(i >= offsets_cpy(elm+1)){
         elm++;
-        printf("elm : %d\n", elm);
       }
+        //if(elm > num_elems){
+        //  printf("Ahhhhhhhh\n");
+        //}
+    //    printf("elm : %d\n", elm);
+      
       const lid_t particle_id = i;
       (*fn_d)(elm,particle_id,mask);
     });
