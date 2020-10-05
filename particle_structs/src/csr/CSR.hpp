@@ -108,6 +108,7 @@ namespace pumipic {
         particle_indices(ptcl_id) = Kokkos::atomic_fetch_add(&row_indices(particle_elements(ptcl_id)),1);
       };
       parallel_for(fill_ptcl_indices);
+      fprintf(stderr,"Cleared particle_indices assignment\n");
 
       //populate ptcl_data with input data and particle_indices mapping
       CopyViewsToViews<kkLidView, DataTypes>(ptcl_data, particle_info, particle_indices);
@@ -206,16 +207,30 @@ namespace pumipic {
     const PolicyType policy(league_size, team_size);
     auto offsets_cpy = offsets;
     const lid_t mask = 1; //all particles are active
-    Kokkos::parallel_for(name, policy,
-        KOKKOS_LAMBDA(const typename PolicyType::member_type& thread) {
-        const lid_t elm = thread.league_rank();
-        const lid_t start = offsets_cpy(elm);
-        const lid_t end = offsets_cpy(elm+1);
-        const lid_t numPtcls = end-start;
-        Kokkos::parallel_for(Kokkos::TeamThreadRange(thread, numPtcls), [=] (lid_t& j) {
-          const lid_t particle_id = start+j;
-          (*fn_d)(elm, particle_id, mask);
-        });
+    //New implementation for csr_flat_for not using a nested parallel strucutre
+    //Kokkos::parallel_for(name, policy,
+    //    KOKKOS_LAMBDA(const typename PolicyType::member_type& thread) {
+    //    const lid_t elm = thread.league_rank();
+    //    const lid_t start = offsets_cpy(elm);
+    //    const lid_t end = offsets_cpy(elm+1);
+    //    const lid_t numPtcls = end-start;
+    //    Kokkos::parallel_for(Kokkos::TeamThreadRange(thread, numPtcls), [=] (lid_t& j) {
+    //      const lid_t particle_id = start+j;
+    //      (*fn_d)(elm, particle_id, mask);
+    //    });
+    //});
+
+    Kokkos::parallel_for(name, num_ptcls, KOKKOS_LAMBDA(const lid_t& i){
+      //find elem (may be necessary)
+      printf("ptcl_id : %d\n", i);
+      lid_t elm = 0;
+      printf("elm : %d\n", elm);
+      while(i >= offsets_cpy(elm+1)){
+        elm++;
+        printf("elm : %d\n", elm);
+      }
+      const lid_t particle_id = i;
+      (*fn_d)(elm,particle_id,mask);
     });
   }
 
