@@ -205,26 +205,45 @@ namespace pumipic {
 #else
     fn_d = &fn;
 #endif
-    const lid_t league_size = num_elems;
+    //const lid_t league_size = num_elems;
     const lid_t team_size = 32;  //hack
-    const PolicyType policy(league_size, team_size);
     auto offsets_cpy = offsets;
     const lid_t numPtcls = getLastValue(offsets_cpy);
+    const lid_t league_size = ceil((double)numPtcls/team_size);
+    const PolicyType policy(league_size, team_size);
     printf("numPtcls: %d\n", numPtcls);
     const lid_t mask = 1; //all particles are active
     
-    //New implementation for csr_flat_for not using a nested parallel strucutre
-    Kokkos::parallel_for(name, numPtcls, KOKKOS_LAMBDA(const lid_t& i){
-      //elment search likely isn't optimized as it is written here  
-      lid_t elm = 0;
-      while(i >= offsets_cpy(elm+1)){
-        elm++;
-      }
-      const lid_t particle_id = i;
-      
-      //Execute function
-      (*fn_d)(elm,particle_id,mask);
+    //attempt to minimzie thread divergence by grouping together ptcls believed
+    //to be in same element roughly (neighbors in structure)
+    
+    Kokkos::parallel_for(name, policy, 
+        KOKKOS_LAMBDA(const typename PolicyType::member_type& team_member){
+      const lid_t start = team_member.league_rank() * team_size;
+      Kokkos::parallel_for(Kokkos::TeamThreadRange(team_member, team_size), [=] (const lid_t& j){
+        const lid_t id = start+j;
+        if(id < numPtcls){
+          lid_t elem = 0;
+            while( id >= offsets_cpy(elem+1))
+            elem++;
+          (*fn_d)(elem,id,mask);
+        } 
+      });  
     });
+
+//    ////New implementation for csr_flat_for not using a nested parallel strucutre
+//    Kokkos::parallel_for(name, numPtcls, KOKKOS_LAMBDA(const lid_t& i){
+//      //elment search likely isn't optimized as it is written here  
+//      //probably encountering thread divergence on the while loop
+//      lid_t elm = 0;
+//      while(i >= offsets_cpy(elm+1)){
+//        elm++;
+//      }
+//      const lid_t particle_id = i;
+//      
+//      //Execute function
+//      (*fn_d)(elm,particle_id,mask);
+//    });
   }
 
 
@@ -245,13 +264,12 @@ namespace pumipic {
     const PolicyType policy(league_size, team_size);
     auto offsets_cpy = offsets;
     const lid_t numPtcls = getLastValue(offsets_cpy);
-    printf("numPtcls: %d\n", numPtcls);
     const lid_t mask = 1; //all particles are active
     
     //New implementation for csr_flat_for not using a nested parallel strucutre
     Kokkos::parallel_for(name, numPtcls, KOKKOS_LAMBDA(const lid_t& i){
       const lid_t particle_id = i;
-      const lid_t elm = 0; //for use where element is not a relevant parameter
+      const lid_t elm = -1; //for use where element is not a relevant parameter
       //Execute function
       (*fn_d)(elm,particle_id,mask);
     });

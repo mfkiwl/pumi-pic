@@ -267,16 +267,16 @@ int pseudoPush(const char* name, PS* structure){
       dbls(p, 0) += 10;
       dbls(p, 1) += 10;
       dbls(p, 2) += 10;
-      dbls(p, 0) = dbls(p,0) * dbls(p,0) * dbls(p,0) / sqrt(p); // sqrt(e) + parentElmData(e); 
-      dbls(p, 1) = dbls(p,1) * dbls(p,1) * dbls(p,1) / sqrt(p); // sqrt(e) + parentElmData(e); 
-      dbls(p, 2) = dbls(p,2) * dbls(p,2) * dbls(p,2) / sqrt(p); // sqrt(e) + parentElmData(e); 
+      dbls(p, 0) = dbls(p,0) * dbls(p,0) * dbls(p,0) / sqrt(p) / sqrt(e) + parentElmData(e); 
+      dbls(p, 1) = dbls(p,1) * dbls(p,1) * dbls(p,1) / sqrt(p) / sqrt(e) + parentElmData(e); 
+      dbls(p, 2) = dbls(p,2) * dbls(p,2) * dbls(p,2) / sqrt(p) / sqrt(e) + parentElmData(e); 
       nums(p) = local_rank;
       bools(p) = true;
     } 
   };
   Kokkos::fence();
   Kokkos::Timer timer;
-  ps::parallel_for_noElem(structure, quickMaths, "setValues");
+  ps::parallel_for(structure, quickMaths, "setValues");
   Kokkos::fence();
   double time = timer.seconds();
   printf("Time for math Ops on %s : %f\n", name, time);
