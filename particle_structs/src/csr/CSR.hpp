@@ -79,6 +79,9 @@ namespace pumipic {
     template <typename FunctionType>
     void parallel_for(FunctionType& fn, std::string name="");
 
+    template <typename FunctionType>
+    void parallel_for_noElem(FunctionType& fn, std::string name="");
+
     void printMetrics() const;
 
     //---Attention User---  Do **not** call this function! {
@@ -209,33 +212,47 @@ namespace pumipic {
     const lid_t numPtcls = getLastValue(offsets_cpy);
     printf("numPtcls: %d\n", numPtcls);
     const lid_t mask = 1; //all particles are active
+    
     //New implementation for csr_flat_for not using a nested parallel strucutre
-    //Kokkos::parallel_for(name, policy,
-    //    KOKKOS_LAMBDA(const typename PolicyType::member_type& thread) {
-    //    const lid_t elm = thread.league_rank();
-    //    const lid_t start = offsets_cpy(elm);
-    //    const lid_t end = offsets_cpy(elm+1);
-    //    const lid_t numPtcls = end-start;
-    //    Kokkos::parallel_for(Kokkos::TeamThreadRange(thread, numPtcls), [=] (lid_t& j) {
-    //      const lid_t particle_id = start+j;
-    //      (*fn_d)(elm, particle_id, mask);
-    //    });
-    //});
-
     Kokkos::parallel_for(name, numPtcls, KOKKOS_LAMBDA(const lid_t& i){
-      //find elem (may be necessary)
-     // printf("ptcl_id : %d\n", i);
+      //elment search likely isn't optimized as it is written here  
       lid_t elm = 0;
-      //printf("elm : %d\n", elm);
       while(i >= offsets_cpy(elm+1)){
         elm++;
       }
-        //if(elm > num_elems){
-        //  printf("Ahhhhhhhh\n");
-        //}
-    //    printf("elm : %d\n", elm);
-      
       const lid_t particle_id = i;
+      
+      //Execute function
+      (*fn_d)(elm,particle_id,mask);
+    });
+  }
+
+
+  template <class DataTypes, typename MemSpace>
+  template <typename FunctionType>
+  void CSR<DataTypes, MemSpace>::parallel_for_noElem(FunctionType& fn, std::string name) {
+    if (nPtcls() == 0)
+      return;
+    FunctionType* fn_d;
+#ifdef PP_USE_CUDA
+    cudaMalloc(&fn_d, sizeof(FunctionType));
+    cudaMemcpy(fn_d,&fn, sizeof(FunctionType), cudaMemcpyHostToDevice);
+#else
+    fn_d = &fn;
+#endif
+    const lid_t league_size = num_elems;
+    const lid_t team_size = 32;  //hack
+    const PolicyType policy(league_size, team_size);
+    auto offsets_cpy = offsets;
+    const lid_t numPtcls = getLastValue(offsets_cpy);
+    printf("numPtcls: %d\n", numPtcls);
+    const lid_t mask = 1; //all particles are active
+    
+    //New implementation for csr_flat_for not using a nested parallel strucutre
+    Kokkos::parallel_for(name, numPtcls, KOKKOS_LAMBDA(const lid_t& i){
+      const lid_t particle_id = i;
+      const lid_t elm = 0; //for use where element is not a relevant parameter
+      //Execute function
       (*fn_d)(elm,particle_id,mask);
     });
   }

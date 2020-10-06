@@ -137,6 +137,9 @@ template <std::size_t N> using Slice = Segment<DataType<N>, device_type>;
   template <typename FunctionType>
   void parallel_for(FunctionType& fn, std::string s="");
 
+  template <typename FunctionType>
+  void parallel_for_noElem(FunctionType& fn, std::string s="");
+
   //Prints the format of the SCS labeled by prefix
   void printFormat(const char* prefix = "") const;
 
@@ -480,6 +483,44 @@ void SellCSigma<DataTypes, MemSpace>::printMetrics() const {
 template <class DataTypes, typename MemSpace>
 template <typename FunctionType>
 void SellCSigma<DataTypes, MemSpace>::parallel_for(FunctionType& fn, std::string name) {
+  if (nPtcls() == 0)
+    return;
+  FunctionType* fn_d;
+#ifdef PP_USE_CUDA
+  cudaMalloc(&fn_d, sizeof(FunctionType));
+  cudaMemcpy(fn_d,&fn, sizeof(FunctionType), cudaMemcpyHostToDevice);
+#else
+  fn_d = &fn;
+#endif
+  const lid_t league_size = num_slices;
+  const lid_t team_size = C_;
+  const PolicyType policy(league_size, team_size);
+  auto offsets_cpy = offsets;
+  auto slice_to_chunk_cpy = slice_to_chunk;
+  auto row_to_element_cpy = row_to_element;
+  auto particle_mask_cpy = particle_mask;
+  Kokkos::parallel_for(name, policy,
+                       KOKKOS_LAMBDA(const typename PolicyType::member_type& thread) {
+    const lid_t slice = thread.league_rank();
+    const lid_t slice_row = thread.team_rank();
+    const lid_t rowLen = (offsets_cpy(slice+1)-offsets_cpy(slice))/team_size;
+    const lid_t start = offsets_cpy(slice) + slice_row;
+    Kokkos::parallel_for(Kokkos::TeamThreadRange(thread, team_size), [=] (lid_t& j) {
+      const lid_t row = slice_to_chunk_cpy(slice) * team_size + slice_row;
+      const lid_t element_id = row_to_element_cpy(row);
+      Kokkos::parallel_for(Kokkos::ThreadVectorRange(thread, rowLen), [&] (lid_t& p) {
+        const lid_t particle_id = start+(p*team_size);
+        const lid_t mask = particle_mask_cpy[particle_id];
+        (*fn_d)(element_id, particle_id, mask);
+      });
+    });
+  });
+}
+
+
+template <class DataTypes, typename MemSpace>
+template <typename FunctionType>
+void SellCSigma<DataTypes, MemSpace>::parallel_for_noElem(FunctionType& fn, std::string name) {
   if (nPtcls() == 0)
     return;
   FunctionType* fn_d;
