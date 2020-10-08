@@ -1,5 +1,6 @@
 #include <particle_structs.hpp>
 #include "read_particles.hpp"
+#include <cmath>
 
 #ifdef PP_USE_CUDA
 typedef Kokkos::CudaSpace DeviceSpace;
@@ -24,6 +25,7 @@ int addCSRs(std::vector<PS*>& structures, std::vector<std::string>& names,
 int testCounts(const char* name, PS* structure, lid_t num_elems, lid_t num_ptcls);
 int testParticleExistence(const char* name, PS* structure, lid_t num_ptcls);
 int setValues(const char* name, PS* structure);
+int pseudoPush(const char* name, PS* structure);
 
 //Functionality tests
 int testRebuild(const char* name, PS* structure);
@@ -244,7 +246,54 @@ int setValues(const char* name, PS* structure) {
       bools(p) = false;
     }
   };
+  Kokkos::fence();
+  Kokkos::Timer timer;
   ps::parallel_for(structure, setValues, "setValues");
+  Kokkos::fence();
+  double time = timer.seconds();
+  printf("Time to set values %s : %f\n", name, time);
+  return fails;
+}
+
+int pseudoPush(const char* name, PS* structure){
+  int fails = 0; 
+
+  kkLidView parentElmData = kkLidView("parentElmData",structure->nElems());
+  Kokkos::parallel_for("parentElmData", parentElmData.size(), 
+      KOKKOS_LAMBDA(const lid_t& e){
+    parentElmData(e) = 2+3*e;
+  }); 
+
+  auto dbls = structure->get<1>();
+  auto bools = structure->get<2>();
+  auto nums = structure->get<3>();
+  int local_rank = comm_rank;
+  auto quickMaths = PS_LAMBDA(const lid_t& e, const lid_t& p, const bool& mask){
+    if(mask){
+      dbls(p, 0) += 10;
+      dbls(p, 1) += 10;
+      dbls(p, 2) += 10;
+      dbls(p, 0) = dbls(p,0) * dbls(p,0) * dbls(p,0) / sqrt(p) / sqrt(e) + parentElmData(e); 
+      dbls(p, 1) = dbls(p,1) * dbls(p,1) * dbls(p,1) / sqrt(p) / sqrt(e) + parentElmData(e); 
+      dbls(p, 2) = dbls(p,2) * dbls(p,2) * dbls(p,2) / sqrt(p) / sqrt(e) + parentElmData(e); 
+      nums(p) = local_rank;
+      bools(p) = true;
+    }
+    else{
+      dbls(p, 0) = 0;
+      dbls(p, 1) = 0;
+      dbls(p, 2) = 0;
+      nums(p) = -1;
+      bools(p) = false;
+    }
+  };
+  Kokkos::fence();
+  Kokkos::Timer timer;
+  ps::parallel_for(structure, quickMaths, "setValues");
+  Kokkos::fence();
+  double time = timer.seconds();
+  printf("Time for math Ops on %s : %f\n", name, time);
+
   return fails;
 }
 
@@ -289,6 +338,7 @@ int testRebuild(const char* name, PS* structure) {
   int fails = 0;
   return fails;
 }
+
 int testMigration(const char* name, PS* structure) {
   int fails = 0;
   kkLidView failures("fails", 1);
