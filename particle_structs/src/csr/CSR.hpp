@@ -210,9 +210,9 @@ namespace pumipic {
     const lid_t team_size = 32;  //hack
     auto offsets_cpy = offsets;
     const lid_t numPtcls = getLastValue(offsets_cpy);
+
     const lid_t league_size = ceil((double)numPtcls/team_size);
     const PolicyType policy(league_size, team_size);
-    printf("numPtcls: %d\n", numPtcls);
     const lid_t mask = 1; //all particles are active
     
 //    //attempt to minimzie thread divergence by grouping together ptcls believed
@@ -281,6 +281,7 @@ namespace pumipic {
     fprintf(stderr, "csr capacity %d\n", capacity_);
     fprintf(stderr, "num ptcls    %d\n", num_ptcls);
     fprintf(stderr, "num elements %d\n", num_elems);
+
   }
 } //end namespace pumipic
 

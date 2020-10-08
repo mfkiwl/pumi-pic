@@ -297,42 +297,6 @@ int pseudoPush(const char* name, PS* structure){
   return fails;
 }
 
-
-int pseudoPush(const char* name, PS* structure){
-  int fails = 0; 
-
-  kkLidView parentElmData = kkLidView("parentElmData",structure->nElems());
-  Kokkos::parallel_for("parentElmData", parentElmData.size(), 
-      KOKKOS_LAMBDA(const lid_t& e){
-    parentElmData(e) = 2+3*e;
-  }); 
-
-  auto dbls = structure->get<1>();
-  auto bools = structure->get<2>();
-  auto nums = structure->get<3>();
-  int local_rank = comm_rank;
-  auto quickMaths = PS_LAMBDA(const lid_t& e, const lid_t& p, const bool& mask){
-    if(mask){
-      dbls(p, 0) += 10;
-      dbls(p, 1) += 10;
-      dbls(p, 2) += 10;
-      dbls(p, 0) = dbls(p,0) * dbls(p,0) * dbls(p,0) / sqrt(p) / sqrt(e) + parentElmData(e); 
-      dbls(p, 1) = dbls(p,1) * dbls(p,1) * dbls(p,1) / sqrt(p) / sqrt(e) + parentElmData(e); 
-      dbls(p, 2) = dbls(p,2) * dbls(p,2) * dbls(p,2) / sqrt(p) / sqrt(e) + parentElmData(e); 
-      nums(p) = local_rank;
-      bools(p) = true;
-    } 
-  };
-  Kokkos::fence();
-  Kokkos::Timer timer;
-  ps::parallel_for(structure, quickMaths, "setValues");
-  Kokkos::fence();
-  double time = timer.seconds();
-  printf("Time for math Ops on %s : %f\n", name, time);
-
-  return fails;
-}
-
 //Functionality tests
 int testRebuild(const char* name, PS* structure) {
   int fails = 0;

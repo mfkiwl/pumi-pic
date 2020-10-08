@@ -16,6 +16,8 @@ int main(int argc, char* argv[]) {
             argv[0]);
   }
 
+  fprintf(stderr, "Test Command: \n %s %s %s %s %s\n", argv[0], argv[1], argv[2],argv[3], argv[4]);
+
   /* Enable timing on every process */
   pumipic::SetTimingVerbosity(0);
 
