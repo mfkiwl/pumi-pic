@@ -7,10 +7,17 @@
 #include <particle_structs.hpp>
 #include <SupportKK.h>
 
+
+void cleanup_distribution_memory();
+
 bool distribute_elements(int ne, int strat, int comm_rank, int comm_size, pumipic::gid_t* gids);
 
 bool distribute_particles(int ne, int np, int strat, int* ptcls_per_elem,
                           std::vector<int>* ids);
+
+
+bool distribute_particles(int ne, int np, int strat, Kokkos::View<int*> ptcls_per_elem,
+                          Kokkos::View<int*> elem_per_ptcl);
 
 template <typename PS>
 bool redistribute_particles(PS* ptcls, int strat, double percentMoved,
@@ -35,7 +42,6 @@ bool redistribute_particles(PS* ptcls, int strat, double percentMoved,
     }
   };
   pumipic::parallel_for(ptcls, decideMovers, "decideMovers");
-
   typename PS::kkLidView mover_index("mover_index", ptcls->capacity());
   Kokkos::parallel_scan("indexMovers", is_moving.size(),
                         KOKKOS_LAMBDA(const int i, int& update, const bool fin) {
@@ -51,29 +57,19 @@ bool redistribute_particles(PS* ptcls, int strat, double percentMoved,
                           KOKKOS_LAMBDA(const int i, int& update) {
                             update += is_moving[i];
                           }, total);
-
   int numElems = ptcls->nElems();
-  int* ptcls_per_elm = new int[numElems];
-  std::vector<int>* ids = new std::vector<int>[numElems];
-  distribute_particles(numElems, total, strat, ptcls_per_elm, ids);
-
-  int* new_moves = new int[total];
-  for (int i = 0; i < numElems; ++i) {
-    for (std::size_t j = 0; j < ids[i].size(); ++j) {
-      new_moves[ids[i][j]] = i;
-    }
-  }
-  delete [] ptcls_per_elm;
-  delete [] ids;
-
+  typename PS::kkLidView new_ppe("new_ppe", numElems);
   typename PS::kkLidView new_moves_d("new_moves", total);
-  pumipic::hostToDevice(new_moves_d, new_moves);
-
+  distribute_particles(numElems, total, strat, new_ppe, new_moves_d);
   auto assignMoves = PS_LAMBDA(const int e, const int p, const bool mask) {
     if (mask) {
       if (is_moving[p]) {
         int index = mover_index[p];
         new_elems[p] = new_moves_d[index];
+        if (new_moves_d[index] < 0)
+          printf("ERROR %d\n", new_moves_d[index]);
+        else if (new_moves_d[index] >= numElems)
+          printf("ERROR %d\n", new_moves_d[index]);
       }
       else {
         new_elems[p] = e;
@@ -84,7 +80,7 @@ bool redistribute_particles(PS* ptcls, int strat, double percentMoved,
     }
   };
   pumipic::parallel_for(ptcls, assignMoves, "assignMoves");
-  delete [] new_moves;
+  //delete [] new_moves;
   return true;
 }
 

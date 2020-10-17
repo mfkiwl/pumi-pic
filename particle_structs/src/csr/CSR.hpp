@@ -11,7 +11,7 @@ namespace {
       Kokkos::parallel_for("print_view",
           v.size(),
           KOKKOS_LAMBDA (const int& i) {
-            printf("%d %d\n", i, v[i]);
+            printf("%d %d\n", i, v(i));
       });
   }
 
@@ -176,8 +176,8 @@ namespace pumipic {
       initCsrData(particle_elements, particle_info);
     }
 
-    if(!comm_rank)
-      fprintf(stderr, "Building CSR done\n");
+    //if(!comm_rank)
+    //  fprintf(stderr, "Building CSR done\n");
     Kokkos::Profiling::popRegion();
   }
 
