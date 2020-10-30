@@ -17,6 +17,7 @@ int main(int argc, char* argv[]) {
     test_num = atoi(argv[5]);
   }
   else if(argc == 7){
+    test_num = atoi(argv[5]);
     new_ptcls = atoi(argv[6]);
   }
   else if (argc != 5) {
@@ -25,9 +26,9 @@ int main(int argc, char* argv[]) {
   }
 
   fprintf(stderr, "Test Command:\n %s %s %s %s %s", argv[0], argv[1], argv[2], argv[3], argv[4]);
-  if(argc == 6)
+  if(argc > 5)
     fprintf(stderr, " %s", argv[5]);
-  if(argc == 7)
+  if(argc > 6)
     fprintf(stderr, " %s", argv[6]);
   fprintf(stderr, "\n");
 
@@ -47,7 +48,7 @@ int main(int argc, char* argv[]) {
 
     /* Create particle structure */
     ParticleStructures structures;
-    if(argc == 6){
+    if(argc > 5){
       switch(test_num){
         case 0:
           structures.push_back(std::make_pair("Sell-32-ne",
@@ -122,6 +123,16 @@ int main(int argc, char* argv[]) {
     for (int i = 0; i < structures.size(); ++i) {
       std::string name = structures[i].first;
       PS* ptcls = structures[i].second;
+       //   /* Option to introduce new particles */
+       //   int num_new_ptcls = 50000; // will be introduce 100 times so can't be too big
+       //   kkLidView ppe_new("ptcls_per_elem", num_elems);
+       //   kkLidView ptcl_elems_new("ptcl_elems", num_ptcls);
+       //   kkGidView element_gids_new("",0);
+       //   printf("Generating new particle distribution with strategy: %s\n", distribute_name(strat));
+       //   distribute_particles(num_elems, num_new_ptcls, strat, ppe_new, ptcl_elems_new);
+  
+          //MTVs ptcl_info_new;
+          //CreateViews<device_type, PerfTypes>(ptcl_info_new,num_new_ptcls);
       printf("Beginning rebuild on structure %s\n", name.c_str());
       for (int i = 0; i < ITERS; ++i) {
         kkLidView new_elms("new elems", ptcls->capacity());
@@ -129,31 +140,18 @@ int main(int argc, char* argv[]) {
         redistribute_particles(ptcls, strat, percentMoved, new_elms);
         pumipic::RecordTime("redistribute", t.seconds());
 
-        if(new_ptcls){
-          /* Option to introduce new particles */
-          int num_elems = atoi(argv[1]);
-          int num_new_ptcls = 100000; // will be introduce 100 times so can't be too big
-          int strat     = atoi(argv[3]);
-          kkLidView ppe_new("ptcls_per_elem", num_elems);
-          kkLidView ptcl_elems_new("ptcl_elems", num_ptcls);
-          kkGidView element_gids_new("",0);
-          printf("Generating new particle distribution with strategy: %s\n", distribute_name(strat));
-          distribute_particles(num_elems, num_new_ptcls, strat, ppe_new, ptcl_elems_new);
-  
-          //MTVs ptcl_info_new;
-          //CreateViews<device_type, PerfTypes>(ptcl_info_new,num_new_ptcls);
-
-          Kokkos::Timer rebuild_timer;
-          ptcls->rebuild(new_elms, ptcl_elems_new,NULL);
-          float rebuild_time = rebuild_timer.seconds();
-          pumipic::RecordTime(name.c_str(), rebuild_time);
-        }
-        else{
+//        if(new_ptcls){
+//          Kokkos::Timer rebuild_timer;
+//          ptcls->rebuild(new_elms, ptcl_elems_new,NULL);
+//          float rebuild_time = rebuild_timer.seconds();
+//          pumipic::RecordTime(name.c_str(), rebuild_time);
+//        }
+       // else{
           Kokkos::Timer rebuild_timer;
           ptcls->rebuild(new_elms);
           float rebuild_time = rebuild_timer.seconds();
           pumipic::RecordTime(name.c_str(), rebuild_time);
-        }
+        //}
       }
     }
 

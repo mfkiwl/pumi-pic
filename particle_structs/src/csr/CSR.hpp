@@ -205,21 +205,31 @@ namespace pumipic {
     fn_d = &fn;
 #endif
     const lid_t league_size = num_elems;
-    const lid_t team_size = 32;  //hack
+    const lid_t team_size = 64;  //hack
+    //const PolicyType policy(league_size, team_size);
     const PolicyType policy(league_size, team_size);
     auto offsets_cpy = offsets;
     const lid_t mask = 1; //all particles are active
+    kkLidView loopCount("loopCount", league_size*team_size);
     Kokkos::parallel_for(name, policy,
         KOKKOS_LAMBDA(const typename PolicyType::member_type& thread) {
+
         const lid_t elm = thread.league_rank();
         const lid_t start = offsets_cpy(elm);
         const lid_t end = offsets_cpy(elm+1);
         const lid_t numPtcls = end-start;
         Kokkos::parallel_for(Kokkos::TeamThreadRange(thread, numPtcls), [=] (lid_t& j) {
+          const int lr = thread.league_rank();
+          const int tr = thread.team_rank();
+          const int gr = lr * team_size + tr;
+          printf("gr %4d lr %4d tr %4d loop %4d\n", gr, lr, tr, j);
+          Kokkos::atomic_increment(&loopCount(gr));
           const lid_t particle_id = start+j;
           (*fn_d)(elm, particle_id, mask);
         });
     });
+    //printf("#####################################\n");
+    printView(loopCount);
   }
 
   template <class DataTypes, typename MemSpace>

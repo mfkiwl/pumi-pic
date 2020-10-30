@@ -43,9 +43,6 @@ int main(int argc, char* argv[]) {
     delete [] ppe_host;
     delete [] ids;
 
-    printView(ppe);
-
-
     /* Create particle structure */
     ParticleStructures structures;
     if(argc == 5){
@@ -109,7 +106,7 @@ int main(int argc, char* argv[]) {
                                           createCSR(num_elems, num_ptcls, ppe, element_gids)));
     }
 
-    const int ITERS = 100;
+    const int ITERS = 1;
     printf("Performing %d iterations of pseudo-push on each structure\n", ITERS);
     /* Perform pseudo-push on particle structures */
     for (int i = 0; i < structures.size(); ++i) {
