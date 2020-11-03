@@ -156,7 +156,7 @@ int main(int argc, char* argv[]) {
 
         Kokkos::Timer pseudo_push_timer;
         /* Begin push operations */
-        ps::parallel_for(ptcls,pseudoPush,"pseudo push"); 
+        ps::parallel_for(ptcls,pseudoPush,256,"pseudo push"); 
         /* End push */
         float pseudo_push_time = pseudo_push_timer.seconds();
         pumipic::RecordTime(name.c_str(), pseudo_push_time);
