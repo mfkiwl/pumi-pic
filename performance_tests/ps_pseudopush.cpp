@@ -113,7 +113,7 @@ int main(int argc, char* argv[]) {
                                           createCSR(num_elems, num_ptcls, ppe, element_gids)));
     }
 
-    const int ITERS = 1;
+    const int ITERS = 100;
     printf("Performing %d iterations of pseudo-push on each structure\n", ITERS);
     /* Perform pseudo-push on particle structures */
     for (int i = 0; i < structures.size(); ++i) {
