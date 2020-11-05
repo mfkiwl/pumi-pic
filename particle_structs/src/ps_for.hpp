@@ -22,7 +22,7 @@ namespace pumipic {
 
   template <typename FunctionType, typename DataTypes, typename MemSpace>
   void parallel_for(ParticleStructure<DataTypes, MemSpace>* ps, FunctionType& fn,
-                    lid_t team_size, std::string s ) {
+                    lid_t team_size, std::string s="" ) {
     SellCSigma<DataTypes, MemSpace>* scs = dynamic_cast<SellCSigma<DataTypes, MemSpace>*>(ps);
     if (scs) {
       scs->parallel_for(fn, s);

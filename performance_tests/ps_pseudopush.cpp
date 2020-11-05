@@ -12,19 +12,28 @@ int main(int argc, char* argv[]) {
 
   /* Check commandline arguments */
   int test_num;
-  if(argc == 5){
+  int team_size;
+  if(argc > 4){
     test_num = atoi(argv[4]);
   }
-  else if (argc != 4) {
-    fprintf(stderr, "Usage: %s <num elems> <num ptcls> <distribution> <optional: test_num>\n",
+  if(argc > 5){
+    team_size = atoi(argv[5]);
+  }
+  else{
+    team_size = 256;
+  }
+
+  if (argc < 4 || argc > 6) {
+    fprintf(stderr, "Usage: %s <num elems> <num ptcls> <distribution> <optional: test_num> <optional: team_size>\n",
             argv[0]);
   }
 
-  fprintf(stderr, "Test Command:\n %s %s %s %s ", argv[0], argv[1], argv[2], argv[3]);
-  if(argc == 5)
-    fprintf(stderr, "%s\n", argv[4]);
-  else
-    fprintf(stderr, "\n");
+  fprintf(stderr, "Test Command:\n %s %s %s %s", argv[0], argv[1], argv[2], argv[3]);
+  if(argc > 4)
+    fprintf(stderr, " %s", argv[4]);
+  if(argc > 5)
+    fprintf(stderr, " %s", argv[5]);
+  fprintf(stderr, "\n");
 
   /* Enable timing on every process */
   pumipic::SetTimingVerbosity(0);
@@ -45,7 +54,7 @@ int main(int argc, char* argv[]) {
 
     /* Create particle structure */
     ParticleStructures structures;
-    if(argc == 5){
+    if(argc > 4){
       switch(test_num){
         case 0:
           structures.push_back(std::make_pair("Sell-32-ne",
@@ -156,7 +165,7 @@ int main(int argc, char* argv[]) {
 
         Kokkos::Timer pseudo_push_timer;
         /* Begin push operations */
-        ps::parallel_for(ptcls,pseudoPush,256,"pseudo push"); 
+        ps::parallel_for(ptcls,pseudoPush,team_size,"pseudo push"); 
         /* End push */
         float pseudo_push_time = pseudo_push_timer.seconds();
         pumipic::RecordTime(name.c_str(), pseudo_push_time);
