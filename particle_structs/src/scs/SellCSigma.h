@@ -496,11 +496,11 @@ void SellCSigma<DataTypes, MemSpace>::parallel_for(FunctionType& fn, std::string
   auto particle_mask_cpy = particle_mask;
   Kokkos::parallel_for(name, policy,
                        KOKKOS_LAMBDA(const typename PolicyType::member_type& thread) {
-    const lid_t slice = thread.league_rank();
-    const lid_t slice_row = thread.team_rank();
-    const lid_t rowLen = (offsets_cpy(slice+1)-offsets_cpy(slice))/team_size;
-    const lid_t start = offsets_cpy(slice) + slice_row;
     Kokkos::parallel_for(Kokkos::TeamThreadRange(thread, team_size), [=] (lid_t& j) {
+      const lid_t slice = thread.league_rank();
+      const lid_t rowLen = (offsets_cpy(slice+1)-offsets_cpy(slice))/team_size;
+      const lid_t slice_row = j; //thread.team_rank();
+      const lid_t start = offsets_cpy(slice) + slice_row;
       const lid_t row = slice_to_chunk_cpy(slice) * team_size + slice_row;
       const lid_t element_id = row_to_element_cpy(row);
       Kokkos::parallel_for(Kokkos::ThreadVectorRange(thread, rowLen), [&] (lid_t& p) {
