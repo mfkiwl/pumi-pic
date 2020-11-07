@@ -66,7 +66,7 @@ int main(int argc, char* argv[]) {
 
     /* Create particle structure */
     ParticleStructures structures;
-    if(test_num%2 == 0){ //0 or 2
+    if(test_num % 2 == 0){ //0 or 2
       structures.push_back(std::make_pair("Sell-"+std::to_string(team_size)+"-ne",
                                       createSCS(num_elems, num_ptcls, ppe, element_gids,
                                                 team_size, num_elems, vert_slice, "Sell-"+std::to_string(team_size)+"-ne")));
@@ -75,6 +75,7 @@ int main(int argc, char* argv[]) {
       structures.push_back(std::make_pair("CSR",
                                       createCSR(num_elems, num_ptcls, ppe, element_gids)));
     }
+
     const int ITERS = 100;
     printf("Performing %d iterations of rebuild on each structure\n", ITERS);
     /* Perform push & rebuild on the particle structures */
@@ -122,7 +123,7 @@ int main(int argc, char* argv[]) {
         ps::parallel_for(ptcls,pseudoPush,team_size,"pseudo push"); 
         /* End push */
         float pseudo_push_time = pseudo_push_timer.seconds();
-        pumipic::RecordTime(name+" push", pseudo_push_time);
+        pumipic::RecordTime(name+" pseudo-push", pseudo_push_time);
       }
       
       printf("Beginning rebuild on structure %s\n", name.c_str());
