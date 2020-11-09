@@ -74,6 +74,7 @@ int main(int argc, char* argv[]) {
     if(test_num > 0){ //1 or 2
       structures.push_back(std::make_pair("CSR",
                                       createCSR(num_elems, num_ptcls, ppe, element_gids)));
+      structures.back().second->setTeamSize(team_size);
     }
 
     const int ITERS = 100;
@@ -120,7 +121,7 @@ int main(int argc, char* argv[]) {
 
         Kokkos::Timer pseudo_push_timer;
         /* Begin push operations */
-        ps::parallel_for(ptcls,pseudoPush,team_size,"pseudo push"); 
+        ps::parallel_for(ptcls,pseudoPush,"pseudo push"); 
         /* End push */
         float pseudo_push_time = pseudo_push_timer.seconds();
         pumipic::RecordTime(name+" pseudo-push", pseudo_push_time);

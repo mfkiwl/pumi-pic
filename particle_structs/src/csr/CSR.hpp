@@ -70,6 +70,9 @@ namespace pumipic {
     kkLidView getOffsets() { return offsets; }
     MTVs getPtcl_data() { return ptcl_data; }
     lid_t getCapacity() { return capacity_; }
+    lid_t getTeamSize() const { return team_size_; }
+
+    void setTeamSize(lid_t size) { team_size_ = size; } 
 
     void migrate(kkLidView new_element, kkLidView new_process,
                  Distributor<MemSpace> dist = Distributor<MemSpace>(),
@@ -134,6 +137,9 @@ namespace pumipic {
 
     //Offsets array into CSR
     kkLidView offsets;
+
+    //Team Size specification
+    lid_t team_size_; 
   };
 
 
@@ -153,6 +159,8 @@ namespace pumipic {
     num_ptcls = num_particles;
     int comm_rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &comm_rank);
+    
+    team_size_ = 32; //Default value for now
 
     if(!comm_rank)
       fprintf(stderr, "Building CSR\n");
@@ -209,7 +217,7 @@ namespace pumipic {
     fn_d = &fn;
 #endif
     const lid_t league_size = num_elems;
-    const lid_t team_size = 32;  //hack
+    const lid_t team_size = team_size_;  //hack
     const PolicyType policy(league_size, team_size);
     auto offsets_cpy = offsets;
     const lid_t mask = 1; //all particles are active
