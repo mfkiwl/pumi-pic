@@ -269,11 +269,11 @@ namespace pumipic {
         const lid_t end = offsets_cpy(elm+1);
         const lid_t numPtcls = end-start;
         Kokkos::parallel_for(Kokkos::TeamThreadRange(thread, numPtcls), [=] (lid_t& j) {
-          const int lr = thread.league_rank();
-          const int tr = thread.team_rank();
-          const int gr = lr * team_size + tr;
+          //const int lr = thread.league_rank();
+          //const int tr = thread.team_rank();
+          //const int gr = lr * team_size + tr;
           //printf("gr %4d lr %4d tr %4d loop %4d\n", gr, lr, tr, j);
-          Kokkos::atomic_increment(&loopCount(gr));
+          //Kokkos::atomic_increment(&loopCount(gr));
           const lid_t particle_id = start+j;
           (*fn_d)(elm, particle_id, mask);
         });
