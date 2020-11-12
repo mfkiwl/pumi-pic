@@ -9,12 +9,11 @@ namespace {
   // print the contents of a view for debugging
   template <typename ppView>
   void printView(ppView v){
-      //printf("view: %s\n", v.label().c_str());
-      Kokkos::parallel_for("print_view",
-          v.size(),
-          KOKKOS_LAMBDA (const int& i) {
-            printf("%d %d\n", i, v(i));
-      });
+      //Copy view to host and then print in serial
+      auto view = pumipic::deviceToHost(v);
+      for(unsigned int i = 0; i < view.size(); i++){
+        printf("%d\t %d\n", i, view(i));
+      }
   }
 
   //helper function for rebuild to determine how much space to allocate
