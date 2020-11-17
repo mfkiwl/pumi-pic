@@ -13,4 +13,6 @@ make_test(ps_pseudopush ps_pseudopush.cpp)
 
 make_test(ps_combo ps_combo.cpp)
 
+make_test(dist_detect dist_detection.cpp)
+
 bob_end_subdir()
