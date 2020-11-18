@@ -31,14 +31,17 @@ int main(int argc, char* argv[]){
     },max_reducer); 
     
     // Average
-    int sum;
-    Kokkos::Sum<int> sum_reducer(sum);
-    Kokkos::parallel_reduce("Sum Reduce", size, KOKKOS_LAMBDA(const int& i, int& lsum){
-      sum_reducer.join(lsum, ppe[i]); 
-    },sum_reducer); 
-    double mean = sum/size;
+    //int sum;
+    //Kokkos::Sum<int> sum_reducer(sum);
+    //Kokkos::parallel_reduce("Sum Reduce", size, KOKKOS_LAMBDA(const int& i, int& lsum){
+    //  sum_reducer.join(lsum, ppe[i]); 
+    //},sum_reducer); 
+    //double mean = sum/size;
+    
+    //double mean = num_ptcls/((double)num_elems);
 
-    double ratio = max/mean;
+    double ratio = max*num_elems/num_ptcls;
+
     if(ratio < 1.2) printf("Distribution is uniform\n");
     else if (ratio < 4) printf("Distribution is Gaussian\n");
     else printf("Distribution is skewed\n");

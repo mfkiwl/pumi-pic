@@ -19,6 +19,22 @@
 #include <thrust/device_ptr.h>
 #endif
 #include <ppTiming.hpp>
+
+namespace {
+  //find max element in view
+  //helper fnc here bc unable to use p_for in SCS::construct()
+  template <typename ppView>
+  int findMax(ppView v){
+    int max;
+    Kokkos::Max<int> max_reducer(max);
+    Kokkos::parallel_reduce("Max Reduce", v.size(), PS_LAMBDA(const int& i, int& lmax){
+      max_reducer.join(lmax, v(i));
+    },max_reducer);
+
+    return max;
+  }
+}
+
 namespace pumipic {
 
 void enable_prebarrier();
@@ -240,7 +256,30 @@ void SellCSigma<DataTypes, MemSpace>::construct(kkLidView ptcls_per_elem,
   int comm_rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &comm_rank);
 
-  C_max = policy.team_size();
+  //Optimized chunk selection based off of ppe distribution
+  //Max value
+  //Move to helper function
+  double size = num_elems;
+  lid_t max = findMax(ptcls_per_elem);
+  // Average
+  double ratio = max*size/num_ptcls; 
+
+  if(ratio < 1.2){ //Uniform
+    C_max = 512;
+    V_ = 64;
+  }
+  else if(ratio < 4.0){ //Gaussian
+    C_max = 512;
+    V_ = 256;
+  }
+  else{ //Skewed
+    C_max = 16;
+    V_ = 64;
+  }
+  //printf("Ratio: %f\n", ratio);
+
+  //C_max = policy.team_size();
+
   C_ = chooseChunkHeight(C_max, ptcls_per_elem);
 
   if(!comm_rank)
@@ -299,6 +338,9 @@ SellCSigma<DataTypes, MemSpace>::SellCSigma(PolicyType& p, lid_t sig, lid_t v, l
   shuffle_padding = 0.0;
   extra_padding = 0.1;
   pad_strat = PAD_EVENLY;
+
+
+  printf("Construct\n");
   construct(ptcls_per_elem, element_gids, particle_elements, particle_info);
 }
 
