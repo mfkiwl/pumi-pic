@@ -21,6 +21,7 @@ int main(int argc, char* argv[]) {
   int num_elems = atoi(argv[1]);
   int num_ptcls = atoi(argv[2]);
   int strat = atoi(argv[3]);
+  bool optimal = false;
 
   //Optional arguments specified with flags
   for(int i = 4; i < argc; i+=2){
@@ -39,6 +40,10 @@ int main(int argc, char* argv[]) {
     // -v = vertical slicing
     else if(std::string(argv[i]) == "-v"){
       vert_slice = atoi(argv[i+1]);
+    }
+    else if(std::string(argv[i]) == "--optimal"){
+      optimal = true;
+      i--;
     }
     else{
       fprintf(stderr, "Illegal argument: %s", argv[i]);
@@ -75,6 +80,8 @@ int main(int argc, char* argv[]) {
       structures.push_back(std::make_pair("CSR",
                                       createCSR(num_elems, num_ptcls, ppe, element_gids)));
       structures.back().second->setTeamSize(team_size);
+      if(optimal) //CSR optimal push may be 256 need to look a little closer still
+        structures.back().second->setTeamSize(512);
     }
 
     const int ITERS = 100;
