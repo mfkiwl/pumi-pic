@@ -20,7 +20,7 @@ int main(int argc, char* argv[]) {
     team_size = atoi(argv[5]);
   }
   else{
-    team_size = 256;
+    team_size = 512;
   }
 
   if (argc < 4 || argc > 6) {
@@ -44,13 +44,15 @@ int main(int argc, char* argv[]) {
     int num_ptcls = atoi(argv[2]);
     int strat = atoi(argv[3]);
     kkLidView ppe("ptcls_per_elem", num_elems);
+    kkLidView ptcl_elems("ptcl_elems",num_ptcls);
     kkGidView element_gids("",0);
-    int* ppe_host = new int[num_elems];
-    std::vector<int>* ids = new std::vector<int>[num_elems];
-    distribute_particles(num_elems, num_ptcls, strat, ppe_host, ids);
-    pumipic::hostToDevice(ppe, ppe_host);
-    delete [] ppe_host;
-    delete [] ids;
+    //int* ppe_host = new int[num_elems];
+    //std::vector<int>* ids = new std::vector<int>[num_elems];
+    distribute_particles(num_elems, num_ptcls, strat, ppe, ptcl_elems,.1);
+    //pumipic::hostToDevice(ppe, ppe_host);
+    //delete [] ppe_host;
+    //delete [] ids;
+    printView(ppe);
 
     /* Create particle structure */
     ParticleStructures structures;
@@ -89,10 +91,12 @@ int main(int argc, char* argv[]) {
         case 6:
           structures.push_back(std::make_pair("CSR",
                                           createCSR(num_elems, num_ptcls, ppe, element_gids)));
+          structures.back().second->setTeamSize(512);
           break;
         case 7:
           structures.push_back(std::make_pair("CSR",
                                           createCSR(num_elems, num_ptcls, ppe, element_gids)));
+          structures.back().second->setTeamSize(512);
           structures.push_back(std::make_pair("Sell-32-ne",
                                           createSCS(num_elems, num_ptcls, ppe, element_gids,
                                           32, num_elems, 1024)));
@@ -123,12 +127,12 @@ int main(int argc, char* argv[]) {
     }
 
     const int ITERS = 100;
-    printf("Performing %d iterations of pseudo-push on each structure\n", ITERS);
+    fprintf(stderr,"Performing %d iterations of pseudo-push on each structure\n", ITERS);
     /* Perform pseudo-push on particle structures */
     for (int i = 0; i < structures.size(); ++i) {
       std::string name = structures[i].first;
       PS* ptcls = structures[i].second;
-      printf("Beginning pseudo-push on structure %s\n", name.c_str());
+      fprintf(stderr,"Beginning pseudo-push on structure %s\n", name.c_str());
       
       for (int i = 0; i < ITERS; ++i) {
         /* Begin Push Setup */
@@ -176,7 +180,8 @@ int main(int argc, char* argv[]) {
       delete structures[i].second;
     structures.clear();
   }
-
+  
+  cleanup_distribution_memory();
   pumipic::SummarizeTime();
   Kokkos::finalize();
   return 0;

@@ -22,6 +22,7 @@ int main(int argc, char* argv[]) {
   int num_ptcls = atoi(argv[2]);
   int strat = atoi(argv[3]);
   bool optimal = false;
+  float param = .01;
 
   //Optional arguments specified with flags
   for(int i = 4; i < argc; i+=2){
@@ -45,6 +46,9 @@ int main(int argc, char* argv[]) {
       optimal = true;
       i--;
     }
+    else if(std::string(argv[i]) == "-r"){
+      param = atoi(argv[i+1]);
+    }
     else{
       fprintf(stderr, "Illegal argument: %s", argv[i]);
       // insert usage statement
@@ -67,11 +71,15 @@ int main(int argc, char* argv[]) {
     kkLidView ptcl_elems("ptcl_elems", num_ptcls);
     kkGidView element_gids("",0);
     printf("Generating particle distribution with strategy: %s\n", distribute_name(strat));
-    distribute_particles(num_elems, num_ptcls, strat, ppe, ptcl_elems);
+    distribute_particles(num_elems, num_ptcls, strat, ppe, ptcl_elems,param);
+    printView(ppe);
 
     /* Create particle structure */
     ParticleStructures structures;
     if(test_num % 2 == 0){ //0 or 2
+      //note distribution detection is on so team_size has no impace and labels the output possibly wrong
+      if(strat == 3)
+        team_size = 16;
       structures.push_back(std::make_pair("Sell-"+std::to_string(team_size)+"-ne",
                                       createSCS(num_elems, num_ptcls, ppe, element_gids,
                                                 team_size, num_elems, vert_slice, "Sell-"+std::to_string(team_size)+"-ne")));
@@ -85,12 +93,12 @@ int main(int argc, char* argv[]) {
     }
 
     const int ITERS = 100;
-    printf("Performing %d iterations of rebuild on each structure\n", ITERS);
+    fprintf(stderr,"Performing %d iterations of combo on each structure\n", ITERS);
     /* Perform push & rebuild on the particle structures */
     for (int i = 0; i < structures.size(); ++i) {
       std::string name = structures[i].first;
       PS* ptcls = structures[i].second;
-      printf("Beginning push on structure %s\n", name.c_str());
+      fprintf(stderr,"Beginning push on structure %s\n", name.c_str());
 
       //Per element data to access in pseudoPush
       Kokkos::View<double*> parentElmData("parentElmData", ptcls->nElems());
@@ -99,7 +107,6 @@ int main(int argc, char* argv[]) {
         parentElmData(e) = sqrt(e) * e;
       });
 
-      for (int i = 0; i < ITERS; ++i) {
         /* Begin Push Setup */
 
         auto nums = ptcls->get<0>();
@@ -126,22 +133,25 @@ int main(int argc, char* argv[]) {
           }
         };
 
+      for (int i = 0; i < ITERS; ++i) {
+
         Kokkos::Timer pseudo_push_timer;
         /* Begin push operations */
         ps::parallel_for(ptcls,pseudoPush,"pseudo push"); 
         /* End push */
         float pseudo_push_time = pseudo_push_timer.seconds();
         pumipic::RecordTime(name+" pseudo-push", pseudo_push_time);
+        //fprintf(stderr, "Iter: %d\n", i);
       }
       
-      printf("Beginning rebuild on structure %s\n", name.c_str());
-      for (int i = 0; i < ITERS; ++i) {
-        kkLidView new_elms("new elems", ptcls->capacity());
-        Kokkos::Timer t;
-        redistribute_particles(ptcls, strat, percentMoved, new_elms);
-        pumipic::RecordTime("redistribute", t.seconds());
-        ptcls->rebuild(new_elms);
-      }
+//      printf("Beginning rebuild on structure %s\n", name.c_str());
+//      for (int i = 0; i < ITERS; ++i) {
+//        kkLidView new_elms("new elems", ptcls->capacity());
+//        Kokkos::Timer t;
+//        redistribute_particles(ptcls, strat, percentMoved, new_elms);
+//        pumipic::RecordTime("redistribute", t.seconds());
+//        ptcls->rebuild(new_elms);
+//      }
 
     } //end loop over structures
 
