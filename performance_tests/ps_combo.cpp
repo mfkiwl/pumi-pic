@@ -78,8 +78,7 @@ int main(int argc, char* argv[]) {
     ParticleStructures structures;
     if(test_num % 2 == 0){ //0 or 2
       //note distribution detection is on so team_size has no impace and labels the output possibly wrong
-      if(strat == 3)
-        team_size = 16;
+      if(strat == 3)  team_size = 512;
       structures.push_back(std::make_pair("Sell-"+std::to_string(team_size)+"-ne",
                                       createSCS(num_elems, num_ptcls, ppe, element_gids,
                                                 team_size, num_elems, vert_slice, "Sell-"+std::to_string(team_size)+"-ne")));

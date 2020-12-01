@@ -271,11 +271,10 @@ void SellCSigma<DataTypes, MemSpace>::construct(kkLidView ptcls_per_elem,
     V_ = 256;
   }
   else{ //Skewed
-    C_max = 16;
-    V_ = 64;
+    C_max = 512;
+    V_ = 32;
   }
   //printf("Ratio: %f\n", ratio);
-
   //C_max = policy.team_size();
 
   C_ = chooseChunkHeight(C_max, ptcls_per_elem);
