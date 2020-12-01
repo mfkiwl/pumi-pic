@@ -256,9 +256,7 @@ void SellCSigma<DataTypes, MemSpace>::construct(kkLidView ptcls_per_elem,
   int comm_rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &comm_rank);
 
-  //Optimized chunk selection based off of ppe distribution
-  //Max value
-  //Move to helper function
+  //Distribution detection and optimization
   double size = num_elems;
   lid_t max = findMax(ptcls_per_elem);
   // Average

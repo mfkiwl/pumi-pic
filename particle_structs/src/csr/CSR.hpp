@@ -159,7 +159,7 @@ namespace pumipic {
     int comm_rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &comm_rank);
     
-    team_size_ = 32; //Default value for now
+    team_size_ = 512; //Default value for now
 
     if(!comm_rank)
       fprintf(stderr, "Building CSR\n");
@@ -184,8 +184,6 @@ namespace pumipic {
       initCsrData(particle_elements, particle_info);
     }
 
-    //if(!comm_rank)
-    //  fprintf(stderr, "Building CSR done\n");
     Kokkos::Profiling::popRegion();
   }
 
