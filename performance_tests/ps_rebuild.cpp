@@ -160,7 +160,6 @@ int main(int argc, char* argv[]) {
     structures.clear();
   }
 
-  cleanup_distribution_memory();
   pumipic::SummarizeTime();
   Kokkos::finalize();
   return 0;
