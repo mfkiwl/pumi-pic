@@ -7,18 +7,34 @@
 #include <mpi.h>
 #include <unordered_map>
 #include <climits>
-#include <particle_structure.hpp>
 #include <ppAssert.h>
 #include <Kokkos_UnorderedMap.hpp>
 #include <Kokkos_Pair.hpp>
 #include <Kokkos_Sort.hpp>
 #include "SCSPair.h"
 #include "scs_input.hpp"
+#include <particle_structs.hpp>
 #ifdef PP_USE_CUDA
 #include <thrust/sort.h>
 #include <thrust/device_ptr.h>
 #endif
 #include <ppTiming.hpp>
+
+namespace {
+  //find max element in view
+  //helper fnc here bc unable to use p_for in SCS::construct()
+  template <typename ppView>
+  int findMax(ppView v){
+    int max;
+    Kokkos::Max<int> max_reducer(max);
+    Kokkos::parallel_reduce("Max Reduce", v.size(), PS_LAMBDA(const int& i, int& lmax){
+      max_reducer.join(lmax, v(i));
+    },max_reducer);
+
+    return max;
+  }
+}
+
 namespace pumipic {
 
 void enable_prebarrier();
@@ -88,6 +104,9 @@ template <std::size_t N> using Slice = Segment<DataType<N>, device_type>;
   lid_t C() const {return C_;}
   //Returns the vertical slicing(V)
   lid_t V() const {return V_;}
+
+  lid_t getTeamSize() const { return C_; }
+  void setTeamSize(lid_t size) {}
 
 
   //Change whether or not to try shuffling
@@ -237,7 +256,27 @@ void SellCSigma<DataTypes, MemSpace>::construct(kkLidView ptcls_per_elem,
   int comm_rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &comm_rank);
 
-  C_max = policy.team_size();
+  //Distribution detection and optimization
+  double size = num_elems;
+  lid_t max = findMax(ptcls_per_elem);
+  // Average
+  double ratio = max*size/num_ptcls; 
+
+  if(ratio < 1.2){ //Uniform
+    C_max = 512;
+    V_ = 64;
+  }
+  else if(ratio < 4.0){ //Gaussian
+    C_max = 512;
+    V_ = 256;
+  }
+  else{ //Skewed
+    C_max = 512;
+    V_ = 32;
+  }
+  //printf("Ratio: %f\n", ratio);
+  //C_max = policy.team_size();
+
   C_ = chooseChunkHeight(C_max, ptcls_per_elem);
 
   if(!comm_rank)
@@ -296,6 +335,9 @@ SellCSigma<DataTypes, MemSpace>::SellCSigma(PolicyType& p, lid_t sig, lid_t v, l
   shuffle_padding = 0.0;
   extra_padding = 0.1;
   pad_strat = PAD_EVENLY;
+
+
+  printf("Construct\n");
   construct(ptcls_per_elem, element_gids, particle_elements, particle_info);
 }
 
@@ -494,13 +536,14 @@ void SellCSigma<DataTypes, MemSpace>::parallel_for(FunctionType& fn, std::string
   auto slice_to_chunk_cpy = slice_to_chunk;
   auto row_to_element_cpy = row_to_element;
   auto particle_mask_cpy = particle_mask;
+  /*
   Kokkos::parallel_for(name, policy,
                        KOKKOS_LAMBDA(const typename PolicyType::member_type& thread) {
-    const lid_t slice = thread.league_rank();
-    const lid_t slice_row = thread.team_rank();
-    const lid_t rowLen = (offsets_cpy(slice+1)-offsets_cpy(slice))/team_size;
-    const lid_t start = offsets_cpy(slice) + slice_row;
     Kokkos::parallel_for(Kokkos::TeamThreadRange(thread, team_size), [=] (lid_t& j) {
+      const lid_t slice = thread.league_rank();
+      const lid_t rowLen = (offsets_cpy(slice+1)-offsets_cpy(slice))/team_size;
+      const lid_t slice_row = j; //thread.team_rank();
+      const lid_t start = offsets_cpy(slice) + slice_row;
       const lid_t row = slice_to_chunk_cpy(slice) * team_size + slice_row;
       const lid_t element_id = row_to_element_cpy(row);
       Kokkos::parallel_for(Kokkos::ThreadVectorRange(thread, rowLen), [&] (lid_t& p) {
@@ -510,7 +553,44 @@ void SellCSigma<DataTypes, MemSpace>::parallel_for(FunctionType& fn, std::string
       });
     });
   });
-}
+  */
+  
+  Kokkos::parallel_for(name, policy,
+  KOKKOS_LAMBDA(const typename PolicyType::member_type& thread) {
+     const lid_t slice = thread.league_rank();
+     const lid_t slice_row = thread.team_rank();
+     const lid_t rowLen = (offsets_cpy(slice+1)-offsets_cpy(slice))/team_size;
+     const lid_t start = offsets_cpy(slice) + slice_row;
+     Kokkos::parallel_for(Kokkos::TeamThreadRange(thread, team_size), [=] (lid_t& j) {
+         const lid_t row = slice_to_chunk_cpy(slice) * team_size + slice_row;
+         const lid_t element_id = row_to_element_cpy(row);
+         Kokkos::parallel_for(Kokkos::ThreadVectorRange(thread, rowLen), [&] (lid_t& p) {
+           const lid_t particle_id = start+(p*team_size);
+           const lid_t mask = particle_mask_cpy[particle_id];
+           (*fn_d)(element_id, particle_id, mask);
+         });
+     });
+   });
+   
+   /*
+   Kokkos::parallel_for(name, policy,
+                       KOKKOS_LAMBDA(const typename PolicyType::member_type& thread) {
+     const lid_t slice = thread.league_rank();
+     const lid_t rowLen = (offsets_cpy(slice+1)-offsets_cpy(slice))/team_size;
+     Kokkos::parallel_for(Kokkos::TeamThreadRange(thread, team_size), [=] (lid_t& j) {
+       const lid_t slice_row = j; //thread.team_rank();
+       const lid_t start = offsets_cpy(slice) + slice_row;
+       const lid_t row = slice_to_chunk_cpy(slice) * team_size + slice_row;
+       const lid_t element_id = row_to_element_cpy(row);
+       Kokkos::parallel_for(Kokkos::ThreadVectorRange(thread, rowLen), [&] (lid_t& p) {
+         const lid_t particle_id = start+(p*team_size);
+         const lid_t mask = particle_mask_cpy[particle_id];
+         (*fn_d)(element_id, particle_id, mask);
+       });
+    });
+  });
+  */
+} // end parallel_for
 
 } // end namespace pumipic
 
