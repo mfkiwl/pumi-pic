@@ -108,6 +108,8 @@ template <std::size_t N> using Slice = Segment<DataType<N>, device_type>;
   lid_t getTeamSize() const { return C_; }
   void setTeamSize(lid_t size) {}
 
+  size_t getMemUse();
+
 
   //Change whether or not to try shuffling
   void setShuffling(bool newS) {tryShuffling = newS;}
@@ -516,6 +518,25 @@ void SellCSigma<DataTypes, MemSpace>::printMetrics() const {
 
   printf("%s\n",buffer);
 }
+
+template<class DataTypes, typename MemSpace>
+size_t SellCSigma<DataTypes, MemSpace>::getMemUse(){
+
+  //offsets
+  size_t offsets_size = offsets.size()*sizeof(lid_t);
+
+  //ptcl_data
+  size_t data_size = (getLastValue<lid_t>(offsets)) * (sizeof(int) + 4*sizeof(double));
+  //possibly *2 for swap data
+
+  //others
+  size_t others_size = slice_to_chunk.size() + particle_mask.size() +
+                       row_to_element.size() + element_to_row.size();
+  others_size = others_size*sizeof(lid_t);
+
+  return offsets_size+data_size+others_size;
+}
+
 
 template <class DataTypes, typename MemSpace>
 template <typename FunctionType>

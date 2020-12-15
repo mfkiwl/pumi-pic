@@ -73,6 +73,8 @@ namespace pumipic {
 
     void setTeamSize(lid_t size) { team_size_ = size; } 
 
+    size_t getMemUse();
+
     void migrate(kkLidView new_element, kkLidView new_process,
                  Distributor<MemSpace> dist = Distributor<MemSpace>(),
                  kkLidView new_particle_elements = kkLidView(),
@@ -190,6 +192,16 @@ namespace pumipic {
   template <class DataTypes, typename MemSpace>
   CSR<DataTypes, MemSpace>::~CSR() {
     destroyViews<DataTypes, memory_space>(ptcl_data);
+  }
+
+  template <class DataTypes, typename MemSpace>
+  size_t CSR<DataTypes,MemSpace>::getMemUse(){
+    lid_t size = capacity_;
+    size_t data_size = sizeof(int) + 4*sizeof(double); //for performance tests
+
+    //offsets
+    size_t offsets_size = sizeof(int)*offsets.size();
+    return size*data_size + offsets_size;  
   }
 
   template <class DataTypes, typename MemSpace>

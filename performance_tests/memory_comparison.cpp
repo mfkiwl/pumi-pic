@@ -91,20 +91,7 @@ int main(int argc, char* argv[]) {
       std::string name = structures[i].first;
       PS* ptcls = structures[i].second;
 
-      fprintf(stderr,"%s\t", name.c_str());
-      
-      // Figure out the size of the major arrays in each structure (assume other data is 
-      // insignficant in total mem consumption/is O(1) )
-      if(name == "CSR"){
-        //only need size of ptcl_data = capacity*size of 1 entry
-        size_t size = ptcls->capacity() * (4*sizeof(double)+sizeof(int))/ 2^20 ;
-        fprintf(stderr,"%d\n",size);
-      }
-      else{
-        //need size of all the views
-      }
-
-
+      fprintf(stderr,"%s\t%d\n", name.c_str(),ptcls->getMemUse());
     }
     
 

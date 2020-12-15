@@ -55,6 +55,8 @@ namespace pumipic {
     virtual void setTeamSize(lid_t size) = 0;
     virtual lid_t getTeamSize() const = 0;
 
+    //memory use functions
+    virtual size_t getMemUse() = 0;
 
     virtual void rebuild(kkLidView new_element, kkLidView new_particle_elements = kkLidView(),
                          MTVs new_particle_info = NULL) = 0;
