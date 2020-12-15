@@ -15,4 +15,6 @@ make_test(ps_combo ps_combo.cpp)
 
 make_test(dist_detect dist_detection.cpp)
 
+make_test(memory_comparison memory_comparison.cpp)
+
 bob_end_subdir()
