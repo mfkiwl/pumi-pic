@@ -264,15 +264,15 @@ void SellCSigma<DataTypes, MemSpace>::construct(kkLidView ptcls_per_elem,
 
   if(ratio < 1.2){ //Uniform
     C_max = 512;
-    V_ = 64;
+    V_ = 8;
   }
   else if(ratio < 4.0){ //Gaussian
     C_max = 512;
-    V_ = 256;
+    V_ = 4;
   }
   else{ //Skewed
-    C_max = 512;
-    V_ = 32;
+    C_max = 128;
+    V_ = 8;
   }
   //printf("Ratio: %f\n", ratio);
   //C_max = policy.team_size();
